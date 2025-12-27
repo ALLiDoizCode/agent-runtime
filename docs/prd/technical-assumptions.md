@@ -3,6 +3,7 @@
 ## Repository Structure: Monorepo
 
 The project will use a **monorepo** structure managed with npm workspaces (or similar tooling) containing:
+
 - `packages/connector` - ILP connector implementation with BTP plugin
 - `packages/dashboard` - React-based visualization UI
 - `packages/shared` - Shared TypeScript types, utilities, and ILP packet definitions
@@ -14,6 +15,7 @@ The project will use a **monorepo** structure managed with npm workspaces (or si
 ## Service Architecture
 
 **Microservices architecture within Docker containers:**
+
 - **Connector nodes:** Multiple identical containers (one per ILP connector), each running independently
 - **Dashboard service:** Single container serving the React UI and WebSocket server for telemetry aggregation
 - **No shared database:** Each connector maintains in-memory state (routing tables, peer connections)
@@ -27,6 +29,7 @@ The project will use a **monorepo** structure managed with npm workspaces (or si
 ## Testing Requirements
 
 **Unit + Integration testing with manual testing convenience methods:**
+
 - **Unit tests:** Jest for core ILP packet handling, routing logic, BTP message parsing (target 80% coverage per NFR8)
 - **Integration tests:** Test multi-connector packet forwarding scenarios using Docker Compose test configurations
 - **Manual testing utilities:** CLI tools for sending test packets, inspecting routing tables, and triggering specific scenarios

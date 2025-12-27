@@ -1,0 +1,780 @@
+/**
+ * Unit tests for PacketHandler
+ * @packageDocumentation
+ */
+
+import { PacketHandler } from './packet-handler';
+import { RoutingTable } from '../routing/routing-table';
+import {
+  ILPPreparePacket,
+  ILPErrorCode,
+  PacketType,
+  ILPRejectPacket,
+  ILPFulfillPacket,
+} from '@m2m/shared';
+import { Logger } from '../utils/logger';
+import { BTPClientManager } from '../btp/btp-client-manager';
+
+/**
+ * Mock logger for testing log output without console noise
+ */
+const createMockLogger = (): jest.Mocked<Logger> =>
+  ({
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    fatal: jest.fn(),
+    trace: jest.fn(),
+    silent: jest.fn(),
+    level: 'info',
+    child: jest.fn().mockReturnThis(),
+  }) as unknown as jest.Mocked<Logger>;
+
+/**
+ * Mock BTPClientManager for testing without real BTP connections
+ */
+const createMockBTPClientManager = (): jest.Mocked<BTPClientManager> =>
+  ({
+    addPeer: jest.fn().mockResolvedValue(undefined),
+    removePeer: jest.fn().mockResolvedValue(undefined),
+    sendToPeer: jest.fn().mockResolvedValue({
+      type: PacketType.FULFILL,
+      fulfillment: Buffer.alloc(32),
+      data: Buffer.alloc(0),
+    }),
+    getPeerStatus: jest.fn().mockReturnValue(new Map()),
+    getPeerIds: jest.fn().mockReturnValue([]),
+  }) as unknown as jest.Mocked<BTPClientManager>;
+
+/**
+ * Factory function to create valid ILP Prepare packet for testing
+ */
+const createValidPreparePacket = (overrides?: Partial<ILPPreparePacket>): ILPPreparePacket => {
+  const futureExpiry = new Date(Date.now() + 10000); // 10 seconds in future
+  return {
+    type: PacketType.PREPARE,
+    amount: BigInt(1000),
+    destination: 'g.alice.wallet',
+    executionCondition: Buffer.alloc(32), // 32-byte hash
+    expiresAt: futureExpiry,
+    data: Buffer.alloc(0),
+    ...overrides,
+  };
+};
+
+describe('PacketHandler', () => {
+  describe('Constructor', () => {
+    it('should create packet handler with required dependencies including logger', () => {
+      // Arrange
+      const routingTable = new RoutingTable();
+      const btpClientManager = createMockBTPClientManager();
+      const nodeId = 'test.connector';
+      const mockLogger = createMockLogger();
+
+      // Act
+      const handler = new PacketHandler(routingTable, btpClientManager, nodeId, mockLogger);
+
+      // Assert
+      expect(handler).toBeDefined();
+      expect(handler).toBeInstanceOf(PacketHandler);
+    });
+  });
+
+  describe('validatePacket()', () => {
+    let handler: PacketHandler;
+    let mockLogger: ReturnType<typeof createMockLogger>;
+
+    beforeEach(() => {
+      const routingTable = new RoutingTable();
+      const btpClientManager = createMockBTPClientManager();
+      mockLogger = createMockLogger();
+      handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+    });
+
+    it('should return isValid true for valid packet with all required fields', () => {
+      // Arrange
+      const validPacket = createValidPreparePacket();
+
+      // Act
+      const result = handler.validatePacket(validPacket);
+
+      // Assert
+      expect(result.isValid).toBe(true);
+      expect(result.errorCode).toBeUndefined();
+      expect(result.errorMessage).toBeUndefined();
+    });
+
+    it('should return isValid false when amount field is missing', () => {
+      // Arrange
+      const invalidPacket = createValidPreparePacket();
+      delete (invalidPacket as Partial<ILPPreparePacket>).amount;
+
+      // Act
+      const result = handler.validatePacket(invalidPacket);
+
+      // Assert
+      expect(result.isValid).toBe(false);
+      expect(result.errorCode).toBe(ILPErrorCode.F01_INVALID_PACKET);
+      expect(result.errorMessage).toBe('Missing required packet fields');
+      expect(mockLogger.error).toHaveBeenCalled();
+    });
+
+    it('should return isValid false when destination field is missing', () => {
+      // Arrange
+      const invalidPacket = createValidPreparePacket({ destination: '' });
+
+      // Act
+      const result = handler.validatePacket(invalidPacket);
+
+      // Assert
+      expect(result.isValid).toBe(false);
+      expect(result.errorCode).toBe(ILPErrorCode.F01_INVALID_PACKET);
+    });
+
+    it('should return isValid false when executionCondition field is missing', () => {
+      // Arrange
+      const invalidPacket = createValidPreparePacket();
+      delete (invalidPacket as Partial<ILPPreparePacket>).executionCondition;
+
+      // Act
+      const result = handler.validatePacket(invalidPacket);
+
+      // Assert
+      expect(result.isValid).toBe(false);
+      expect(result.errorCode).toBe(ILPErrorCode.F01_INVALID_PACKET);
+    });
+
+    it('should return isValid false when expiresAt field is missing', () => {
+      // Arrange
+      const invalidPacket = createValidPreparePacket();
+      delete (invalidPacket as Partial<ILPPreparePacket>).expiresAt;
+
+      // Act
+      const result = handler.validatePacket(invalidPacket);
+
+      // Assert
+      expect(result.isValid).toBe(false);
+      expect(result.errorCode).toBe(ILPErrorCode.F01_INVALID_PACKET);
+    });
+
+    it('should return isValid false when destination has invalid ILP address format', () => {
+      // Arrange
+      const invalidPacket = createValidPreparePacket({ destination: 'invalid..address' });
+
+      // Act
+      const result = handler.validatePacket(invalidPacket);
+
+      // Assert
+      expect(result.isValid).toBe(false);
+      expect(result.errorCode).toBe(ILPErrorCode.F01_INVALID_PACKET);
+      expect(result.errorMessage).toContain('Invalid ILP address format');
+      expect(mockLogger.error).toHaveBeenCalled();
+    });
+
+    it('should return isValid false when packet has expired (expiresAt in past)', () => {
+      // Arrange
+      const expiredTime = new Date(Date.now() - 5000); // 5 seconds ago
+      const expiredPacket = createValidPreparePacket({ expiresAt: expiredTime });
+
+      // Act
+      const result = handler.validatePacket(expiredPacket);
+
+      // Assert
+      expect(result.isValid).toBe(false);
+      expect(result.errorCode).toBe(ILPErrorCode.R00_TRANSFER_TIMED_OUT);
+      expect(result.errorMessage).toBe('Packet has expired');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expiresAt: expiredTime.toISOString(),
+          errorCode: ILPErrorCode.R00_TRANSFER_TIMED_OUT,
+        }),
+        'Packet validation failed: packet has expired'
+      );
+    });
+
+    it('should return isValid false when packet expiring within next second (edge case)', () => {
+      // Arrange
+      const nearFutureExpiry = new Date(Date.now() + 500); // 500ms in future
+      const packet = createValidPreparePacket({ expiresAt: nearFutureExpiry });
+
+      // Act - Wait a bit to ensure expiry passes
+      setTimeout(() => {
+        const result = handler.validatePacket(packet);
+
+        // Assert
+        expect(result.isValid).toBe(false);
+        expect(result.errorCode).toBe(ILPErrorCode.R00_TRANSFER_TIMED_OUT);
+      }, 600);
+    });
+
+    it('should return isValid true for packet with far-future expiry', () => {
+      // Arrange
+      const farFutureExpiry = new Date(Date.now() + 3600000); // 1 hour in future
+      const validPacket = createValidPreparePacket({ expiresAt: farFutureExpiry });
+
+      // Act
+      const result = handler.validatePacket(validPacket);
+
+      // Assert
+      expect(result.isValid).toBe(true);
+    });
+
+    it('should return isValid false when executionCondition is not 32 bytes', () => {
+      // Arrange
+      const invalidCondition = Buffer.alloc(16); // Only 16 bytes instead of 32
+      const invalidPacket = createValidPreparePacket({ executionCondition: invalidCondition });
+
+      // Act
+      const result = handler.validatePacket(invalidPacket);
+
+      // Assert
+      expect(result.isValid).toBe(false);
+      expect(result.errorCode).toBe(ILPErrorCode.F01_INVALID_PACKET);
+      expect(result.errorMessage).toContain('executionCondition must be exactly 32 bytes');
+      expect(mockLogger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('generateReject()', () => {
+    let handler: PacketHandler;
+    let mockLogger: ReturnType<typeof createMockLogger>;
+
+    beforeEach(() => {
+      const routingTable = new RoutingTable();
+      mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+    });
+
+    it('should create ILP Reject packet with T00 error code', () => {
+      // Arrange
+      const errorCode = ILPErrorCode.T00_INTERNAL_ERROR;
+      const message = 'Internal error occurred';
+      const triggeredBy = 'test.connector';
+
+      // Act
+      const reject = handler.generateReject(errorCode, message, triggeredBy);
+
+      // Assert
+      expect(reject.type).toBe(PacketType.REJECT);
+      expect(reject.code).toBe(errorCode);
+      expect(reject.message).toBe(message);
+      expect(reject.triggeredBy).toBe(triggeredBy);
+      expect(reject.data).toBeInstanceOf(Buffer);
+    });
+
+    it('should create ILP Reject packet with F02 error code', () => {
+      // Arrange
+      const errorCode = ILPErrorCode.F02_UNREACHABLE;
+      const message = 'No route to destination';
+      const triggeredBy = 'test.connector';
+
+      // Act
+      const reject = handler.generateReject(errorCode, message, triggeredBy);
+
+      // Assert
+      expect(reject.type).toBe(PacketType.REJECT);
+      expect(reject.code).toBe(ILPErrorCode.F02_UNREACHABLE);
+      expect(reject.message).toBe(message);
+    });
+
+    it('should create ILP Reject packet with R00 error code', () => {
+      // Arrange
+      const errorCode = ILPErrorCode.R00_TRANSFER_TIMED_OUT;
+      const message = 'Transfer timed out';
+      const triggeredBy = 'test.connector';
+
+      // Act
+      const reject = handler.generateReject(errorCode, message, triggeredBy);
+
+      // Assert
+      expect(reject.type).toBe(PacketType.REJECT);
+      expect(reject.code).toBe(ILPErrorCode.R00_TRANSFER_TIMED_OUT);
+    });
+
+    it('should include human-readable error message in reject packet', () => {
+      // Arrange
+      const message = 'Detailed error explanation for debugging';
+
+      // Act
+      const reject = handler.generateReject(
+        ILPErrorCode.F01_INVALID_PACKET,
+        message,
+        'test.connector'
+      );
+
+      // Assert
+      expect(reject.message).toBe(message);
+    });
+
+    it('should set triggeredBy field to connector node ID', () => {
+      // Arrange
+      const nodeId = 'g.my-connector.node1';
+      const routingTable = new RoutingTable();
+      const mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      const handlerWithNodeId = new PacketHandler(routingTable, btpClientManager, nodeId, mockLogger);
+
+      // Act
+      const reject = handlerWithNodeId.generateReject(
+        ILPErrorCode.F02_UNREACHABLE,
+        'No route',
+        nodeId
+      );
+
+      // Assert
+      expect(reject.triggeredBy).toBe(nodeId);
+    });
+
+    it('should verify reject packet type field equals PacketType.REJECT (14)', () => {
+      // Arrange & Act
+      const reject = handler.generateReject(
+        ILPErrorCode.F00_BAD_REQUEST,
+        'Bad request',
+        'test.connector'
+      );
+
+      // Assert
+      expect(reject.type).toBe(14);
+      expect(reject.type).toBe(PacketType.REJECT);
+    });
+
+    it('should log reject packet generation at INFO level', () => {
+      // Arrange
+      const errorCode = ILPErrorCode.F02_UNREACHABLE;
+      const message = 'No route found';
+      const triggeredBy = 'test.connector';
+
+      // Act
+      handler.generateReject(errorCode, message, triggeredBy);
+
+      // Assert
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        {
+          errorCode,
+          message,
+          triggeredBy,
+        },
+        'Generated reject packet'
+      );
+    });
+  });
+
+  describe('decrementExpiry()', () => {
+    let handler: PacketHandler;
+    let mockLogger: ReturnType<typeof createMockLogger>;
+
+    beforeEach(() => {
+      const routingTable = new RoutingTable();
+      mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+    });
+
+    it('should subtract 1000ms safety margin correctly', () => {
+      // Arrange
+      const originalExpiry = new Date(Date.now() + 10000); // 10 seconds from now
+      const safetyMargin = 1000;
+
+      // Act
+      const newExpiry = handler.decrementExpiry(originalExpiry, safetyMargin);
+
+      // Assert
+      expect(newExpiry).not.toBeNull();
+      expect(newExpiry!.getTime()).toBe(originalExpiry.getTime() - safetyMargin);
+    });
+
+    it('should return null if decremented expiry would be in the past', () => {
+      // Arrange
+      const nearExpiry = new Date(Date.now() + 500); // Only 500ms remaining
+      const safetyMargin = 1000; // Need to subtract 1000ms
+
+      // Act
+      const newExpiry = handler.decrementExpiry(nearExpiry, safetyMargin);
+
+      // Assert
+      expect(newExpiry).toBeNull();
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        expect.objectContaining({
+          originalExpiry: nearExpiry.toISOString(),
+        }),
+        'Expiry decrement would create past timestamp'
+      );
+    });
+
+    it('should handle custom safety margin values (500ms)', () => {
+      // Arrange
+      const originalExpiry = new Date(Date.now() + 5000);
+      const safetyMargin = 500;
+
+      // Act
+      const newExpiry = handler.decrementExpiry(originalExpiry, safetyMargin);
+
+      // Assert
+      expect(newExpiry).not.toBeNull();
+      expect(newExpiry!.getTime()).toBe(originalExpiry.getTime() - 500);
+    });
+
+    it('should handle custom safety margin values (2000ms)', () => {
+      // Arrange
+      const originalExpiry = new Date(Date.now() + 10000);
+      const safetyMargin = 2000;
+
+      // Act
+      const newExpiry = handler.decrementExpiry(originalExpiry, safetyMargin);
+
+      // Assert
+      expect(newExpiry).not.toBeNull();
+      expect(newExpiry!.getTime()).toBe(originalExpiry.getTime() - 2000);
+    });
+
+    it('should return null when packet expiring in exactly 1000ms (safety margin)', () => {
+      // Arrange
+      const exactMarginExpiry = new Date(Date.now() + 1000);
+      const safetyMargin = 1000;
+
+      // Act
+      const newExpiry = handler.decrementExpiry(exactMarginExpiry, safetyMargin);
+
+      // Assert
+      // The decremented time will be very close to current time, likely past it
+      expect(newExpiry).toBeNull();
+    });
+
+    it('should log expiry decrement at DEBUG level with timestamps', () => {
+      // Arrange
+      const originalExpiry = new Date(Date.now() + 10000);
+      const safetyMargin = 1000;
+
+      // Act
+      handler.decrementExpiry(originalExpiry, safetyMargin);
+
+      // Assert
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        expect.objectContaining({
+          originalExpiry: originalExpiry.toISOString(),
+          safetyMargin: 1000,
+        }),
+        'Decremented packet expiry'
+      );
+    });
+  });
+
+  describe('handlePreparePacket() - Happy Path', () => {
+    let handler: PacketHandler;
+    let routingTable: RoutingTable;
+    let mockLogger: ReturnType<typeof createMockLogger>;
+
+    beforeEach(() => {
+      routingTable = new RoutingTable([{ prefix: 'g.alice', nextHop: 'peer-alice' }]);
+      mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+    });
+
+    it('should forward valid packet when route found and return fulfill packet', async () => {
+      // Arrange
+      const validPacket = createValidPreparePacket({ destination: 'g.alice.wallet' });
+
+      // Act
+      const result = await handler.handlePreparePacket(validPacket);
+
+      // Assert
+      expect(result.type).toBe(PacketType.FULFILL);
+      expect((result as ILPFulfillPacket).fulfillment).toBeInstanceOf(Buffer);
+      expect((result as ILPFulfillPacket).fulfillment.length).toBe(32);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: expect.stringMatching(/^pkt_[a-f0-9]{16}$/),
+          packetType: 'PREPARE',
+          destination: 'g.alice.wallet',
+          timestamp: expect.any(Number),
+        }),
+        'Packet received'
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: expect.stringMatching(/^pkt_[a-f0-9]{16}$/),
+          destination: 'g.alice.wallet',
+          selectedPeer: 'peer-alice',
+          reason: 'longest-prefix match',
+        }),
+        'Routing decision'
+      );
+    });
+
+    it('should generate correlation ID for packet tracking', async () => {
+      // Arrange
+      const validPacket = createValidPreparePacket({ destination: 'g.alice.wallet' });
+
+      // Act
+      await handler.handlePreparePacket(validPacket);
+
+      // Assert
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: expect.any(String),
+        }),
+        expect.any(String)
+      );
+    });
+
+    it('should log all packet handling events at INFO level with structured fields', async () => {
+      // Arrange
+      const validPacket = createValidPreparePacket({
+        destination: 'g.alice.wallet',
+        amount: BigInt(5000),
+      });
+
+      // Act
+      await handler.handlePreparePacket(validPacket);
+
+      // Assert
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: expect.stringMatching(/^pkt_[a-f0-9]{16}$/),
+          packetType: 'PREPARE',
+          destination: 'g.alice.wallet',
+          amount: '5000',
+          timestamp: expect.any(Number),
+        }),
+        'Packet received'
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: expect.stringMatching(/^pkt_[a-f0-9]{16}$/),
+          destination: 'g.alice.wallet',
+          selectedPeer: 'peer-alice',
+          reason: 'longest-prefix match',
+        }),
+        'Routing decision'
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: expect.stringMatching(/^pkt_[a-f0-9]{16}$/),
+          event: 'btp_forward',
+          destination: 'g.alice.wallet',
+          amount: '5000',
+          peerId: 'peer-alice',
+        }),
+        'Forwarding packet to peer via BTP'
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: expect.stringMatching(/^pkt_[a-f0-9]{16}$/),
+          event: 'packet_response',
+          packetType: PacketType.FULFILL,
+        }),
+        'Returning packet response'
+      );
+    });
+  });
+
+  describe('handlePreparePacket() - No Route Found', () => {
+    let handler: PacketHandler;
+    let mockLogger: ReturnType<typeof createMockLogger>;
+
+    beforeEach(() => {
+      const routingTable = new RoutingTable([{ prefix: 'g.alice', nextHop: 'peer-alice' }]);
+      mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+    });
+
+    it('should return F02 Unreachable reject packet when no route found', async () => {
+      // Arrange
+      const validPacket = createValidPreparePacket({ destination: 'g.bob.crypto' });
+
+      // Act
+      const result = await handler.handlePreparePacket(validPacket);
+
+      // Assert
+      expect(result.type).toBe(PacketType.REJECT);
+      const reject = result as ILPRejectPacket;
+      expect(reject.code).toBe(ILPErrorCode.F02_UNREACHABLE);
+      expect(reject.message).toContain('No route to destination');
+      expect(reject.message).toContain('g.bob.crypto');
+      expect(reject.triggeredBy).toBe('test.connector');
+    });
+
+    it('should log route lookup failure when no route found', async () => {
+      // Arrange
+      const validPacket = createValidPreparePacket({ destination: 'g.unknown.destination' });
+
+      // Act
+      await handler.handlePreparePacket(validPacket);
+
+      // Assert
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: expect.stringMatching(/^pkt_[a-f0-9]{16}$/),
+          destination: 'g.unknown.destination',
+          selectedPeer: null,
+          reason: 'no route found',
+        }),
+        'Routing decision'
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: expect.stringMatching(/^pkt_[a-f0-9]{16}$/),
+          packetType: 'REJECT',
+          errorCode: ILPErrorCode.F02_UNREACHABLE,
+          reason: 'no route found',
+        }),
+        'Packet rejected'
+      );
+    });
+  });
+
+  describe('handlePreparePacket() - Expired Packet', () => {
+    let handler: PacketHandler;
+    let mockLogger: ReturnType<typeof createMockLogger>;
+
+    beforeEach(() => {
+      const routingTable = new RoutingTable([{ prefix: 'g.alice', nextHop: 'peer-alice' }]);
+      mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+    });
+
+    it('should return R00 reject packet when packet has expired', async () => {
+      // Arrange
+      const expiredPacket = createValidPreparePacket({
+        destination: 'g.alice.wallet',
+        expiresAt: new Date(Date.now() - 5000), // 5 seconds ago
+      });
+
+      // Act
+      const result = await handler.handlePreparePacket(expiredPacket);
+
+      // Assert
+      expect(result.type).toBe(PacketType.REJECT);
+      const reject = result as ILPRejectPacket;
+      expect(reject.code).toBe(ILPErrorCode.R00_TRANSFER_TIMED_OUT);
+      expect(reject.message).toBe('Packet has expired');
+    });
+
+    it('should return R00 reject packet when expiry decrement creates past timestamp', async () => {
+      // Arrange
+      const nearExpiryPacket = createValidPreparePacket({
+        destination: 'g.alice.wallet',
+        expiresAt: new Date(Date.now() + 500), // Only 500ms remaining, less than 1000ms margin
+      });
+
+      // Act
+      const result = await handler.handlePreparePacket(nearExpiryPacket);
+
+      // Assert
+      expect(result.type).toBe(PacketType.REJECT);
+      const reject = result as ILPRejectPacket;
+      expect(reject.code).toBe(ILPErrorCode.R00_TRANSFER_TIMED_OUT);
+      expect(reject.message).toContain('Insufficient time remaining');
+    });
+  });
+
+  describe('handlePreparePacket() - Invalid Packet', () => {
+    let handler: PacketHandler;
+    let mockLogger: ReturnType<typeof createMockLogger>;
+
+    beforeEach(() => {
+      const routingTable = new RoutingTable([{ prefix: 'g.alice', nextHop: 'peer-alice' }]);
+      mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+    });
+
+    it('should return F01 reject packet when packet structure is invalid', async () => {
+      // Arrange
+      const invalidPacket = createValidPreparePacket({ destination: '' });
+
+      // Act
+      const result = await handler.handlePreparePacket(invalidPacket);
+
+      // Assert
+      expect(result.type).toBe(PacketType.REJECT);
+      const reject = result as ILPRejectPacket;
+      expect(reject.code).toBe(ILPErrorCode.F01_INVALID_PACKET);
+    });
+
+    it('should log validation failure for invalid packet', async () => {
+      // Arrange
+      const invalidPacket = createValidPreparePacket({ destination: 'invalid..address' });
+
+      // Act
+      await handler.handlePreparePacket(invalidPacket);
+
+      // Assert
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: expect.stringMatching(/^pkt_[a-f0-9]{16}$/),
+          packetType: 'REJECT',
+          errorCode: ILPErrorCode.F01_INVALID_PACKET,
+          timestamp: expect.any(Number),
+        }),
+        'Packet rejected'
+      );
+    });
+  });
+
+  describe('handlePreparePacket() - Integration with RoutingTable', () => {
+    it('should call routingTable.getNextHop() with correct destination', async () => {
+      // Arrange
+      const routingTable = new RoutingTable([{ prefix: 'g.alice', nextHop: 'peer-alice' }]);
+      const getNextHopSpy = jest.spyOn(routingTable, 'getNextHop');
+      const mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      const handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+      const validPacket = createValidPreparePacket({ destination: 'g.alice.wallet.USD' });
+
+      // Act
+      await handler.handlePreparePacket(validPacket);
+
+      // Assert
+      expect(getNextHopSpy).toHaveBeenCalledWith('g.alice.wallet.USD');
+      expect(getNextHopSpy).toHaveReturnedWith('peer-alice');
+    });
+
+    it('should handle null return from routingTable.getNextHop() gracefully', async () => {
+      // Arrange
+      const routingTable = new RoutingTable(); // Empty routing table
+      const mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      const handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+      const validPacket = createValidPreparePacket({ destination: 'g.unknown' });
+
+      // Act
+      const result = await handler.handlePreparePacket(validPacket);
+
+      // Assert
+      expect(result.type).toBe(PacketType.REJECT);
+      const reject = result as ILPRejectPacket;
+      expect(reject.code).toBe(ILPErrorCode.F02_UNREACHABLE);
+    });
+  });
+
+  describe('handlePreparePacket() - Expiry Decrement Integration', () => {
+    it('should decrement packet expiry before forwarding', async () => {
+      // Arrange
+      const routingTable = new RoutingTable([{ prefix: 'g.alice', nextHop: 'peer-alice' }]);
+      const mockLogger = createMockLogger();
+      const btpClientManager = createMockBTPClientManager();
+      const handler = new PacketHandler(routingTable, btpClientManager, 'test.connector', mockLogger);
+      const originalExpiry = new Date(Date.now() + 10000);
+      const validPacket = createValidPreparePacket({
+        destination: 'g.alice.wallet',
+        expiresAt: originalExpiry,
+      });
+
+      // Act
+      await handler.handlePreparePacket(validPacket);
+
+      // Assert - Check debug log for decremented expiry
+      const debugCalls = mockLogger.debug.mock.calls;
+      const decrementLog = debugCalls.find((call) => call[1] === 'Decremented packet expiry');
+      expect(decrementLog).toBeDefined();
+      expect(decrementLog![0]).toHaveProperty('originalExpiry', originalExpiry.toISOString());
+      expect(decrementLog![0]).toHaveProperty('safetyMargin', 1000);
+    });
+  });
+});

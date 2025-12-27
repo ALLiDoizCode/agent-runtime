@@ -7,6 +7,7 @@
 - **Approach:** Declarative container orchestration with environment-based configuration
 
 **Decision Rationale:**
+
 - Docker Compose sufficient for MVP (single-machine deployment)
 - YAML format aligns with topology configuration files
 - No Terraform/Pulumi needed (no cloud resources)
@@ -19,12 +20,14 @@
 - **Pipeline Configuration:** `.github/workflows/ci.yml`
 
 **Deployment Flow:**
+
 1. Developer runs `docker-compose up` locally
 2. Docker pulls pre-built images (if published) or builds from Dockerfiles
 3. Containers start with health checks
 4. Dashboard accessible at `http://localhost:8080`
 
 **CI/CD Pipeline Stages:**
+
 1. **Build:** Compile TypeScript for all packages
 2. **Lint:** Run ESLint and Prettier checks
 3. **Test:** Execute Jest unit and integration tests
@@ -74,4 +77,7 @@ Cloud Environment (Kubernetes)
 - **Recovery Time Objective:** < 2 minutes (restart containers with previous image)
 
 **Rollback Procedure:**
+
 ```bash
+
+```

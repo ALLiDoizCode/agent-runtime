@@ -1,0 +1,5 @@
+# Valid: empty peers and routes arrays
+nodeId: test-connector
+btpServerPort: 3000
+peers: []
+routes: []

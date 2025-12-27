@@ -9,9 +9,9 @@ If the project includes a significant user interface, a separate Frontend Archit
 
 ### Change Log
 
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-12-26 | 0.1 | Initial architecture creation | Winston (Architect) |
+| Date       | Version | Description                   | Author              |
+| ---------- | ------- | ----------------------------- | ------------------- |
+| 2025-12-26 | 0.1     | Initial architecture creation | Winston (Architect) |
 
 ### Starter Template or Existing Project
 
@@ -20,12 +20,14 @@ If the project includes a significant user interface, a separate Frontend Archit
 Based on PRD review, this is a greenfield project with no existing codebase. Given the unique architectural requirements (ILP connector + BTP + visualization), manual setup is recommended.
 
 **Rationale:**
+
 - Unique requirements don't align with standard starters (Create React App, NestJS, etc.)
 - Monorepo structure (`packages/connector`, `packages/dashboard`, `packages/shared`) needs custom configuration
 - Educational value enhanced by building from first principles per PRD goals
 - PRD explicitly mentions building custom ILP packet implementation for RFC understanding
 
 **Alternatives Considered:**
+
 - Turborepo/Nx monorepo starters - Rejected (unnecessary complexity for 3-package monorepo)
 - Vite React starter - Will use for dashboard package only
 - NestJS - Overkill for lightweight connector
@@ -51,6 +53,7 @@ The system employs a **microservices architecture deployed via Docker containers
    - No shared database - each connector maintains in-memory routing tables and peer state
 
 3. **Primary Data Flow:**
+
    ```
    User sends test packet → Connector A receives via BTP
    → Connector A routes packet (consults routing table)
@@ -157,29 +160,29 @@ This section represents the single source of truth for all technology decisions.
 
 ### Technology Stack Table
 
-| Category | Technology | Version | Purpose | Rationale |
-|----------|-----------|---------|---------|-----------|
-| **Language** | TypeScript | 5.3.3 | Primary development language for all packages | Strong typing ensures RFC compliance, excellent IDE support, enables type sharing between connector/dashboard, aligns with Interledger.js ecosystem |
-| **Runtime** | Node.js | 20.11.0 LTS | JavaScript runtime for connector and dashboard backend | LTS version guarantees stability, wide ecosystem, asynchronous I/O ideal for WebSocket handling, Docker images readily available |
-| **Package Manager** | npm | 10.x | Dependency management and workspace orchestration | Built-in workspaces feature supports monorepo, standard tooling, no additional setup required |
-| **Backend Framework** | None (Express.js minimal) | Express 4.18.x | HTTP server for dashboard static files and health endpoint | Lightweight, well-documented, sufficient for minimal API needs, avoids framework overhead |
-| **Frontend Framework** | React | 18.2.x | Dashboard UI | Mature ecosystem, excellent integration with visualization libraries, large community, component-based architecture fits dashboard modular design |
-| **Build Tool (Frontend)** | Vite | 5.0.x | React development server and production bundler | Lightning-fast HMR, optimized builds, TypeScript support out-of-box, modern alternative to CRA |
-| **UI Styling** | TailwindCSS | 3.4.x | Utility-first CSS framework | Rapid UI development, small bundle size, easy dark theme implementation, minimal custom CSS needed |
-| **Network Visualization** | Cytoscape.js | 3.28.x | Interactive network graph rendering | Purpose-built for network graphs, performant for 10+ nodes, supports animated layouts, force-directed positioning, MIT licensed |
-| **WebSocket Library (Server)** | ws | 8.16.x | WebSocket server for BTP and telemetry | Lightweight, standard Node.js WebSocket library, RFC 6455 compliant, widely used |
-| **WebSocket Library (Client)** | Native WebSocket API | Browser built-in | Browser-side WebSocket for dashboard UI | No additional dependencies, standard browser API, sufficient for client needs |
-| **Logging Library** | Pino | 8.17.x | Structured JSON logging | High-performance (minimal overhead), excellent TypeScript support, structured JSON output, child logger support for correlation IDs |
-| **Testing Framework** | Jest | 29.7.x | Unit and integration testing | Industry standard, excellent TypeScript support, snapshot testing, mocking capabilities, coverage reporting |
-| **Linting** | ESLint | 8.56.x | Code quality and consistency | Enforce coding standards, catch common errors, TypeScript integration via @typescript-eslint |
-| **Code Formatting** | Prettier | 3.2.x | Automated code formatting | Consistent code style, integrates with ESLint, reduces style debates |
-| **ILP Packet Encoding** | Custom OER Implementation | N/A | Encode/decode ILP packets per RFC-0030 | Educational value of building from scratch, no suitable existing library with TypeScript types, enables deep RFC understanding |
-| **Configuration Format** | YAML + dotenv | js-yaml 4.1.x | Topology definitions (YAML), runtime config (ENV) | YAML human-readable for topology files, ENV vars integrate with Docker Compose, standard conventions |
-| **Container Base Image** | node:20-alpine | 20-alpine | Docker base image for all containers | Small footprint (~150MB), official Node.js image, Alpine Linux security benefits, faster startup |
-| **Container Orchestration** | Docker Compose | 2.24.x | Multi-node network deployment | Simple declarative configuration, standard developer tool, supports health checks and networking |
-| **Version Control** | Git | 2.x | Source control with conventional commits | Industry standard, conventional commits enable changelog automation |
-| **CI/CD** | GitHub Actions | N/A | Automated testing, linting, and Docker builds | Free for open-source, GitHub integration, supports matrix testing across Node versions |
-| **Database** | None (In-memory) | N/A | No persistence layer for MVP | Simplifies architecture, sufficient for ephemeral routing state, aligns with educational/testing use case |
+| Category                       | Technology                | Version          | Purpose                                                    | Rationale                                                                                                                                           |
+| ------------------------------ | ------------------------- | ---------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Language**                   | TypeScript                | 5.3.3            | Primary development language for all packages              | Strong typing ensures RFC compliance, excellent IDE support, enables type sharing between connector/dashboard, aligns with Interledger.js ecosystem |
+| **Runtime**                    | Node.js                   | 20.11.0 LTS      | JavaScript runtime for connector and dashboard backend     | LTS version guarantees stability, wide ecosystem, asynchronous I/O ideal for WebSocket handling, Docker images readily available                    |
+| **Package Manager**            | npm                       | 10.x             | Dependency management and workspace orchestration          | Built-in workspaces feature supports monorepo, standard tooling, no additional setup required                                                       |
+| **Backend Framework**          | None (Express.js minimal) | Express 4.18.x   | HTTP server for dashboard static files and health endpoint | Lightweight, well-documented, sufficient for minimal API needs, avoids framework overhead                                                           |
+| **Frontend Framework**         | React                     | 18.2.x           | Dashboard UI                                               | Mature ecosystem, excellent integration with visualization libraries, large community, component-based architecture fits dashboard modular design   |
+| **Build Tool (Frontend)**      | Vite                      | 5.0.x            | React development server and production bundler            | Lightning-fast HMR, optimized builds, TypeScript support out-of-box, modern alternative to CRA                                                      |
+| **UI Styling**                 | TailwindCSS               | 3.4.x            | Utility-first CSS framework                                | Rapid UI development, small bundle size, easy dark theme implementation, minimal custom CSS needed                                                  |
+| **Network Visualization**      | Cytoscape.js              | 3.28.x           | Interactive network graph rendering                        | Purpose-built for network graphs, performant for 10+ nodes, supports animated layouts, force-directed positioning, MIT licensed                     |
+| **WebSocket Library (Server)** | ws                        | 8.16.x           | WebSocket server for BTP and telemetry                     | Lightweight, standard Node.js WebSocket library, RFC 6455 compliant, widely used                                                                    |
+| **WebSocket Library (Client)** | Native WebSocket API      | Browser built-in | Browser-side WebSocket for dashboard UI                    | No additional dependencies, standard browser API, sufficient for client needs                                                                       |
+| **Logging Library**            | Pino                      | 8.17.x           | Structured JSON logging                                    | High-performance (minimal overhead), excellent TypeScript support, structured JSON output, child logger support for correlation IDs                 |
+| **Testing Framework**          | Jest                      | 29.7.x           | Unit and integration testing                               | Industry standard, excellent TypeScript support, snapshot testing, mocking capabilities, coverage reporting                                         |
+| **Linting**                    | ESLint                    | 8.56.x           | Code quality and consistency                               | Enforce coding standards, catch common errors, TypeScript integration via @typescript-eslint                                                        |
+| **Code Formatting**            | Prettier                  | 3.2.x            | Automated code formatting                                  | Consistent code style, integrates with ESLint, reduces style debates                                                                                |
+| **ILP Packet Encoding**        | Custom OER Implementation | N/A              | Encode/decode ILP packets per RFC-0030                     | Educational value of building from scratch, no suitable existing library with TypeScript types, enables deep RFC understanding                      |
+| **Configuration Format**       | YAML + dotenv             | js-yaml 4.1.x    | Topology definitions (YAML), runtime config (ENV)          | YAML human-readable for topology files, ENV vars integrate with Docker Compose, standard conventions                                                |
+| **Container Base Image**       | node:20-alpine            | 20-alpine        | Docker base image for all containers                       | Small footprint (~150MB), official Node.js image, Alpine Linux security benefits, faster startup                                                    |
+| **Container Orchestration**    | Docker Compose            | 2.24.x           | Multi-node network deployment                              | Simple declarative configuration, standard developer tool, supports health checks and networking                                                    |
+| **Version Control**            | Git                       | 2.x              | Source control with conventional commits                   | Industry standard, conventional commits enable changelog automation                                                                                 |
+| **CI/CD**                      | GitHub Actions            | N/A              | Automated testing, linting, and Docker builds              | Free for open-source, GitHub integration, supports matrix testing across Node versions                                                              |
+| **Database**                   | None (In-memory)          | N/A              | No persistence layer for MVP                               | Simplifies architecture, sufficient for ephemeral routing state, aligns with educational/testing use case                                           |
 
 **Important Notes:**
 
@@ -199,12 +202,14 @@ This section represents the single source of truth for all technology decisions.
 **Purpose:** Abstract base type for all ILP packet types (Prepare, Fulfill, Reject) as defined in RFC-0027
 
 **Key Attributes:**
+
 - `type: PacketType` (enum: PREPARE = 12, FULFILL = 13, REJECT = 14) - Discriminator for packet type
 - `data: Buffer` - Binary payload data
 - `amount: bigint` - Payment amount in smallest unit (uint64)
 - `destination: ILPAddress` - Hierarchical ILP address per RFC-0015
 
 **Relationships:**
+
 - Extended by ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket
 - Used in BTPMessage payload field
 
@@ -213,6 +218,7 @@ This section represents the single source of truth for all technology decisions.
 **Purpose:** Represents conditional payment packet initiating an ILP transaction (RFC-0027 Section 3.1)
 
 **Key Attributes:**
+
 - `type: PacketType.PREPARE` (12) - Packet type identifier
 - `amount: bigint` - Transfer amount
 - `destination: ILPAddress` - Payment destination address
@@ -221,6 +227,7 @@ This section represents the single source of truth for all technology decisions.
 - `data: Buffer` - Optional application data payload
 
 **Relationships:**
+
 - Forwarded through multiple Connectors until reaching destination
 - Responded to with either ILPFulfillPacket or ILPRejectPacket
 - Wrapped in BTPMessage for transmission
@@ -230,11 +237,13 @@ This section represents the single source of truth for all technology decisions.
 **Purpose:** Represents successful payment fulfillment (RFC-0027 Section 3.2)
 
 **Key Attributes:**
+
 - `type: PacketType.FULFILL` (13) - Packet type identifier
 - `fulfillment: Buffer` - 32-byte preimage that hashes to executionCondition
 - `data: Buffer` - Optional return data
 
 **Relationships:**
+
 - Response to ILPPreparePacket
 - Propagates backward through connector chain
 
@@ -243,6 +252,7 @@ This section represents the single source of truth for all technology decisions.
 **Purpose:** Represents payment rejection with error information (RFC-0027 Section 3.3)
 
 **Key Attributes:**
+
 - `type: PacketType.REJECT` (14) - Packet type identifier
 - `code: ILPErrorCode` - Three-character error code (F00-F99, T00-T99, R00-R99)
 - `triggeredBy: ILPAddress` - Address of connector that generated error
@@ -250,10 +260,12 @@ This section represents the single source of truth for all technology decisions.
 - `data: Buffer` - Additional error context
 
 **Relationships:**
+
 - Response to ILPPreparePacket when payment cannot be fulfilled
 - Propagates backward through connector chain
 
 **Error Code Categories:**
+
 - F-prefix: Final errors (permanent failures)
 - T-prefix: Temporary errors (retryable)
 - R-prefix: Relative errors (protocol violations)
@@ -263,11 +275,13 @@ This section represents the single source of truth for all technology decisions.
 **Purpose:** Maps ILP address prefixes to next-hop peer identifiers for packet forwarding
 
 **Key Attributes:**
+
 - `prefix: string` - ILP address prefix (e.g., "g.alice" or "g.bob.crypto")
 - `nextHop: string` - Peer identifier matching BTP connection
 - `priority: number` - Route priority for tie-breaking (optional, default 0)
 
 **Relationships:**
+
 - Many entries comprise a RoutingTable
 - nextHop references a Peer in the connector's peer list
 
@@ -276,6 +290,7 @@ This section represents the single source of truth for all technology decisions.
 **Purpose:** Represents a BTP-connected peer connector with connection metadata
 
 **Key Attributes:**
+
 - `id: string` - Unique peer identifier
 - `url: string` - WebSocket URL for BTP connection (e.g., "ws://connector-b:3000")
 - `authToken: string` - Shared secret for BTP authentication
@@ -283,6 +298,7 @@ This section represents the single source of truth for all technology decisions.
 - `lastSeen: Date` - Timestamp of last successful communication
 
 **Relationships:**
+
 - Referenced by RoutingTableEntry.nextHop
 - Manages one BTPConnection instance
 
@@ -291,6 +307,7 @@ This section represents the single source of truth for all technology decisions.
 **Purpose:** BTP protocol message wrapping ILP packets for transmission (RFC-0023)
 
 **Key Attributes:**
+
 - `type: BTPMessageType` (enum: MESSAGE, RESPONSE, ERROR, TRANSFER, etc.)
 - `requestId: number` - Correlation ID for request/response matching
 - `data: BTPData` - Message payload containing:
@@ -298,6 +315,7 @@ This section represents the single source of truth for all technology decisions.
   - `ilpPacket: Buffer` - Serialized ILP packet (OER encoded)
 
 **Relationships:**
+
 - Contains serialized ILPPacket
 - Transmitted over WebSocket connection between Peers
 
@@ -306,18 +324,21 @@ This section represents the single source of truth for all technology decisions.
 **Purpose:** Observability event emitted by connectors to dashboard for visualization
 
 **Key Attributes:**
+
 - `type: TelemetryEventType` (enum: NODE_STATUS, PACKET_RECEIVED, PACKET_SENT, ROUTE_LOOKUP)
 - `nodeId: string` - Identifier of connector emitting event
 - `timestamp: Date` - Event occurrence time
 - `data: object` - Event-specific payload (varies by type)
 
 **Event Type Payloads:**
+
 - `NODE_STATUS`: { routes: RoutingTableEntry[], peers: Peer[], health: string }
 - `PACKET_RECEIVED`: { packetId: string, type: PacketType, source: string, destination: string, amount: string }
 - `PACKET_SENT`: { packetId: string, nextHop: string, timestamp: string }
 - `ROUTE_LOOKUP`: { destination: string, selectedPeer: string, reason: string }
 
 **Relationships:**
+
 - Generated by Connector components during packet processing
 - Transmitted to Dashboard via WebSocket
 - Consumed by Dashboard for visualization and logging
@@ -327,6 +348,7 @@ This section represents the single source of truth for all technology decisions.
 **Purpose:** Configuration object loaded at connector startup defining routing and peer topology
 
 **Key Attributes:**
+
 - `nodeId: string` - Unique identifier for this connector instance
 - `btpServerPort: number` - Port for incoming BTP connections (default 3000)
 - `healthCheckPort: number` - HTTP health endpoint port (default 8080)
@@ -336,6 +358,7 @@ This section represents the single source of truth for all technology decisions.
 - `dashboardTelemetryUrl: string` - WebSocket URL for telemetry emission
 
 **Relationships:**
+
 - Loaded from YAML file or environment variables
 - Initializes RoutingTable and Peer connections
 
@@ -346,12 +369,14 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** Core ILP connector service that receives, routes, and forwards ILP packets according to RFC-0027. Manages BTP connections to peer connectors and emits telemetry for observability.
 
 **Key Interfaces:**
+
 - `handleIncomingPacket(packet: ILPPacket): Promise<ILPPacket>` - Process received packet and return response
 - `forwardPacket(packet: ILPPreparePacket, nextHop: string): Promise<void>` - Forward to peer via BTP
 - `getRoutingTable(): RoutingTableEntry[]` - Export current routes for inspection
 - `getHealthStatus(): HealthStatus` - Report connector operational status
 
 **Dependencies:**
+
 - PacketHandler (packet processing logic)
 - RoutingTable (route lookups)
 - BTPServer (accept incoming connections)
@@ -366,11 +391,13 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** Implements ILPv4 packet forwarding logic including validation, expiry checking, routing table lookup, and error generation per RFC-0027.
 
 **Key Interfaces:**
+
 - `processPrepare(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>` - Process Prepare packet
 - `validatePacket(packet: ILPPacket): ValidationResult` - Validate packet structure and expiry
 - `generateReject(code: ILPErrorCode, message: string): ILPRejectPacket` - Create reject packet
 
 **Dependencies:**
+
 - RoutingTable (determine next hop)
 - BTPClientManager (send to next hop)
 - Logger (log routing decisions)
@@ -382,6 +409,7 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** Maintains in-memory mapping of ILP address prefixes to next-hop peers. Implements longest-prefix matching algorithm per RFC-0027 routing requirements.
 
 **Key Interfaces:**
+
 - `addRoute(prefix: string, nextHop: string): void` - Add routing entry
 - `removeRoute(prefix: string): void` - Remove routing entry
 - `lookup(destination: ILPAddress): string | null` - Find next-hop peer using longest-prefix match
@@ -396,12 +424,14 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** WebSocket server accepting incoming BTP connections from peer connectors. Implements RFC-0023 authentication and message parsing.
 
 **Key Interfaces:**
+
 - `start(port: number): Promise<void>` - Start listening for connections
 - `onConnection(callback: (peerId: string, connection: WebSocket) => void)` - Connection event handler
 - `onMessage(callback: (peerId: string, message: BTPMessage) => void)` - Message received handler
 - `stop(): Promise<void>` - Graceful shutdown
 
 **Dependencies:**
+
 - ws library (WebSocket server)
 - BTPMessageParser (decode BTP frames)
 - Logger
@@ -413,12 +443,14 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** WebSocket client for outbound BTP connections to peer connectors. Handles connection lifecycle, authentication, and packet transmission.
 
 **Key Interfaces:**
+
 - `connect(url: string, authToken: string): Promise<void>` - Establish BTP connection
 - `sendPacket(packet: ILPPacket): Promise<void>` - Send ILP packet wrapped in BTP MESSAGE
 - `onPacket(callback: (packet: ILPPacket) => void)` - Incoming packet handler
 - `disconnect(): Promise<void>` - Close connection gracefully
 
 **Dependencies:**
+
 - ws library (WebSocket client)
 - BTPMessageParser (encode/decode BTP)
 - Logger
@@ -430,12 +462,14 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** Manages multiple BTPClient instances (one per peer). Tracks connection state and routes packets to appropriate client based on peer ID.
 
 **Key Interfaces:**
+
 - `addPeer(peer: Peer): Promise<void>` - Create and connect BTP client for peer
 - `removePeer(peerId: string): Promise<void>` - Disconnect and remove peer
 - `sendToPeer(peerId: string, packet: ILPPacket): Promise<void>` - Send packet to specific peer
 - `getPeerStatus(): Map<string, boolean>` - Get connection state for all peers
 
 **Dependencies:**
+
 - BTPClient (manages instances)
 - Logger
 
@@ -446,6 +480,7 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** Encode and decode ILP packets to/from binary format using OER (Octet Encoding Rules) per RFC-0030.
 
 **Key Interfaces:**
+
 - `serializePacket(packet: ILPPacket): Buffer` - Encode to binary
 - `deserializePacket(buffer: Buffer): ILPPacket` - Decode from binary
 - `serializePrepare(packet: ILPPreparePacket): Buffer` - Encode Prepare packet
@@ -461,6 +496,7 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** Sends telemetry events from connector to dashboard via WebSocket for real-time visualization and logging.
 
 **Key Interfaces:**
+
 - `connect(dashboardUrl: string): Promise<void>` - Connect to dashboard telemetry server
 - `emitNodeStatus(routes: RoutingTableEntry[], peers: Peer[]): void` - Send node status event
 - `emitPacketReceived(packet: ILPPacket): void` - Send packet received event
@@ -468,6 +504,7 @@ This section represents the single source of truth for all technology decisions.
 - `emitRouteLookup(destination: string, selectedPeer: string, reason: string): void` - Send routing decision
 
 **Dependencies:**
+
 - Native WebSocket or ws library
 - Logger
 
@@ -478,12 +515,14 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** Express.js HTTP server serving React static files and WebSocket telemetry aggregation server. Acts as central hub for connector telemetry.
 
 **Key Interfaces:**
+
 - `start(port: number): Promise<void>` - Start HTTP and WebSocket servers
 - `onTelemetryConnection(callback: (connectorId: string) => void)` - New connector connected
 - `onTelemetryEvent(callback: (event: TelemetryEvent) => void)` - Telemetry event received
 - `broadcastToClients(event: TelemetryEvent): void` - Send to all dashboard UI clients
 
 **Dependencies:**
+
 - Express.js (HTTP server)
 - ws library (WebSocket server)
 - Logger
@@ -495,6 +534,7 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** React-based web UI providing network visualization, packet animation, log viewer, and interactive inspection panels.
 
 **Key Interfaces:**
+
 - NetworkGraph component (Cytoscape.js visualization)
 - PacketAnimation component (animated packet flow)
 - LogViewer component (filterable structured logs)
@@ -502,6 +542,7 @@ This section represents the single source of truth for all technology decisions.
 - NodeDetailPanel component (inspect connector state)
 
 **Dependencies:**
+
 - React 18.2.x
 - Cytoscape.js 3.28.x (network graph)
 - TailwindCSS 3.4.x (styling)
@@ -514,11 +555,13 @@ This section represents the single source of truth for all technology decisions.
 **Responsibility:** Command-line utility for injecting test ILP packets into the network to observe routing behavior.
 
 **Key Interfaces:**
+
 - CLI: `send-packet --source <nodeId> --destination <address> --amount <value> [--data <payload>]`
 - `createTestPrepare(destination: string, amount: bigint): ILPPreparePacket` - Generate valid packet
 - `sendToConnector(nodeUrl: string, packet: ILPPacket): Promise<void>` - Send via BTP
 
 **Dependencies:**
+
 - BTPClient (connect to target connector)
 - OERCodec (serialize packet)
 - Commander.js (CLI argument parsing)
@@ -605,6 +648,7 @@ This project is self-contained with no external API integrations needed. All fun
 - npm registry for package dependencies
 
 **Rationale:**
+
 - Educational/testing tool runs entirely locally
 - No real ledger integration (MVP scope limitation per PRD)
 - No cloud services or third-party APIs
@@ -612,6 +656,7 @@ This project is self-contained with no external API integrations needed. All fun
 
 **Post-MVP Considerations:**
 Future versions might integrate with:
+
 - Interledger testnet connectors (real network connectivity)
 - Settlement engine APIs (RFC-0038)
 - External monitoring/alerting services
@@ -777,6 +822,7 @@ sequenceDiagram
 The architecture uses **in-memory data structures only** with no persistence layer.
 
 **Rationale:**
+
 - Routing tables configured at startup from YAML files (ephemeral)
 - Packet history not persisted (real-time observability only)
 - Connector state resets on container restart (acceptable for dev/test tool)
@@ -784,6 +830,7 @@ The architecture uses **in-memory data structures only** with no persistence lay
 - Aligns with educational/testing use case (no production data)
 
 **Data Storage Strategy:**
+
 - **Routing Tables:** In-memory Map/Array in each ConnectorNode
 - **Peer Connections:** In-memory Map in BTPClientManager
 - **Telemetry Events:** Streamed to dashboard, not stored
@@ -791,6 +838,7 @@ The architecture uses **in-memory data structures only** with no persistence lay
 
 **Post-MVP Considerations:**
 Future versions might add:
+
 - SQLite for optional packet history logging
 - Redis for shared routing table state (multi-instance connectors)
 - TimescaleDB for performance metrics storage
@@ -943,6 +991,7 @@ m2m/                                  # Monorepo root
 - **Approach:** Declarative container orchestration with environment-based configuration
 
 **Decision Rationale:**
+
 - Docker Compose sufficient for MVP (single-machine deployment)
 - YAML format aligns with topology configuration files
 - No Terraform/Pulumi needed (no cloud resources)
@@ -955,12 +1004,14 @@ m2m/                                  # Monorepo root
 - **Pipeline Configuration:** `.github/workflows/ci.yml`
 
 **Deployment Flow:**
+
 1. Developer runs `docker-compose up` locally
 2. Docker pulls pre-built images (if published) or builds from Dockerfiles
 3. Containers start with health checks
 4. Dashboard accessible at `http://localhost:8080`
 
 **CI/CD Pipeline Stages:**
+
 1. **Build:** Compile TypeScript for all packages
 2. **Lint:** Run ESLint and Prettier checks
 3. **Test:** Execute Jest unit and integration tests
@@ -1010,6 +1061,7 @@ Cloud Environment (Kubernetes)
 - **Recovery Time Objective:** < 2 minutes (restart containers with previous image)
 
 **Rollback Procedure:**
+
 ```bash
 # Tag current deployment
 docker tag ilp-connector:latest ilp-connector:rollback-backup
@@ -1056,6 +1108,7 @@ docker-compose up -d
   - **User Context:** Not applicable (no user authentication in MVP)
 
 **Example Structured Log Entry:**
+
 ```json
 {
   "level": "info",
@@ -1109,14 +1162,14 @@ docker-compose up -d
 
 ### Naming Conventions
 
-| Element | Convention | Example |
-|---------|-----------|---------|
-| Files (TypeScript) | kebab-case | `packet-handler.ts` |
-| Classes | PascalCase | `PacketHandler` |
-| Interfaces/Types | PascalCase with `I` prefix for interfaces | `ILPPacket`, `RoutingTableEntry` |
-| Functions/Methods | camelCase | `validatePacket()` |
-| Constants | UPPER_SNAKE_CASE | `DEFAULT_BTP_PORT` |
-| Private members | camelCase with `_` prefix | `_internalState` |
+| Element            | Convention                                | Example                          |
+| ------------------ | ----------------------------------------- | -------------------------------- |
+| Files (TypeScript) | kebab-case                                | `packet-handler.ts`              |
+| Classes            | PascalCase                                | `PacketHandler`                  |
+| Interfaces/Types   | PascalCase with `I` prefix for interfaces | `ILPPacket`, `RoutingTableEntry` |
+| Functions/Methods  | camelCase                                 | `validatePacket()`               |
+| Constants          | UPPER_SNAKE_CASE                          | `DEFAULT_BTP_PORT`               |
+| Private members    | camelCase with `_` prefix                 | `_internalState`                 |
 
 ### Critical Rules
 
@@ -1165,6 +1218,7 @@ docker-compose up -d
 - **Coverage Requirement:** >80% line coverage for connector, >90% for shared
 
 **AI Agent Requirements:**
+
 - Generate tests for all public methods and exported functions
 - Cover edge cases: empty inputs, null values, maximum values, expired timestamps
 - Follow AAA pattern (Arrange, Act, Assert) with clear test descriptions
@@ -1172,6 +1226,7 @@ docker-compose up -d
 - Use descriptive test names: `should reject packet when expiry time has passed`
 
 **Example Unit Test Structure:**
+
 ```typescript
 describe('PacketHandler', () => {
   let handler: PacketHandler;
@@ -1208,6 +1263,7 @@ describe('PacketHandler', () => {
   - **BTP:** Real BTPServer + BTPClient connecting locally
 
 **Example Integration Test:**
+
 - Deploy 3 connector instances in-process
 - Send ILP Prepare through Connector A
 - Verify packet routed through B to C
@@ -1221,6 +1277,7 @@ describe('PacketHandler', () => {
 - **Test Data:** Pre-configured 3-node linear topology
 
 **Example E2E Test Flow:**
+
 ```typescript
 describe('Full System E2E', () => {
   beforeAll(async () => {
@@ -1299,11 +1356,14 @@ describe('Full System E2E', () => {
   - No secrets in logs or error messages (redact in Pino serializers)
 
 **Example:**
+
 ```typescript
-const btpSecret = process.env.BTP_AUTH_SECRET || (() => {
-  logger.error('BTP_AUTH_SECRET not configured');
-  process.exit(1);
-})();
+const btpSecret =
+  process.env.BTP_AUTH_SECRET ||
+  (() => {
+    logger.error('BTP_AUTH_SECRET not configured');
+    process.exit(1);
+  })();
 ```
 
 ### API Security
@@ -1326,14 +1386,15 @@ const btpSecret = process.env.BTP_AUTH_SECRET || (() => {
   - Redact `authToken` field in peer configuration logs
 
 **Pino Serializer Example:**
+
 ```typescript
 const logger = pino({
   serializers: {
     peer: (peer) => ({
       ...peer,
-      authToken: '[REDACTED]'  // Never log secrets
-    })
-  }
+      authToken: '[REDACTED]', // Never log secrets
+    }),
+  },
 });
 ```
 
@@ -1351,6 +1412,7 @@ const logger = pino({
 
 **Security Stance:**
 This is a **development and educational tool**, not a production payment system. Security focuses on:
+
 - Preventing accidental secret leakage
 - Basic input validation to avoid crashes
 - No malicious code in dependencies
@@ -1375,4 +1437,3 @@ After completing this architecture document:
    - Validate architectural decisions align with MVP goals
    - Confirm technology choices meet project constraints
    - Approve before significant implementation begins
-

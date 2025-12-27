@@ -23,6 +23,7 @@
 - **Coverage Requirement:** >80% line coverage for connector, >90% for shared
 
 **AI Agent Requirements:**
+
 - Generate tests for all public methods and exported functions
 - Cover edge cases: empty inputs, null values, maximum values, expired timestamps
 - Follow AAA pattern (Arrange, Act, Assert) with clear test descriptions
@@ -30,6 +31,7 @@
 - Use descriptive test names: `should reject packet when expiry time has passed`
 
 **Example Unit Test Structure:**
+
 ```typescript
 describe('PacketHandler', () => {
   let handler: PacketHandler;
@@ -66,6 +68,7 @@ describe('PacketHandler', () => {
   - **BTP:** Real BTPServer + BTPClient connecting locally
 
 **Example Integration Test:**
+
 - Deploy 3 connector instances in-process
 - Send ILP Prepare through Connector A
 - Verify packet routed through B to C
@@ -79,6 +82,7 @@ describe('PacketHandler', () => {
 - **Test Data:** Pre-configured 3-node linear topology
 
 **Example E2E Test Flow:**
+
 ```typescript
 describe('Full System E2E', () => {
   beforeAll(async () => {

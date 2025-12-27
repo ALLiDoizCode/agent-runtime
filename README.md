@@ -1,0 +1,724 @@
+# M2M - Multi-node Interledger Connector
+
+[![CI](https://github.com/yourusername/m2m/workflows/CI/badge.svg)](https://github.com/yourusername/m2m/actions)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20.11.0-green.svg)](https://nodejs.org/)
+
+Educational implementation of an Interledger Protocol (ILP) connector with Bilateral Transfer Protocol (BTP) support and real-time network visualization dashboard.
+
+## Overview
+
+M2M provides a complete ILP routing infrastructure for learning and testing multi-node payment networks:
+
+- **ILP Connector**: RFC-compliant ILPv4 packet routing with BTP WebSocket protocol
+- **Network Dashboard**: Real-time visualization of packet flows, routing topology, and connector telemetry
+- **Docker Compose Topologies**: Pre-configured multi-node networks (linear, mesh, hub-spoke)
+
+## Monorepo Structure
+
+This project uses npm workspaces to organize code into independent packages:
+
+```
+m2m/
+├── packages/
+│   ├── connector/       # ILP Connector service (BTP server/client, routing logic)
+│   ├── dashboard/       # React-based network visualization UI
+│   └── shared/          # Shared TypeScript types and utilities (ILP packets, OER encoding)
+├── tools/               # CLI utilities for testing
+├── docker/              # Docker Compose configurations
+└── examples/            # Example topology configurations
+```
+
+### Package Purposes
+
+- **@m2m/connector**: Node.js service that implements ILPv4 routing, BTP protocol, and telemetry emission
+- **@m2m/dashboard**: React app with Cytoscape.js for visualizing network topology and packet animations
+- **@m2m/shared**: Pure TypeScript package with ILP packet types, OER encoding, and validation utilities
+
+## Prerequisites
+
+- **Node.js**: v20.11.0 or higher (LTS recommended)
+- **npm**: v10.x or higher
+- **Docker**: For running multi-node topologies (optional for development)
+
+## Setup Instructions
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+This installs dependencies for all workspace packages using npm's built-in workspace support.
+
+### 2. Build All Packages
+
+```bash
+npm run build
+```
+
+Compiles TypeScript to JavaScript for all packages (`connector`, `dashboard`, `shared`) using their respective `tsconfig.json` configurations.
+
+### 3. Run Tests
+
+```bash
+npm test
+```
+
+Executes Jest test suites across all packages with coverage reporting:
+
+- `packages/shared`: >90% coverage threshold
+- `packages/connector`: >80% coverage threshold
+- `packages/dashboard`: >70% coverage threshold
+
+### 4. Lint Code
+
+```bash
+npm run lint
+```
+
+Runs ESLint with TypeScript support across all packages to enforce code quality standards.
+
+### 5. Format Code
+
+```bash
+npm run format
+```
+
+Applies Prettier formatting rules (100 char line length, single quotes) to all TypeScript/JSON/Markdown files.
+
+## Quick Start
+
+### Development Mode
+
+```bash
+# Start connector in watch mode
+npm run dev --workspace=@m2m/connector
+
+# Start dashboard in watch mode (future stories)
+npm run dev --workspace=@m2m/dashboard
+```
+
+### Running Tests with Coverage
+
+```bash
+npm run test:coverage
+```
+
+Generates detailed HTML coverage reports in `coverage/` directory for each package.
+
+### Running Tests in Watch Mode
+
+```bash
+npm run test:watch
+```
+
+Runs tests in watch mode for development, automatically re-running tests when files change.
+
+### Running with Docker
+
+The connector can be deployed as a Docker container for production or testing.
+
+#### Build Docker Image
+
+```bash
+docker build -t ilp-connector .
+```
+
+The multi-stage Dockerfile produces an optimized Alpine-based image (~150-200MB) with:
+- Node.js 20 runtime
+- Production dependencies only (no TypeScript compiler or dev tools)
+- Non-root user execution for security
+- Health check endpoint
+
+#### Run Container
+
+**Basic usage:**
+
+```bash
+docker run -d \
+  -e NODE_ID=connector-a \
+  -e BTP_SERVER_PORT=3000 \
+  -p 3000:3000 \
+  --name connector-a \
+  ilp-connector
+```
+
+**With custom configuration:**
+
+```bash
+docker run -d \
+  -e NODE_ID=my-connector \
+  -e BTP_SERVER_PORT=4000 \
+  -e LOG_LEVEL=debug \
+  -p 4000:4000 \
+  --name my-connector \
+  ilp-connector
+```
+
+#### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NODE_ID` | `connector-node` | Unique identifier for this connector instance |
+| `BTP_SERVER_PORT` | `3000` | Port for incoming BTP WebSocket connections (1-65535) |
+| `HEALTH_CHECK_PORT` | `8080` | Port for HTTP health check endpoint (1-65535) |
+| `LOG_LEVEL` | `info` | Pino log level: `debug`, `info`, `warn`, `error` |
+
+#### View Container Logs
+
+```bash
+docker logs connector-a
+
+# Follow logs in real-time
+docker logs -f connector-a
+```
+
+Logs are output as structured JSON (Pino format) for easy parsing and aggregation.
+
+#### Container Management
+
+```bash
+# Stop container (sends SIGTERM for graceful shutdown)
+docker stop connector-a
+
+# Start stopped container
+docker start connector-a
+
+# Remove container
+docker rm connector-a
+
+# Access container shell for debugging
+docker exec -it connector-a sh
+
+# Check container health status
+docker inspect --format='{{.State.Health.Status}}' connector-a
+```
+
+#### Troubleshooting
+
+**Port already in use:**
+```bash
+# Check what's using the port
+lsof -i :3000
+
+# Use a different port
+docker run -e BTP_SERVER_PORT=3001 -p 3001:3001 ilp-connector
+```
+
+**Container fails to start:**
+```bash
+# View recent logs
+docker logs --tail 50 connector-a
+
+# Check container exit code
+docker inspect connector-a --format='{{.State.ExitCode}}'
+```
+
+**Permission errors:**
+The container runs as the non-root `node` user (UID 1000) for security. If you mount volumes, ensure the node user has appropriate permissions.
+
+## Docker Compose Deployment
+
+Deploy a multi-node ILP network with a single command using Docker Compose. This section covers running pre-configured topologies (linear, mesh, hub-spoke) and creating custom network configurations.
+
+### Prerequisites
+
+- **Docker Engine**: 20.10+ ([Install Docker](https://docs.docker.com/engine/install/))
+- **Docker Compose**: 2.x ([Install Docker Compose](https://docs.docker.com/compose/install/))
+- **Connector Image**: Build the image first: `docker build -t ilp-connector .`
+
+### Quick Start
+
+#### Start Default 3-Node Linear Topology
+
+```bash
+# Build the connector image
+docker build -t ilp-connector .
+
+# Start the network
+docker-compose up -d
+
+# View logs from all connectors
+docker-compose logs -f
+
+# Check health status
+docker-compose ps
+
+# Stop the network
+docker-compose down
+```
+
+The default topology creates a linear chain: **Connector A → Connector B → Connector C**
+
+- `connector-a`: Entry point (port 3000)
+- `connector-b`: Transit node (port 3001)
+- `connector-c`: Exit node (port 3002)
+
+### Alternative Topologies
+
+#### Mesh Topology (4 nodes, fully connected)
+
+```bash
+docker-compose -f docker/docker-compose.mesh.yml up -d
+```
+
+Creates a full mesh network where all 4 connectors connect to each other, providing redundant paths for increased resilience.
+
+#### Hub-and-Spoke Topology (1 hub + 3 spokes)
+
+```bash
+docker-compose -f docker/docker-compose.hub-spoke.yml up -d
+```
+
+Creates a centralized routing architecture where a hub connector manages all inter-spoke communication.
+
+#### Custom Topology
+
+```bash
+# Copy the template
+cp docker/docker-compose.custom-template.yml docker/docker-compose.my-topology.yml
+
+# Edit the file to configure your topology
+# Then start it:
+docker-compose -f docker/docker-compose.my-topology.yml up -d
+```
+
+### Modifying Node Count
+
+To add or remove connectors, follow these steps:
+
+1. **Copy an existing compose file** as a template
+2. **Add a new service** with this pattern:
+
+```yaml
+connector-new:
+  image: ilp-connector
+  container_name: connector-new
+  environment:
+    NODE_ID: connector-new
+    BTP_SERVER_PORT: 3004  # Increment from last port (3000, 3001, 3002, 3003...)
+    LOG_LEVEL: info
+    # Add BTP peer connections (requires Story 2.6 config loader)
+    BTP_PEER_A_URL: ws://connector-a:3000
+    BTP_PEER_A_SECRET: secret-new-to-a
+  ports:
+    - "3004:3004"  # Match BTP_SERVER_PORT
+  networks:
+    - ilp-network
+  restart: unless-stopped
+  healthcheck:
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 10s
+```
+
+3. **Environment Variable Patterns**:
+   - `NODE_ID`: Unique identifier for the connector
+   - `BTP_SERVER_PORT`: Unique port (increment from 3000)
+   - `BTP_PEER_{ID}_URL`: WebSocket URL for peer connection
+   - `BTP_PEER_{ID}_SECRET`: Shared secret for authentication
+
+4. **Port Allocation**: Increment from 3000 (3001, 3002, 3003, etc.)
+
+5. **Shared Secret Naming**: Use format `secret-{source}-to-{destination}`
+
+**Note**: BTP peer environment variables (`BTP_PEER_*`) are documented for Story 2.6. Full peer configuration support requires the config loader implementation.
+
+### Modifying Topology
+
+#### Adding BTP Peer Connections
+
+To connect two connectors, add environment variables to both services:
+
+```yaml
+# In connector-a service:
+environment:
+  BTP_PEER_B_URL: ws://connector-b:3001
+  BTP_PEER_B_SECRET: secret-a-to-b
+
+# In connector-b service:
+environment:
+  BTP_PEER_A_URL: ws://connector-a:3000
+  BTP_PEER_A_SECRET: secret-a-to-b
+```
+
+#### Changing Routing Configuration
+
+Basic routing is managed through BTP peer connections. Advanced routing configuration will be available in Story 2.6 with YAML-based config files.
+
+#### Network Isolation
+
+Connectors communicate over the `ilp-network` Docker bridge network. To isolate groups of connectors:
+
+1. Define multiple networks in the compose file
+2. Assign connectors to appropriate networks
+3. Only connectors on the same network can communicate
+
+### Log Viewing and Debugging
+
+#### View All Logs
+
+```bash
+docker-compose logs
+```
+
+#### Follow Logs in Real-Time
+
+```bash
+docker-compose logs -f
+```
+
+#### View Specific Connector Logs
+
+```bash
+docker-compose logs connector-a
+docker-compose logs -f connector-b  # Follow mode
+```
+
+#### Filter by Log Level
+
+```bash
+# View only errors
+docker-compose logs | grep '"level":50'
+
+# View warnings and errors
+docker-compose logs | grep -E '"level":(40|50)'
+```
+
+#### Access Container Shell
+
+```bash
+docker-compose exec connector-a sh
+```
+
+### Health Checks and Monitoring
+
+Each connector exposes an HTTP health check endpoint at `/health` for monitoring and orchestration. This endpoint is used by Docker HEALTHCHECK and can be queried by external monitoring tools.
+
+#### Health Endpoint URL Format
+
+```
+http://localhost:{HEALTH_CHECK_PORT}/health
+```
+
+Default ports:
+- **connector-a**: http://localhost:8080/health
+- **connector-b**: http://localhost:8081/health
+- **connector-c**: http://localhost:8082/health
+
+#### Health Status Response Format
+
+The health endpoint returns JSON with the following structure:
+
+```json
+{
+  "status": "healthy",
+  "uptime": 3600,
+  "peersConnected": 2,
+  "totalPeers": 2,
+  "timestamp": "2025-12-27T10:30:00.000Z",
+  "nodeId": "connector-a",
+  "version": "0.1.0"
+}
+```
+
+**Field Descriptions:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | Health state: `healthy`, `unhealthy`, or `starting` |
+| `uptime` | number | Seconds since connector started |
+| `peersConnected` | number | Number of peers with active BTP connections |
+| `totalPeers` | number | Total configured peers |
+| `timestamp` | string | ISO 8601 timestamp of health check |
+| `nodeId` | string | Connector identifier from configuration |
+| `version` | string | Connector version from package.json |
+
+**Status Meanings:**
+
+- **`healthy`**: All critical systems operational, ≥50% peers connected
+- **`unhealthy`**: <50% peers connected, indicating network partition or peer failures
+- **`starting`**: Connector initialization in progress, BTP server not yet listening
+
+#### Check Container Health
+
+```bash
+docker-compose ps
+```
+
+Expected output showing healthy status:
+
+```
+NAME           STATUS                    PORTS
+connector-a    Up 30 seconds (healthy)   0.0.0.0:3000->3000/tcp, 0.0.0.0:8080->8080/tcp
+connector-b    Up 28 seconds (healthy)   0.0.0.0:3001->3001/tcp, 0.0.0.0:8081->8080/tcp
+connector-c    Up 26 seconds (healthy)   0.0.0.0:3002->3002/tcp, 0.0.0.0:8082->8080/tcp
+```
+
+#### Query Health Endpoint
+
+```bash
+# Check connector-a health
+curl http://localhost:8080/health | jq
+
+# Check connector-b health
+curl http://localhost:8081/health | jq
+
+# Check connector-c health
+curl http://localhost:8082/health | jq
+```
+
+#### Inspect Docker Health Status
+
+```bash
+docker inspect --format='{{.State.Health.Status}}' connector-a
+```
+
+Possible statuses:
+- `healthy`: Container is running and passed health checks
+- `unhealthy`: Container is running but failing health checks (e.g., <50% peers connected)
+- `starting`: Container is starting, health checks not yet passing (40s grace period)
+- `none`: No health check configured (shouldn't happen with our setup)
+
+#### View Health Check Logs
+
+```bash
+# Health checks are logged at DEBUG level to avoid log noise
+# Set LOG_LEVEL=debug to see health check requests
+
+docker-compose logs connector-a | grep health_check
+```
+
+#### Health Check Configuration
+
+The Docker HEALTHCHECK is configured with the following parameters:
+
+- **Interval**: 30 seconds (balance between responsiveness and overhead)
+- **Timeout**: 10 seconds (health endpoint should respond quickly)
+- **Start Period**: 40 seconds (allow time for BTP connections to establish)
+- **Retries**: 3 (mark unhealthy after 3 consecutive failures)
+
+#### External Monitoring Integration
+
+The health endpoint can be integrated with external monitoring tools:
+
+```bash
+# Example: Continuous monitoring script
+while true; do
+  curl -s http://localhost:8080/health | jq '.status'
+  sleep 30
+done
+```
+
+**Monitoring Tool Examples:**
+- **Prometheus**: Use [blackbox_exporter](https://github.com/prometheus/blackbox_exporter) to scrape health endpoints
+- **Nagios**: HTTP check plugin with JSON response parsing
+- **Datadog**: HTTP check with custom metrics extraction
+- **Kubernetes**: Configure liveness and readiness probes to use `/health` endpoint
+
+#### Security Note
+
+**⚠️ IMPORTANT**: The health endpoint exposes internal network topology information (peersConnected, totalPeers, nodeId). This is acceptable for internal monitoring and the MVP deployment context (localhost Docker networks), but:
+
+- **Production Deployment**: Health endpoint should NOT be exposed to public networks
+- **Access Control**: Use firewall rules, network policies, or reverse proxy authentication to restrict access to authorized monitoring systems only
+- **Network Isolation**: In cloud deployments, place health endpoints on internal-only networks (no public IP)
+
+The health endpoint itself does not implement authentication (intentionally simple for Docker HEALTHCHECK), so network-level security is the primary protection mechanism.
+
+#### Troubleshooting Unhealthy Containers
+
+**Symptom**: `docker-compose ps` shows "unhealthy" status
+
+**Diagnosis**:
+
+```bash
+# Check health endpoint response
+curl http://localhost:8080/health | jq
+
+# View connector logs for BTP errors
+docker-compose logs connector-a | grep btp_
+
+# Inspect Docker health check details
+docker inspect connector-a | jq '.[0].State.Health'
+```
+
+**Common Causes**:
+
+1. **Peer Connection Failures**: <50% of configured peers are connected
+   - **Solution**: Check peer URLs and authentication tokens in configuration
+   - **Solution**: Verify peer containers are running and healthy
+
+2. **Port Conflicts**: Health check port already in use
+   - **Solution**: Change HEALTH_CHECK_PORT environment variable
+   - **Solution**: Use different host port mappings (e.g., 8083:8080)
+
+3. **Startup Timing**: Connector still establishing BTP connections
+   - **Solution**: Wait for 40-second start period to complete
+   - **Solution**: Increase `start_period` in healthcheck configuration if needed
+
+### Troubleshooting
+
+#### Port Conflicts
+
+**Problem**: "port is already allocated" error
+
+**Solution**: Change host port mappings in docker-compose.yml:
+
+```yaml
+ports:
+  - "4000:3000"  # Map host port 4000 to container port 3000
+```
+
+#### BTP Connection Failures
+
+**Problem**: Logs show "btp_connection_error" or "btp_auth_error"
+
+**Solutions**:
+1. Verify peer URLs match container service names and ports
+2. Ensure shared secrets match on both sides
+3. Check containers can reach each other: `docker-compose exec connector-a ping connector-b`
+4. Wait for all containers to become healthy before testing connections
+
+#### Container Startup Failures
+
+**Problem**: Container exits immediately or won't start
+
+**Solutions**:
+1. Check if image was built: `docker images | grep ilp-connector`
+2. Rebuild image: `docker build -t ilp-connector .`
+3. View container logs: `docker-compose logs <service-name>`
+4. Check for port conflicts: `lsof -i :3000` (or relevant port)
+
+#### Network Connectivity Issues
+
+**Problem**: Containers can't communicate
+
+**Solutions**:
+1. Verify containers are on same network: `docker network inspect <network-name>`
+2. Check network exists: `docker network ls`
+3. Restart network: `docker-compose down && docker-compose up -d`
+
+### Useful Scripts
+
+The repository includes helper scripts for managing Docker deployments:
+
+#### Network Status Script
+
+```bash
+./scripts/docker-network-status.sh [compose-file]
+```
+
+Displays comprehensive network status:
+- Container health (color-coded)
+- BTP connection status
+- Resource usage (CPU, memory)
+- Network information
+
+#### Packet Flow Test Script
+
+```bash
+./scripts/docker-test-packet-flow.sh [compose-file]
+```
+
+Analyzes logs for packet flow activity and connection health.
+
+#### Rebuild Script
+
+```bash
+./scripts/docker-rebuild.sh [compose-file]
+```
+
+Automates the process of rebuilding the connector image and restarting the network:
+1. Stops existing containers
+2. Rebuilds connector image
+3. Starts network
+4. Waits for health checks
+
+### Production Considerations
+
+For production deployments, consider:
+
+1. **Secrets Management**: Use Docker secrets or environment files instead of hardcoded secrets
+2. **Persistent Storage**: Add volumes for configuration and logs
+3. **Resource Limits**: Add CPU and memory constraints
+4. **Monitoring**: Integrate with logging and monitoring solutions
+5. **Network Security**: Use encrypted overlay networks for multi-host deployments
+
+Example with resource limits:
+
+```yaml
+connector-a:
+  # ... other config ...
+  deploy:
+    resources:
+      limits:
+        cpus: '0.50'
+        memory: 512M
+      reservations:
+        cpus: '0.25'
+        memory: 256M
+```
+
+## Documentation
+
+- **Product Requirements**: [docs/prd.md](docs/prd.md)
+- **Architecture**: [docs/architecture.md](docs/architecture.md)
+- **Coding Standards**: [docs/architecture/coding-standards.md](docs/architecture/coding-standards.md)
+- **Tech Stack**: [docs/architecture/tech-stack.md](docs/architecture/tech-stack.md)
+- **Interledger RFCs**: [docs/rfcs/](docs/rfcs/)
+
+## Technology Stack
+
+| Category   | Technology | Version     | Purpose                               |
+| ---------- | ---------- | ----------- | ------------------------------------- |
+| Language   | TypeScript | 5.3.3       | Strict typing for protocol compliance |
+| Runtime    | Node.js    | 20.11.0 LTS | Async I/O for WebSocket handling      |
+| Testing    | Jest       | 29.7.x      | Unit/integration testing framework    |
+| Linting    | ESLint     | 8.56.x      | Code quality enforcement              |
+| Formatting | Prettier   | 3.2.x       | Consistent code style                 |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+
+- Conventional commit message format
+- Branch naming conventions
+- Pull request process
+- Code review standards
+
+## Development Workflow
+
+1. Create feature branch: `git checkout -b feat/my-feature`
+2. Make changes with conventional commits: `git commit -m "feat(connector): add BTP client"`
+3. Run tests and linting: `npm test && npm run lint`
+4. Push and create pull request
+5. CI checks must pass (tests, linting, build)
+
+## Project Status
+
+**Current Phase**: Epic 1 - Foundation & Core Connector (In Progress)
+
+- [x] Story 1.1: Monorepo setup with TypeScript tooling
+- [ ] Story 1.2: Shared ILP types and OER encoding
+- [ ] Story 1.3: BTP protocol implementation
+- [ ] Story 1.4: Routing logic
+- [ ] Story 1.5: Configuration loader
+- [ ] Story 1.6: Telemetry emission
+- [ ] Story 1.7: Health endpoints
+
+## License
+
+MIT (or Apache 2.0 - to be determined)
+
+## References
+
+- [Interledger Protocol v4 (RFC-0027)](https://interledger.org/rfcs/0027-interledger-protocol-4/)
+- [Bilateral Transfer Protocol (RFC-0023)](https://interledger.org/rfcs/0023-bilateral-transfer-protocol/)
+- [OER Encoding (RFC-0030)](https://interledger.org/rfcs/0030-notes-on-oer-encoding/)
+
+---
+
+**Built with Claude Code** - An educational project for understanding ILP routing mechanics.

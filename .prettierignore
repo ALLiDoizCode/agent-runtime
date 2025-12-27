@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+package-lock.json
+.bmad-core
+.bmad-creative-writing
+.bmad-infrastructure-devops
+.claude
+rfc-skills-packages

@@ -31,11 +31,14 @@
   - No secrets in logs or error messages (redact in Pino serializers)
 
 **Example:**
+
 ```typescript
-const btpSecret = process.env.BTP_AUTH_SECRET || (() => {
-  logger.error('BTP_AUTH_SECRET not configured');
-  process.exit(1);
-})();
+const btpSecret =
+  process.env.BTP_AUTH_SECRET ||
+  (() => {
+    logger.error('BTP_AUTH_SECRET not configured');
+    process.exit(1);
+  })();
 ```
 
 ## API Security
@@ -58,14 +61,15 @@ const btpSecret = process.env.BTP_AUTH_SECRET || (() => {
   - Redact `authToken` field in peer configuration logs
 
 **Pino Serializer Example:**
+
 ```typescript
 const logger = pino({
   serializers: {
     peer: (peer) => ({
       ...peer,
-      authToken: '[REDACTED]'  // Never log secrets
-    })
-  }
+      authToken: '[REDACTED]', // Never log secrets
+    }),
+  },
 });
 ```
 
@@ -83,6 +87,7 @@ const logger = pino({
 
 **Security Stance:**
 This is a **development and educational tool**, not a production payment system. Security focuses on:
+
 - Preventing accidental secret leakage
 - Basic input validation to avoid crashes
 - No malicious code in dependencies

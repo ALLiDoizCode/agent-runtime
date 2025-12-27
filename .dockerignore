@@ -1,0 +1,82 @@
+# Docker build context exclusions
+# Reduces build context size and speeds up Docker builds
+
+# Dependencies (will be installed inside container)
+node_modules/
+
+# Build output (will be generated in builder stage)
+dist/
+*.tsbuildinfo
+build/
+
+# Tests (not needed in Docker image)
+*.test.ts
+*.test.js
+test/
+coverage/
+**/__tests__/
+**/__mocks__/
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+
+# Documentation (exclude all except README.md)
+*.md
+!README.md
+docs/
+
+# Configuration files (not needed in image)
+.env
+.env.*
+.env.local
+.env.development
+.env.production
+jest.config.js
+jest.config.ts
+.eslintrc.json
+.eslintignore
+.prettierrc.json
+.prettierignore
+
+# TypeScript project references (not needed, using tsconfig.json)
+tsconfig.*.json
+!tsconfig.json
+!tsconfig.base.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# CI/CD
+.travis.yml
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# Docker files (avoid recursion)
+Dockerfile*
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+
+# Scripts (may contain development/testing scripts)
+scripts/
+
+# Package manager lock files for other managers
+yarn.lock
+pnpm-lock.yaml
+
+# Claude Code
+.claude/

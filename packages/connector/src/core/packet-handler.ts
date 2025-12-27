@@ -1,0 +1,507 @@
+/**
+ * ILP Packet Handler - Core forwarding logic for ILPv4 packets
+ * @packageDocumentation
+ * @see {@link https://github.com/interledger/rfcs/blob/master/0027-interledger-protocol-4/0027-interledger-protocol-4.md|RFC-0027: Interledger Protocol v4}
+ */
+
+import {
+  ILPPreparePacket,
+  ILPFulfillPacket,
+  ILPRejectPacket,
+  ILPErrorCode,
+  PacketType,
+  isValidILPAddress,
+} from '@m2m/shared';
+import { RoutingTable } from '../routing/routing-table';
+import { Logger, generateCorrelationId } from '../utils/logger';
+import { BTPClientManager } from '../btp/btp-client-manager';
+import { BTPConnectionError, BTPAuthenticationError } from '../btp/btp-client';
+
+/**
+ * Packet validation result
+ */
+interface ValidationResult {
+  /** Whether packet passed validation */
+  isValid: boolean;
+  /** Error code if validation failed */
+  errorCode?: ILPErrorCode;
+  /** Human-readable error message if validation failed */
+  errorMessage?: string;
+}
+
+/**
+ * Expiry safety margin in milliseconds
+ * @remarks
+ * Per RFC-0027, connectors must decrement packet expiry to prevent timeout during forwarding.
+ * Default safety margin of 1000ms (1 second) provides buffer for network latency.
+ */
+const EXPIRY_SAFETY_MARGIN_MS = 1000;
+
+/**
+ * PacketHandler - Implements ILPv4 packet forwarding logic
+ * @remarks
+ * Handles ILP Prepare packets by:
+ * 1. Validating packet structure and expiration time per RFC-0027
+ * 2. Looking up next-hop peer using routing table
+ * 3. Decrementing packet expiry by safety margin
+ * 4. Forwarding to next-hop peer (integration point for Epic 2)
+ * 5. Generating ILP Reject packets for errors
+ *
+ * @see {@link https://github.com/interledger/rfcs/blob/master/0027-interledger-protocol-4/0027-interledger-protocol-4.md|RFC-0027: Interledger Protocol v4}
+ */
+export class PacketHandler {
+  /**
+   * Routing table for next-hop lookups
+   */
+  private readonly routingTable: RoutingTable;
+
+  /**
+   * BTP client manager for packet forwarding to peers
+   */
+  private readonly btpClientManager: BTPClientManager;
+
+  /**
+   * Logger instance for structured logging
+   * @remarks
+   * Pino logger for structured JSON logging with correlation IDs
+   */
+  private readonly logger: Logger;
+
+  /**
+   * Connector node ID for triggeredBy field in reject packets
+   */
+  private readonly nodeId: string;
+
+  /**
+   * Creates a new PacketHandler instance
+   * @param routingTable - Routing table for next-hop lookups
+   * @param btpClientManager - BTP client manager for forwarding packets to peers
+   * @param nodeId - Connector node ID for reject packet triggeredBy field
+   * @param logger - Pino logger instance for structured logging
+   */
+  constructor(
+    routingTable: RoutingTable,
+    btpClientManager: BTPClientManager,
+    nodeId: string,
+    logger: Logger
+  ) {
+    this.routingTable = routingTable;
+    this.btpClientManager = btpClientManager;
+    this.nodeId = nodeId;
+    this.logger = logger;
+  }
+
+  /**
+   * Validate ILP Prepare packet structure and expiration
+   * @param packet - ILP Prepare packet to validate
+   * @returns Validation result with isValid flag and optional error details
+   * @remarks
+   * Validates per RFC-0027:
+   * - All required fields present (amount, destination, executionCondition, expiresAt, data)
+   * - Destination is valid ILP address format per RFC-0015
+   * - Packet has not expired (current time < expiresAt)
+   * - executionCondition is exactly 32 bytes
+   */
+  validatePacket(packet: ILPPreparePacket): ValidationResult {
+    // Check all required fields present
+    if (
+      packet.amount === undefined ||
+      !packet.destination ||
+      !packet.executionCondition ||
+      !packet.expiresAt ||
+      !packet.data
+    ) {
+      this.logger.error(
+        {
+          packetType: packet.type,
+          hasAmount: packet.amount !== undefined,
+          hasDestination: !!packet.destination,
+          hasExecutionCondition: !!packet.executionCondition,
+          hasExpiresAt: !!packet.expiresAt,
+          hasData: !!packet.data,
+          errorCode: ILPErrorCode.F01_INVALID_PACKET,
+        },
+        'Packet validation failed: missing required fields'
+      );
+      return {
+        isValid: false,
+        errorCode: ILPErrorCode.F01_INVALID_PACKET,
+        errorMessage: 'Missing required packet fields',
+      };
+    }
+
+    // Validate destination ILP address format
+    if (!isValidILPAddress(packet.destination)) {
+      this.logger.error(
+        {
+          destination: packet.destination,
+          errorCode: ILPErrorCode.F01_INVALID_PACKET,
+        },
+        'Packet validation failed: invalid ILP address format'
+      );
+      return {
+        isValid: false,
+        errorCode: ILPErrorCode.F01_INVALID_PACKET,
+        errorMessage: `Invalid ILP address format: ${packet.destination}`,
+      };
+    }
+
+    // Validate executionCondition is 32 bytes
+    if (packet.executionCondition.length !== 32) {
+      this.logger.error(
+        {
+          executionConditionLength: packet.executionCondition.length,
+          errorCode: ILPErrorCode.F01_INVALID_PACKET,
+        },
+        'Packet validation failed: executionCondition must be 32 bytes'
+      );
+      return {
+        isValid: false,
+        errorCode: ILPErrorCode.F01_INVALID_PACKET,
+        errorMessage: 'executionCondition must be exactly 32 bytes',
+      };
+    }
+
+    // Check if packet has expired
+    const currentTime = new Date();
+    if (packet.expiresAt <= currentTime) {
+      this.logger.error(
+        {
+          expiresAt: packet.expiresAt.toISOString(),
+          currentTime: currentTime.toISOString(),
+          errorCode: ILPErrorCode.R00_TRANSFER_TIMED_OUT,
+        },
+        'Packet validation failed: packet has expired'
+      );
+      return {
+        isValid: false,
+        errorCode: ILPErrorCode.R00_TRANSFER_TIMED_OUT,
+        errorMessage: 'Packet has expired',
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
+   * Decrement packet expiry by safety margin
+   * @param expiresAt - Original expiration timestamp
+   * @param safetyMargin - Safety margin in milliseconds to subtract
+   * @returns New expiration timestamp with safety margin applied
+   * @remarks
+   * Per RFC-0027, connectors must decrement expiry to prevent timeout during forwarding.
+   * Returns null if decremented expiry would be in the past.
+   */
+  decrementExpiry(expiresAt: Date, safetyMargin: number): Date | null {
+    const newExpiry = new Date(expiresAt.getTime() - safetyMargin);
+    const currentTime = new Date();
+
+    if (newExpiry <= currentTime) {
+      this.logger.debug(
+        {
+          originalExpiry: expiresAt.toISOString(),
+          decrementedExpiry: newExpiry.toISOString(),
+          currentTime: currentTime.toISOString(),
+          safetyMargin,
+        },
+        'Expiry decrement would create past timestamp'
+      );
+      return null;
+    }
+
+    this.logger.debug(
+      {
+        originalExpiry: expiresAt.toISOString(),
+        newExpiry: newExpiry.toISOString(),
+        safetyMargin,
+      },
+      'Decremented packet expiry'
+    );
+
+    return newExpiry;
+  }
+
+  /**
+   * Generate ILP Reject packet
+   * @param code - ILP error code per RFC-0027
+   * @param message - Human-readable error description
+   * @param triggeredBy - Address of connector that generated error
+   * @returns ILP Reject packet
+   * @remarks
+   * Generates reject packet per RFC-0027 Section 3.3 with standard error codes:
+   * - R00: Transfer Timed Out (packet expired)
+   * - F02: Unreachable (no route to destination)
+   * - F01: Invalid Packet (malformed packet)
+   */
+  generateReject(code: ILPErrorCode, message: string, triggeredBy: string): ILPRejectPacket {
+    this.logger.info(
+      {
+        errorCode: code,
+        message,
+        triggeredBy,
+      },
+      'Generated reject packet'
+    );
+
+    return {
+      type: PacketType.REJECT,
+      code,
+      triggeredBy,
+      message,
+      data: Buffer.alloc(0),
+    };
+  }
+
+  /**
+   * Forward packet to next-hop peer via BTP
+   * @param packet - ILP Prepare packet to forward
+   * @param nextHop - Peer identifier to forward to
+   * @param correlationId - Correlation ID for tracking packet across logs
+   * @returns ILP response packet (Fulfill or Reject) from next-hop peer
+   * @throws BTPConnectionError if BTP connection fails
+   * @throws BTPAuthenticationError if BTP authentication fails
+   * @remarks
+   * Forwards packet to next-hop peer using BTPClientManager.
+   * Maps BTP errors to ILP error codes:
+   * - BTPConnectionError → T01 (Ledger Unreachable)
+   * - BTPAuthenticationError → T01 (Ledger Unreachable)
+   * - BTP timeout → T00 (Transfer Timed Out)
+   */
+  private async forwardToNextHop(
+    packet: ILPPreparePacket,
+    nextHop: string,
+    correlationId: string
+  ): Promise<ILPFulfillPacket | ILPRejectPacket> {
+    this.logger.info(
+      {
+        correlationId,
+        event: 'btp_forward',
+        destination: packet.destination,
+        amount: packet.amount.toString(),
+        peerId: nextHop,
+      },
+      'Forwarding packet to peer via BTP'
+    );
+
+    try {
+      // Forward packet via BTPClientManager
+      const response = await this.btpClientManager.sendToPeer(nextHop, packet);
+
+      this.logger.info(
+        {
+          correlationId,
+          event: 'btp_forward_success',
+          peerId: nextHop,
+          responseType: response.type,
+        },
+        'Received response from peer via BTP'
+      );
+
+      return response;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Map BTP errors to ILP error codes
+      if (error instanceof BTPConnectionError) {
+        this.logger.error(
+          {
+            correlationId,
+            event: 'btp_connection_error',
+            peerId: nextHop,
+            error: errorMessage,
+          },
+          'BTP connection failed'
+        );
+        return this.generateReject(
+          ILPErrorCode.T01_PEER_UNREACHABLE,
+          `BTP connection to ${nextHop} failed: ${errorMessage}`,
+          this.nodeId
+        );
+      }
+
+      if (error instanceof BTPAuthenticationError) {
+        this.logger.error(
+          {
+            correlationId,
+            event: 'btp_auth_error',
+            peerId: nextHop,
+            error: errorMessage,
+          },
+          'BTP authentication failed'
+        );
+        return this.generateReject(
+          ILPErrorCode.T01_PEER_UNREACHABLE,
+          `BTP authentication to ${nextHop} failed: ${errorMessage}`,
+          this.nodeId
+        );
+      }
+
+      // Check if timeout error
+      if (errorMessage.includes('timeout')) {
+        this.logger.error(
+          {
+            correlationId,
+            event: 'btp_timeout',
+            peerId: nextHop,
+            error: errorMessage,
+          },
+          'BTP packet send timeout'
+        );
+        return this.generateReject(
+          ILPErrorCode.R00_TRANSFER_TIMED_OUT,
+          `BTP timeout to ${nextHop}: ${errorMessage}`,
+          this.nodeId
+        );
+      }
+
+      // Unknown error - log and rethrow
+      this.logger.error(
+        {
+          correlationId,
+          event: 'btp_forward_error',
+          peerId: nextHop,
+          error: errorMessage,
+        },
+        'Unexpected error forwarding packet via BTP'
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Handle ILP Prepare packet - main packet processing method
+   * @param packet - ILP Prepare packet to process
+   * @returns Promise resolving to ILP Fulfill or Reject packet
+   * @remarks
+   * Complete packet handling flow per RFC-0027:
+   * 1. Validate packet structure and expiration
+   * 2. Look up next-hop peer using routing table
+   * 3. Decrement packet expiry by safety margin
+   * 4. Forward to next-hop peer (stub for Epic 1)
+   * 5. Return fulfill/reject based on processing result
+   *
+   * Generates correlation ID for packet tracking across logs.
+   */
+  async handlePreparePacket(
+    packet: ILPPreparePacket
+  ): Promise<ILPFulfillPacket | ILPRejectPacket> {
+    const correlationId = generateCorrelationId();
+
+    this.logger.info(
+      {
+        correlationId,
+        packetType: 'PREPARE',
+        destination: packet.destination,
+        amount: packet.amount.toString(),
+        timestamp: Date.now(),
+      },
+      'Packet received'
+    );
+
+    // Validate packet
+    const validation = this.validatePacket(packet);
+    if (!validation.isValid) {
+      this.logger.error(
+        {
+          correlationId,
+          packetType: 'REJECT',
+          destination: packet.destination,
+          errorCode: validation.errorCode,
+          reason: validation.errorMessage,
+          timestamp: Date.now(),
+        },
+        'Packet rejected'
+      );
+      return this.generateReject(
+        validation.errorCode!,
+        validation.errorMessage!,
+        this.nodeId
+      );
+    }
+
+    // Look up next-hop peer
+    const nextHop = this.routingTable.getNextHop(packet.destination);
+    if (nextHop === null) {
+      this.logger.info(
+        {
+          correlationId,
+          destination: packet.destination,
+          selectedPeer: null,
+          reason: 'no route found',
+        },
+        'Routing decision'
+      );
+      this.logger.error(
+        {
+          correlationId,
+          packetType: 'REJECT',
+          destination: packet.destination,
+          errorCode: ILPErrorCode.F02_UNREACHABLE,
+          reason: 'no route found',
+          timestamp: Date.now(),
+        },
+        'Packet rejected'
+      );
+      return this.generateReject(
+        ILPErrorCode.F02_UNREACHABLE,
+        `No route to destination: ${packet.destination}`,
+        this.nodeId
+      );
+    }
+
+    this.logger.info(
+      {
+        correlationId,
+        destination: packet.destination,
+        selectedPeer: nextHop,
+        reason: 'longest-prefix match',
+      },
+      'Routing decision'
+    );
+
+    // Decrement expiry
+    const newExpiry = this.decrementExpiry(packet.expiresAt, EXPIRY_SAFETY_MARGIN_MS);
+    if (newExpiry === null) {
+      this.logger.error(
+        {
+          correlationId,
+          packetType: 'REJECT',
+          destination: packet.destination,
+          errorCode: ILPErrorCode.R00_TRANSFER_TIMED_OUT,
+          expiresAt: packet.expiresAt.toISOString(),
+          reason: 'Insufficient time remaining for forwarding',
+          timestamp: Date.now(),
+        },
+        'Packet rejected'
+      );
+      return this.generateReject(
+        ILPErrorCode.R00_TRANSFER_TIMED_OUT,
+        'Insufficient time remaining for forwarding',
+        this.nodeId
+      );
+    }
+
+    // Create forwarding packet with decremented expiry
+    const forwardingPacket: ILPPreparePacket = {
+      ...packet,
+      expiresAt: newExpiry,
+    };
+
+    // Forward to next hop via BTP and return response
+    const response = await this.forwardToNextHop(forwardingPacket, nextHop, correlationId);
+
+    this.logger.info(
+      {
+        correlationId,
+        event: 'packet_response',
+        packetType: response.type,
+        destination: packet.destination,
+        code: response.type === PacketType.REJECT ? response.code : undefined,
+        timestamp: Date.now(),
+      },
+      'Returning packet response'
+    );
+
+    return response;
+  }
+}

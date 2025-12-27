@@ -33,6 +33,7 @@ The Interledger Protocol enables payments across different ledgers and payment n
 ### Why Existing Solutions Fall Short
 
 Existing ILP implementations (like Interledger.js) focus on production functionality but lack:
+
 - Built-in visualization capabilities
 - Easy multi-node deployment orchestration
 - Comprehensive packet-level logging and tracing
@@ -81,24 +82,28 @@ A developer runs `docker-compose up`, specifies the number of connector nodes, a
 ### Primary User Segment: Interledger Protocol Developers
 
 **Demographic Profile:**
+
 - Software engineers working on payment systems, blockchain integrations, or Interledger implementations
 - 3-10 years programming experience
 - Familiar with distributed systems concepts
 - Working at fintech companies, blockchain startups, or protocol foundations
 
 **Current Behaviors and Workflows:**
+
 - Manually deploy and configure ILP connector software
 - Use text-based logs to debug payment routing issues
 - Experiment with Interledger.js or similar reference implementations
 - Test integration with various ledger plugins and settlement engines
 
 **Specific Needs and Pain Points:**
+
 - Need to understand how routing decisions are made
 - Want to test edge cases and failure scenarios
 - Require reproducible test environments for different network topologies
 - Struggle with opaque packet transformation across connector hops
 
 **Goals:**
+
 - Successfully integrate Interledger into their applications
 - Debug payment routing issues efficiently
 - Demonstrate Interledger capabilities to stakeholders
@@ -107,21 +112,25 @@ A developer runs `docker-compose up`, specifies the number of connector nodes, a
 ### Secondary User Segment: Blockchain & Fintech Educators
 
 **Demographic Profile:**
+
 - University instructors, bootcamp teachers, or online course creators
 - Focus on blockchain, distributed systems, or fintech courses
 - Need practical, demonstrable examples of complex protocols
 
 **Current Behaviors and Workflows:**
+
 - Use slides and diagrams to explain Interledger concepts
 - Struggle to show live protocol operation
 - Rely on static examples rather than interactive demonstrations
 
 **Specific Needs and Pain Points:**
+
 - Need visual, interactive teaching tools for abstract concepts
 - Want students to experiment hands-on with protocol behavior
 - Require low-friction setup for classroom environments
 
 **Goals:**
+
 - Make Interledger concepts accessible to students
 - Enable hands-on learning with minimal setup overhead
 - Demonstrate real-world protocol operation interactively
@@ -216,6 +225,7 @@ A developer runs `docker-compose up`, specifies the number of connector nodes, a
 ### MVP Success Criteria
 
 The MVP is successful when:
+
 1. A user can run `docker-compose up` and deploy 5 interconnected ILP connector nodes
 2. Test packets can be sent through the network and visually observed in the dashboard
 3. All packet details are visible in logs and UI
@@ -370,19 +380,19 @@ Transform this into the **definitive Interledger development and education platf
 ### Key Risks
 
 - **RFC Complexity:** Implementing full ILPv4 and BTP compliance may be more complex than estimated
-  - *Mitigation:* Start with minimal RFC-compliant subset, iterate to full compliance
+  - _Mitigation:_ Start with minimal RFC-compliant subset, iterate to full compliance
 
 - **Visualization Performance:** Real-time visualization may degrade with high packet rates
-  - *Mitigation:* Implement sampling/throttling, optimize rendering with virtualization
+  - _Mitigation:_ Implement sampling/throttling, optimize rendering with virtualization
 
 - **Community Adoption:** Project may not gain traction if ILP community is too small
-  - *Mitigation:* Active promotion in Interledger forums, integration with existing tools
+  - _Mitigation:_ Active promotion in Interledger forums, integration with existing tools
 
 - **Maintenance Burden:** As solo developer, ongoing maintenance could become overwhelming
-  - *Mitigation:* Document extensively, seek co-maintainers early, keep architecture simple
+  - _Mitigation:_ Document extensively, seek co-maintainers early, keep architecture simple
 
 - **Technology Choice Risk:** Choosing wrong tech stack could limit functionality or performance
-  - *Mitigation:* Prototype key components (visualization, BTP) before full commitment
+  - _Mitigation:_ Prototype key components (visualization, BTP) before full commitment
 
 ### Open Questions
 
@@ -423,6 +433,7 @@ Based on the official Interledger RFCs:
 - **RFC-0030 (OER Encoding):** Canonical Octet Encoding Rules for data serialization
 
 Key findings:
+
 - BTP uses WebSocket for real-time bidirectional communication
 - ILP packets are stateless and can be routed independently
 - Connectors must maintain routing tables and peer relationships
@@ -431,6 +442,7 @@ Key findings:
 #### Competitive Analysis
 
 Existing Interledger tools:
+
 - **Interledger.js:** Reference implementation, production-focused, lacks visualization
 - **ILP Kit:** Deprecated connector/wallet combo, no longer maintained
 - **Moneyd:** Local ILP node, minimal observability features
@@ -444,6 +456,7 @@ N/A - Solo project initiation
 ### C. References
 
 **Official Interledger RFCs:**
+
 - https://github.com/interledger/rfcs
 - RFC-0001: Interledger Architecture
 - RFC-0023: Bilateral Transfer Protocol
@@ -451,10 +464,12 @@ N/A - Solo project initiation
 - RFC-0034: Connector Requirements
 
 **Related Projects:**
+
 - Interledger.js: https://github.com/interledgerjs
 - ILP Packet Library: https://github.com/interledgerjs/ilp-packet
 
 **Technical Documentation:**
+
 - Docker Compose: https://docs.docker.com/compose/
 - WebSocket Protocol: https://datatracker.ietf.org/doc/html/rfc6455
 - OER Encoding: ITU-T X.696

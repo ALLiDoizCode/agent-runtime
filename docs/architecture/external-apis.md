@@ -9,6 +9,7 @@ This project is self-contained with no external API integrations needed. All fun
 - npm registry for package dependencies
 
 **Rationale:**
+
 - Educational/testing tool runs entirely locally
 - No real ledger integration (MVP scope limitation per PRD)
 - No cloud services or third-party APIs
@@ -16,6 +17,7 @@ This project is self-contained with no external API integrations needed. All fun
 
 **Post-MVP Considerations:**
 Future versions might integrate with:
+
 - Interledger testnet connectors (real network connectivity)
 - Settlement engine APIs (RFC-0038)
 - External monitoring/alerting services

@@ -32,6 +32,7 @@
   - **User Context:** Not applicable (no user authentication in MVP)
 
 **Example Structured Log Entry:**
+
 ```json
 {
   "level": "info",

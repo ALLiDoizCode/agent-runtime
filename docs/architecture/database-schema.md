@@ -5,6 +5,7 @@
 The architecture uses **in-memory data structures only** with no persistence layer.
 
 **Rationale:**
+
 - Routing tables configured at startup from YAML files (ephemeral)
 - Packet history not persisted (real-time observability only)
 - Connector state resets on container restart (acceptable for dev/test tool)
@@ -12,6 +13,7 @@ The architecture uses **in-memory data structures only** with no persistence lay
 - Aligns with educational/testing use case (no production data)
 
 **Data Storage Strategy:**
+
 - **Routing Tables:** In-memory Map/Array in each ConnectorNode
 - **Peer Connections:** In-memory Map in BTPClientManager
 - **Telemetry Events:** Streamed to dashboard, not stored
@@ -19,6 +21,7 @@ The architecture uses **in-memory data structures only** with no persistence lay
 
 **Post-MVP Considerations:**
 Future versions might add:
+
 - SQLite for optional packet history logging
 - Redis for shared routing table state (multi-instance connectors)
 - TimescaleDB for performance metrics storage

@@ -1,0 +1,549 @@
+/**
+ * BTP WebSocket Server
+ * Implements RFC-0023 Bilateral Transfer Protocol server for accepting peer connections
+ */
+
+import WebSocket, { WebSocketServer } from 'ws';
+import { Logger } from '../utils/logger';
+import { PacketHandler } from '../core/packet-handler';
+import {
+  BTPMessage,
+  BTPMessageType,
+  BTPData,
+  BTPError,
+  isBTPData,
+} from './btp-types';
+import { parseBTPMessage, serializeBTPMessage } from './btp-message-parser';
+import { deserializePacket, serializePacket, ILPPreparePacket, PacketType } from '@m2m/shared';
+
+/**
+ * BTP peer connection metadata
+ */
+interface PeerConnection {
+  peerId: string;
+  ws: WebSocket;
+  authenticated: boolean;
+}
+
+/**
+ * BTPServer - WebSocket server for BTP protocol
+ * Accepts incoming BTP connections from peer connectors
+ */
+export class BTPServer {
+  private readonly logger: Logger;
+  private readonly packetHandler: PacketHandler;
+  private wss: WebSocketServer | null = null;
+  private readonly peers: Map<string, PeerConnection> = new Map();
+  private onConnectionCallback?: (peerId: string, connection: WebSocket) => void;
+  private onMessageCallback?: (peerId: string, message: BTPMessage) => void;
+
+  /**
+   * Create BTPServer instance
+   * @param logger - Pino logger instance
+   * @param packetHandler - PacketHandler for processing ILP packets
+   */
+  constructor(logger: Logger, packetHandler: PacketHandler) {
+    this.logger = logger;
+    this.packetHandler = packetHandler;
+  }
+
+  /**
+   * Start BTP WebSocket server
+   * @param port - Port number to listen on (default from BTP_SERVER_PORT env var or 3000)
+   */
+  async start(port?: number): Promise<void> {
+    const serverPort = port ?? parseInt(process.env['BTP_SERVER_PORT'] ?? '3000', 10);
+
+    return new Promise<void>((resolve, reject) => {
+      try {
+        this.wss = new WebSocketServer({ port: serverPort });
+
+        this.wss.on('listening', () => {
+          this.logger.info(
+            {
+              event: 'btp_server_started',
+              port: serverPort,
+            },
+            `BTP server listening on port ${serverPort}`
+          );
+          resolve();
+        });
+
+        this.wss.on('error', (error) => {
+          this.logger.error(
+            {
+              event: 'btp_server_error',
+              error: error.message,
+            },
+            'BTP server error'
+          );
+          reject(error);
+        });
+
+        this.wss.on('connection', (ws: WebSocket, req) => {
+          this.handleConnection(ws, req);
+        });
+      } catch (error) {
+        this.logger.error(
+          {
+            event: 'btp_server_start_failed',
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Failed to start BTP server'
+        );
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Stop BTP server and close all connections
+   */
+  async stop(): Promise<void> {
+    if (!this.wss) {
+      return;
+    }
+
+    const activeConnections = this.peers.size;
+
+    // Close all peer connections
+    for (const [peerId, peerConn] of this.peers.entries()) {
+      try {
+        peerConn.ws.close(1000, 'Server shutting down');
+      } catch (error) {
+        this.logger.warn(
+          {
+            event: 'btp_connection_close_failed',
+            peerId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Failed to close peer connection during shutdown'
+        );
+      }
+    }
+
+    this.peers.clear();
+
+    // Close WebSocket server
+    return new Promise<void>((resolve, reject) => {
+      if (!this.wss) {
+        resolve();
+        return;
+      }
+
+      this.wss.close((error) => {
+        if (error) {
+          this.logger.error(
+            {
+              event: 'btp_server_shutdown_error',
+              error: error.message,
+            },
+            'Error during BTP server shutdown'
+          );
+          reject(error);
+        } else {
+          this.logger.info(
+            {
+              event: 'btp_server_shutdown',
+              activeConnections,
+            },
+            'BTP server shutdown complete'
+          );
+          this.wss = null;
+          resolve();
+        }
+      });
+    });
+  }
+
+  /**
+   * Register connection event handler
+   * @param callback - Called when peer successfully authenticates
+   */
+  onConnection(callback: (peerId: string, connection: WebSocket) => void): void {
+    this.onConnectionCallback = callback;
+  }
+
+  /**
+   * Register message event handler
+   * @param callback - Called when BTP message received from peer
+   */
+  onMessage(callback: (peerId: string, message: BTPMessage) => void): void {
+    this.onMessageCallback = callback;
+  }
+
+  /**
+   * Handle new WebSocket connection
+   */
+  private handleConnection(ws: WebSocket, req: { socket: { remoteAddress?: string; remotePort?: number } }): void {
+    const remoteAddress = req.socket.remoteAddress ?? 'unknown';
+    const connectionId = `${remoteAddress}:${req.socket.remotePort}`;
+
+    this.logger.info(
+      {
+        event: 'btp_connection',
+        connectionId,
+        remoteAddress,
+      },
+      'BTP connection established (awaiting authentication)'
+    );
+
+    // Store temporary connection (not yet authenticated)
+    const peerConn: PeerConnection = {
+      peerId: connectionId, // Temporary ID until authenticated
+      ws,
+      authenticated: false,
+    };
+
+    ws.on('message', async (data: Buffer) => {
+      try {
+        await this.handleWebSocketMessage(peerConn, data);
+      } catch (error) {
+        this.logger.error(
+          {
+            event: 'btp_message_error',
+            peerId: peerConn.peerId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Error handling BTP message'
+        );
+
+        // Send BTP ERROR response if connection is still open
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            const btpError = error instanceof BTPError
+              ? error
+              : new BTPError('F00', 'Internal server error');
+
+            const errorMessage: BTPMessage = {
+              type: BTPMessageType.ERROR,
+              requestId: 0,
+              data: btpError.toBTPErrorData(),
+            };
+
+            ws.send(serializeBTPMessage(errorMessage));
+          } catch (sendError) {
+            this.logger.error(
+              {
+                event: 'btp_error_response_failed',
+                peerId: peerConn.peerId,
+              },
+              'Failed to send BTP ERROR response'
+            );
+          }
+        }
+      }
+    });
+
+    ws.on('close', (code, reason) => {
+      this.logger.info(
+        {
+          event: 'btp_disconnect',
+          peerId: peerConn.peerId,
+          code,
+          reason: reason.toString(),
+        },
+        'BTP connection closed'
+      );
+
+      // Remove peer from active connections
+      if (peerConn.authenticated) {
+        this.peers.delete(peerConn.peerId);
+      }
+    });
+
+    ws.on('error', (error) => {
+      this.logger.error(
+        {
+          event: 'btp_connection_error',
+          peerId: peerConn.peerId,
+          error: error.message,
+        },
+        'BTP connection error'
+      );
+    });
+  }
+
+  /**
+   * Handle incoming WebSocket message
+   */
+  private async handleWebSocketMessage(
+    peerConn: PeerConnection,
+    data: Buffer
+  ): Promise<void> {
+    // Parse BTP message
+    const message = parseBTPMessage(data);
+
+    this.logger.debug(
+      {
+        event: 'btp_message_received',
+        peerId: peerConn.peerId,
+        messageType: BTPMessageType[message.type],
+        requestId: message.requestId,
+      },
+      'BTP message received'
+    );
+
+    // If not authenticated, expect AUTH message
+    if (!peerConn.authenticated) {
+      await this.authenticatePeer(peerConn, message);
+      return;
+    }
+
+    // Handle authenticated messages
+    if (message.type === BTPMessageType.MESSAGE) {
+      await this.handleMessage(peerConn, message);
+    } else {
+      this.logger.warn(
+        {
+          event: 'btp_unexpected_message_type',
+          peerId: peerConn.peerId,
+          messageType: BTPMessageType[message.type],
+        },
+        'Unexpected BTP message type (expected MESSAGE)'
+      );
+    }
+
+    // Notify message callback
+    if (this.onMessageCallback) {
+      this.onMessageCallback(peerConn.peerId, message);
+    }
+  }
+
+  /**
+   * Authenticate BTP peer
+   * @param peerConn - Peer connection to authenticate
+   * @param authMessage - BTP AUTH message
+   */
+  private async authenticatePeer(
+    peerConn: PeerConnection,
+    authMessage: BTPMessage
+  ): Promise<void> {
+    try {
+      // Validate message type (expect MESSAGE with auth protocol data)
+      if (authMessage.type !== BTPMessageType.MESSAGE) {
+        throw new BTPError(
+          'F00',
+          `Expected MESSAGE for authentication, got ${BTPMessageType[authMessage.type]}`
+        );
+      }
+
+      if (!isBTPData(authMessage)) {
+        throw new BTPError('F00', 'Invalid authentication message format');
+      }
+
+      const messageData = authMessage.data as BTPData;
+
+      // Find auth protocol data
+      const authProtocolData = messageData.protocolData.find(
+        (pd) => pd.protocolName === 'auth'
+      );
+
+      if (!authProtocolData) {
+        throw new BTPError('F00', 'Missing auth protocol data');
+      }
+
+      // Extract shared secret and peer ID from auth data
+      // Format: JSON { "peerId": "connector-b", "secret": "shared-secret-123" }
+      const authData = JSON.parse(authProtocolData.data.toString('utf8'));
+      const { peerId, secret } = authData;
+
+      if (!peerId || !secret) {
+        throw new BTPError('F00', 'Invalid auth data: missing peerId or secret');
+      }
+
+      // Validate shared secret from environment variable
+      const envVarKey = `BTP_PEER_${peerId.toUpperCase().replace(/-/g, '_')}_SECRET`;
+      const expectedSecret = process.env[envVarKey];
+
+      if (!expectedSecret) {
+        this.logger.warn(
+          {
+            event: 'btp_auth',
+            peerId,
+            success: false,
+            reason: 'no configured secret for peer',
+          },
+          'BTP authentication failed: peer not configured'
+        );
+        throw new BTPError('F00', 'Authentication failed: peer not configured');
+      }
+
+      if (secret !== expectedSecret) {
+        this.logger.warn(
+          {
+            event: 'btp_auth',
+            peerId,
+            success: false,
+            reason: 'invalid secret',
+          },
+          'BTP authentication failed: invalid secret'
+        );
+        throw new BTPError('F00', 'Authentication failed: invalid secret');
+      }
+
+      // Authentication successful
+      peerConn.peerId = peerId;
+      peerConn.authenticated = true;
+      this.peers.set(peerId, peerConn);
+
+      this.logger.info(
+        {
+          event: 'btp_auth',
+          peerId,
+          success: true,
+        },
+        `BTP peer authenticated: ${peerId}`
+      );
+
+      // Send RESPONSE acknowledging authentication
+      const responseMessage: BTPMessage = {
+        type: BTPMessageType.RESPONSE,
+        requestId: authMessage.requestId,
+        data: {
+          protocolData: [],
+        },
+      };
+
+      peerConn.ws.send(serializeBTPMessage(responseMessage));
+
+      // Notify connection callback
+      if (this.onConnectionCallback) {
+        this.onConnectionCallback(peerId, peerConn.ws);
+      }
+    } catch (error) {
+      // Authentication failed - close connection
+      this.logger.error(
+        {
+          event: 'btp_auth_error',
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'BTP authentication error'
+      );
+
+      // Send ERROR response
+      const btpError = error instanceof BTPError
+        ? error
+        : new BTPError('F00', 'Authentication failed');
+
+      const errorMessage: BTPMessage = {
+        type: BTPMessageType.ERROR,
+        requestId: authMessage.requestId,
+        data: btpError.toBTPErrorData(),
+      };
+
+      peerConn.ws.send(serializeBTPMessage(errorMessage));
+
+      // Close connection after sending error
+      setTimeout(() => {
+        peerConn.ws.close(1008, 'Authentication failed');
+      }, 100);
+    }
+  }
+
+  /**
+   * Handle BTP MESSAGE containing ILP packet
+   * @param peerConn - Authenticated peer connection
+   * @param message - BTP MESSAGE
+   */
+  private async handleMessage(
+    peerConn: PeerConnection,
+    message: BTPMessage
+  ): Promise<void> {
+    const childLogger = this.logger.child({ peerId: peerConn.peerId });
+
+    try {
+      // Validate message type
+      if (message.type !== BTPMessageType.MESSAGE) {
+        throw new BTPError('F00', `Expected MESSAGE, got ${BTPMessageType[message.type]}`);
+      }
+
+      if (!isBTPData(message)) {
+        throw new BTPError('F00', 'Invalid message format');
+      }
+
+      const messageData = message.data as BTPData;
+
+      // Validate required fields
+      if (!messageData.ilpPacket) {
+        throw new BTPError('F00', 'Missing ILP packet in BTP MESSAGE');
+      }
+
+      childLogger.debug(
+        {
+          event: 'btp_message_received',
+          peerId: peerConn.peerId,
+          messageType: 'MESSAGE',
+          requestId: message.requestId,
+        },
+        'Processing BTP MESSAGE with ILP packet'
+      );
+
+      // Decode ILP packet from buffer
+      const ilpPacket = deserializePacket(messageData.ilpPacket);
+
+      // Validate packet type (must be PREPARE)
+      if (ilpPacket.type !== PacketType.PREPARE) {
+        throw new BTPError('F00', `Expected ILP PREPARE packet, got type ${ilpPacket.type}`);
+      }
+
+      // Process packet through PacketHandler
+      const response = await this.packetHandler.handlePreparePacket(ilpPacket as ILPPreparePacket);
+
+      // Serialize ILP response
+      const responseBuffer = serializePacket(response);
+
+      // Wrap in BTP RESPONSE
+      const btpResponse: BTPMessage = {
+        type: BTPMessageType.RESPONSE,
+        requestId: message.requestId,
+        data: {
+          protocolData: [],
+          ilpPacket: responseBuffer,
+        },
+      };
+
+      // Send BTP RESPONSE back to peer
+      peerConn.ws.send(serializeBTPMessage(btpResponse));
+
+      const responseType = response.type === 13 ? 'FULFILL' : 'REJECT';
+
+      childLogger.info(
+        {
+          event: 'btp_response_sent',
+          peerId: peerConn.peerId,
+          responseType,
+          requestId: message.requestId,
+        },
+        `BTP RESPONSE sent (${responseType})`
+      );
+    } catch (error) {
+      childLogger.error(
+        {
+          event: 'btp_message_processing_error',
+          peerId: peerConn.peerId,
+          requestId: message.requestId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Error processing BTP MESSAGE'
+      );
+
+      // Send BTP ERROR response
+      const btpError = error instanceof BTPError
+        ? error
+        : new BTPError('F00', 'Internal error processing message');
+
+      const errorMessage: BTPMessage = {
+        type: BTPMessageType.ERROR,
+        requestId: message.requestId,
+        data: btpError.toBTPErrorData(),
+      };
+
+      if (peerConn.ws.readyState === WebSocket.OPEN) {
+        peerConn.ws.send(serializeBTPMessage(errorMessage));
+      }
+
+      throw error; // Re-throw to trigger outer error handler
+    }
+  }
+}

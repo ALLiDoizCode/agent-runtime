@@ -28,6 +28,7 @@ MVP focuses on developer/researcher audience using modern browsers. Accessibilit
 ## Branding
 
 Minimal technical aesthetic with focus on functionality over brand identity. Color palette should emphasize:
+
 - **Functional color-coding:** Blue (Prepare), Green (Fulfill), Red (Reject) for packet types
 - **Neutral background:** Dark theme preferred (reduces eye strain during extended debugging sessions)
 - **Monospace fonts:** For logs and packet data to align with developer tool conventions

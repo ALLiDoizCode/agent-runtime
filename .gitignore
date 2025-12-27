@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+*.tsbuildinfo
+*.js.map
+*.d.ts.map
+
+# Test coverage
+coverage/
+*.lcov
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pino-*.log
+
+# OS generated files
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Docker volumes
+.docker-data/
+
+# BMAD framework (already in repo, don't ignore)
+# .bmad-core/
+# .bmad-creative-writing/
+# .bmad-infrastructure-devops/
+# .claude/

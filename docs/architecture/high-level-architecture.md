@@ -17,6 +17,7 @@ The system employs a **microservices architecture deployed via Docker containers
    - No shared database - each connector maintains in-memory routing tables and peer state
 
 3. **Primary Data Flow:**
+
    ```
    User sends test packet → Connector A receives via BTP
    → Connector A routes packet (consults routing table)

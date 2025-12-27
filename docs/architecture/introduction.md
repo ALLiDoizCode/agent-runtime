@@ -7,9 +7,9 @@ If the project includes a significant user interface, a separate Frontend Archit
 
 ## Change Log
 
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-12-26 | 0.1 | Initial architecture creation | Winston (Architect) |
+| Date       | Version | Description                   | Author              |
+| ---------- | ------- | ----------------------------- | ------------------- |
+| 2025-12-26 | 0.1     | Initial architecture creation | Winston (Architect) |
 
 ## Starter Template or Existing Project
 
@@ -18,12 +18,14 @@ If the project includes a significant user interface, a separate Frontend Archit
 Based on PRD review, this is a greenfield project with no existing codebase. Given the unique architectural requirements (ILP connector + BTP + visualization), manual setup is recommended.
 
 **Rationale:**
+
 - Unique requirements don't align with standard starters (Create React App, NestJS, etc.)
 - Monorepo structure (`packages/connector`, `packages/dashboard`, `packages/shared`) needs custom configuration
 - Educational value enhanced by building from first principles per PRD goals
 - PRD explicitly mentions building custom ILP packet implementation for RFC understanding
 
 **Alternatives Considered:**
+
 - Turborepo/Nx monorepo starters - Rejected (unnecessary complexity for 3-package monorepo)
 - Vite React starter - Will use for dashboard package only
 - NestJS - Overkill for lightweight connector

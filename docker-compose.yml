@@ -1,0 +1,108 @@
+# Docker Compose configuration for 3-node linear ILP network
+# Topology: Connector A → Connector B → Connector C
+#
+# This configuration deploys a simple linear chain of 3 ILP connectors:
+# - connector-a: Entry point (port 3000)
+# - connector-b: Transit node (port 3001)
+# - connector-c: Exit node (port 3002)
+#
+# Usage:
+#   Start: docker-compose up -d
+#   Logs:  docker-compose logs -f
+#   Stop:  docker-compose down
+#
+# Prerequisites:
+#   1. Build the connector image: docker build -t ilp-connector .
+#   2. Docker Engine 20.10+ and Docker Compose 2.x installed
+#
+# Configuration:
+#   Each connector loads its configuration from a YAML file mounted as a volume.
+#   Configuration files are in the examples/ directory:
+#   - examples/linear-3-nodes-a.yaml
+#   - examples/linear-3-nodes-b.yaml
+#   - examples/linear-3-nodes-c.yaml
+#
+#   To customize topology, edit the YAML files or create new ones.
+
+version: '3.8'
+
+services:
+  # Connector A - Entry node
+  connector-a:
+    image: ilp-connector
+    container_name: connector-a
+    environment:
+      CONFIG_FILE: /app/config.yaml
+      NODE_ID: connector-a
+      LOG_LEVEL: info
+      HEALTH_CHECK_PORT: 8080
+    volumes:
+      - ./examples/linear-3-nodes-a.yaml:/app/config.yaml:ro
+    ports:
+      - "3000:3000"  # BTP server port
+      - "8080:8080"  # Health check HTTP port
+    networks:
+      - ilp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Connector B - Transit node (middle)
+  connector-b:
+    image: ilp-connector
+    container_name: connector-b
+    environment:
+      CONFIG_FILE: /app/config.yaml
+      NODE_ID: connector-b
+      LOG_LEVEL: info
+      HEALTH_CHECK_PORT: 8080
+    volumes:
+      - ./examples/linear-3-nodes-b.yaml:/app/config.yaml:ro
+    ports:
+      - "3001:3001"  # BTP server port
+      - "8081:8080"  # Health check HTTP port (mapped to host port 8081)
+    networks:
+      - ilp-network
+    depends_on:
+      - connector-a
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Connector C - Exit node
+  connector-c:
+    image: ilp-connector
+    container_name: connector-c
+    environment:
+      CONFIG_FILE: /app/config.yaml
+      NODE_ID: connector-c
+      LOG_LEVEL: info
+      HEALTH_CHECK_PORT: 8080
+    volumes:
+      - ./examples/linear-3-nodes-c.yaml:/app/config.yaml:ro
+    ports:
+      - "3002:3002"  # BTP server port
+      - "8082:8080"  # Health check HTTP port (mapped to host port 8082)
+    networks:
+      - ilp-network
+    depends_on:
+      - connector-b
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ilp-network:
+    driver: bridge

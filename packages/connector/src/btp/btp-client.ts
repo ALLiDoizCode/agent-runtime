@@ -1,0 +1,536 @@
+/**
+ * BTP WebSocket Client
+ * Implements RFC-0023 Bilateral Transfer Protocol client for outbound peer connections
+ */
+
+import WebSocket from 'ws';
+import { EventEmitter } from 'events';
+import { Logger } from '../utils/logger';
+import {
+  BTPMessage,
+  BTPMessageType,
+  BTPData,
+  BTPError,
+  isBTPData,
+  isBTPErrorData,
+} from './btp-types';
+import { parseBTPMessage, serializeBTPMessage } from './btp-message-parser';
+import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared';
+import { serializePacket, deserializePacket } from '@m2m/shared';
+
+/**
+ * Peer configuration for BTP connections
+ */
+export interface Peer {
+  /** Unique peer identifier */
+  id: string;
+  /** WebSocket URL for BTP connection (e.g., "ws://connector-b:3000") */
+  url: string;
+  /** Shared secret for BTP authentication */
+  authToken: string;
+  /** Current connection state */
+  connected: boolean;
+  /** Timestamp of last successful communication */
+  lastSeen: Date;
+}
+
+/**
+ * Connection state type
+ */
+type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+/**
+ * BTP connection error
+ */
+export class BTPConnectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BTPConnectionError';
+    Error.captureStackTrace(this, BTPConnectionError);
+  }
+}
+
+/**
+ * BTP authentication error
+ */
+export class BTPAuthenticationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BTPAuthenticationError';
+    Error.captureStackTrace(this, BTPAuthenticationError);
+  }
+}
+
+/**
+ * Pending request tracking
+ */
+interface PendingRequest {
+  resolve: (packet: ILPFulfillPacket | ILPRejectPacket) => void;
+  reject: (error: Error) => void;
+  timeoutId: NodeJS.Timeout;
+}
+
+/**
+ * BTPClient - WebSocket client for BTP protocol
+ * Initiates outbound BTP connections to peer connectors
+ */
+export class BTPClient extends EventEmitter {
+  private readonly _peer: Peer;
+  private readonly _logger: Logger;
+  private _ws: WebSocket | null = null;
+  private _connectionState: ConnectionState = 'disconnected';
+  private _retryCount = 0;
+  private _maxRetries = 5;
+  private _requestIdCounter = 0;
+  private _pendingRequests: Map<number, PendingRequest> = new Map();
+  private _pingInterval: NodeJS.Timeout | null = null;
+  private _pongTimeout: NodeJS.Timeout | null = null;
+  private readonly _pingIntervalMs = 30000; // 30 seconds
+  private readonly _pongTimeoutMs = 10000; // 10 seconds
+  private _explicitDisconnect = false; // Track if disconnect was intentional
+  private readonly _packetSendTimeoutMs = 10000; // 10 seconds
+
+  /**
+   * Create BTPClient instance
+   * @param peer - Peer configuration
+   * @param logger - Pino logger instance
+   * @param maxRetries - Maximum retry attempts (default: 5)
+   */
+  constructor(peer: Peer, logger: Logger, maxRetries?: number) {
+    super();
+    this._peer = peer;
+    this._logger = logger.child({ peerId: peer.id });
+    if (maxRetries !== undefined) {
+      this._maxRetries = maxRetries;
+    }
+  }
+
+  /**
+   * Get current connection state
+   */
+  get isConnected(): boolean {
+    return this._connectionState === 'connected';
+  }
+
+  /**
+   * Connect to peer connector
+   * Establishes WebSocket connection and performs authentication
+   */
+  async connect(): Promise<void> {
+    if (this._connectionState === 'connecting' || this._connectionState === 'connected') {
+      this._logger.debug(
+        { event: 'btp_connect_skip', state: this._connectionState },
+        'Connection already in progress or established'
+      );
+      return;
+    }
+
+    // Reset explicit disconnect flag on new connection attempt
+    this._explicitDisconnect = false;
+
+    this._connectionState = 'connecting';
+    this._logger.info({ event: 'btp_connection_attempt', url: this._peer.url }, 'Connecting to peer');
+
+    return new Promise<void>((resolve, reject) => {
+      try {
+        this._ws = new WebSocket(this._peer.url);
+
+        // Set up event handlers
+        this._ws.on('open', async () => {
+          try {
+            await this._authenticate();
+            this._connectionState = 'connected';
+            this._retryCount = 0; // Reset retry count on success
+            this._peer.connected = true;
+            this._peer.lastSeen = new Date();
+            this._startKeepAlive();
+
+            this._logger.info(
+              { event: 'btp_connected', url: this._peer.url },
+              'Connected to peer'
+            );
+            this.emit('connected');
+            resolve();
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this._logger.error(
+              { event: 'btp_connection_error', error: errorMessage },
+              'Authentication failed'
+            );
+            this._connectionState = 'error';
+            this._ws?.close();
+            reject(error);
+          }
+        });
+
+        this._ws.on('message', (data: Buffer) => {
+          this._handleMessage(data).catch((error) => {
+            this._logger.error(
+              { event: 'btp_message_error', error: error instanceof Error ? error.message : String(error) },
+              'Error handling message'
+            );
+          });
+        });
+
+        this._ws.on('close', () => {
+          this._handleClose();
+        });
+
+        this._ws.on('error', (error: Error) => {
+          this._logger.error(
+            { event: 'btp_connection_error', error: error.message },
+            'WebSocket error'
+          );
+          this._connectionState = 'error';
+          this.emit('error', error);
+          reject(new BTPConnectionError(error.message));
+        });
+
+        this._ws.on('pong', () => {
+          this._handlePong();
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this._logger.error(
+          { event: 'btp_connection_error', error: errorMessage },
+          'Failed to create WebSocket'
+        );
+        this._connectionState = 'error';
+        reject(new BTPConnectionError(errorMessage));
+      }
+    });
+  }
+
+  /**
+   * Disconnect from peer connector
+   * Gracefully closes WebSocket connection
+   */
+  async disconnect(): Promise<void> {
+    this._logger.info({ event: 'btp_disconnect_requested' }, 'Disconnecting from peer');
+
+    // Set flag to prevent automatic retry
+    this._explicitDisconnect = true;
+
+    this._stopKeepAlive();
+
+    if (this._ws) {
+      this._ws.close();
+      this._ws = null;
+    }
+
+    this._connectionState = 'disconnected';
+    this._peer.connected = false;
+
+    // Reject all pending requests
+    for (const [requestId, pending] of this._pendingRequests.entries()) {
+      clearTimeout(pending.timeoutId);
+      pending.reject(new BTPConnectionError('Connection closed'));
+      this._pendingRequests.delete(requestId);
+    }
+  }
+
+  /**
+   * Perform BTP authentication handshake
+   * @private
+   */
+  private async _authenticate(): Promise<void> {
+    this._logger.info({ event: 'btp_auth_attempt' }, 'Attempting authentication');
+
+    // Create AUTH message with shared secret in protocol data
+    const authTokenBuffer = Buffer.from(this._peer.authToken, 'utf8');
+    const authMessage: BTPMessage = {
+      type: BTPMessageType.MESSAGE,
+      requestId: this._generateRequestId(),
+      data: {
+        protocolData: [
+          {
+            protocolName: 'auth',
+            contentType: 0,
+            data: authTokenBuffer,
+          },
+        ],
+        ilpPacket: Buffer.alloc(0),
+      } as BTPData,
+    };
+
+    // Send AUTH message
+    const authBuffer = serializeBTPMessage(authMessage);
+
+    if (!this._ws) {
+      throw new BTPAuthenticationError('WebSocket not connected');
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this._logger.error(
+          { event: 'btp_auth_failed', reason: 'timeout' },
+          'Authentication timeout'
+        );
+        reject(new BTPAuthenticationError('Authentication timeout'));
+      }, 5000);
+
+      // Set up one-time message handler for auth response
+      const authHandler = (data: Buffer): void => {
+        try {
+          const message = parseBTPMessage(data);
+
+          if (message.requestId === authMessage.requestId) {
+            clearTimeout(timeout);
+            this._ws?.removeListener('message', authHandler);
+
+            if (message.type === BTPMessageType.ERROR) {
+              const errorData = isBTPErrorData(message) ? message.data : { code: 'UNKNOWN', name: 'Unknown error' };
+              this._logger.error(
+                { event: 'btp_auth_failed', reason: errorData.code },
+                'Authentication failed'
+              );
+              reject(new BTPAuthenticationError(`Authentication failed: ${errorData.code}`));
+            } else if (message.type === BTPMessageType.RESPONSE) {
+              this._logger.info({ event: 'btp_auth_success' }, 'Authentication successful');
+              resolve();
+            }
+          }
+        } catch (error) {
+          clearTimeout(timeout);
+          this._ws?.removeListener('message', authHandler);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this._logger.error(
+            { event: 'btp_auth_failed', reason: errorMessage },
+            'Authentication error'
+          );
+          reject(new BTPAuthenticationError(errorMessage));
+        }
+      };
+
+      this._ws?.on('message', authHandler);
+      this._ws?.send(authBuffer);
+    });
+  }
+
+  /**
+   * Send ILP packet to peer
+   * @param packet - ILP Prepare packet
+   * @returns ILP Fulfill or Reject packet
+   */
+  async sendPacket(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket> {
+    if (!this.isConnected) {
+      throw new BTPConnectionError('Not connected to peer');
+    }
+
+    if (!this._ws) {
+      throw new BTPConnectionError('WebSocket not available');
+    }
+
+    // Serialize ILP packet
+    const serializedPacket = serializePacket(packet);
+
+    // Generate unique request ID
+    const requestId = this._generateRequestId();
+
+    // Create BTP MESSAGE frame
+    const btpMessage: BTPMessage = {
+      type: BTPMessageType.MESSAGE,
+      requestId,
+      data: {
+        protocolData: [],
+        ilpPacket: serializedPacket,
+      } as BTPData,
+    };
+
+    // Encode BTP MESSAGE
+    const btpBuffer = serializeBTPMessage(btpMessage);
+
+    this._logger.debug(
+      {
+        event: 'btp_message_sent',
+        requestId,
+        packetType: packet.type,
+      },
+      'Sending BTP message'
+    );
+
+    // Send via WebSocket
+    try {
+      this._ws.send(btpBuffer);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new BTPConnectionError(`Failed to send message: ${errorMessage}`);
+    }
+
+    // Wait for response
+    return new Promise<ILPFulfillPacket | ILPRejectPacket>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        this._pendingRequests.delete(requestId);
+        reject(new BTPConnectionError('Packet send timeout'));
+      }, this._packetSendTimeoutMs);
+
+      this._pendingRequests.set(requestId, {
+        resolve,
+        reject,
+        timeoutId,
+      });
+    });
+  }
+
+  /**
+   * Handle incoming BTP message
+   * @private
+   */
+  private async _handleMessage(data: Buffer): Promise<void> {
+    try {
+      const message = parseBTPMessage(data);
+
+      // Handle RESPONSE messages
+      if (message.type === BTPMessageType.RESPONSE || message.type === BTPMessageType.ERROR) {
+        const pending = this._pendingRequests.get(message.requestId);
+        if (pending) {
+          clearTimeout(pending.timeoutId);
+          this._pendingRequests.delete(message.requestId);
+
+          if (message.type === BTPMessageType.ERROR) {
+            const errorData = isBTPErrorData(message) ? message.data : { code: 'UNKNOWN', name: 'Unknown error', data: Buffer.alloc(0), triggeredAt: new Date().toISOString() };
+            pending.reject(new BTPError(errorData.code, errorData.name, errorData.data));
+          } else if (isBTPData(message) && message.data.ilpPacket) {
+            // Decode ILP packet from response
+            const ilpPacket = deserializePacket(message.data.ilpPacket);
+            pending.resolve(ilpPacket as ILPFulfillPacket | ILPRejectPacket);
+          }
+        }
+      }
+
+      // Update last seen timestamp
+      this._peer.lastSeen = new Date();
+    } catch (error) {
+      this._logger.error(
+        {
+          event: 'btp_message_parse_error',
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to parse BTP message'
+      );
+    }
+  }
+
+  /**
+   * Handle WebSocket close event
+   * @private
+   */
+  private _handleClose(): void {
+    this._logger.info(
+      { event: 'btp_disconnected', reason: 'connection_closed' },
+      'Connection closed'
+    );
+
+    this._stopKeepAlive();
+    this._connectionState = 'disconnected';
+    this._peer.connected = false;
+    this.emit('disconnected');
+
+    // Only attempt to reconnect if disconnect was not explicit
+    if (!this._explicitDisconnect) {
+      this._retry().catch((error) => {
+        this._logger.error(
+          {
+            event: 'btp_retry_failed',
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'Retry failed'
+        );
+      });
+    }
+  }
+
+  /**
+   * Retry connection with exponential backoff
+   * @private
+   */
+  private async _retry(): Promise<void> {
+    if (this._retryCount >= this._maxRetries) {
+      this._logger.error(
+        { event: 'btp_max_retries', retryCount: this._retryCount },
+        'Max retries exceeded'
+      );
+      throw new BTPConnectionError('Max retries exceeded');
+    }
+
+    this._retryCount++;
+    const backoffMs = Math.min(1000 * Math.pow(2, this._retryCount - 1), 16000);
+
+    this._logger.warn(
+      { event: 'btp_retry', retryCount: this._retryCount, backoffMs },
+      'Retrying connection'
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, backoffMs));
+
+    try {
+      await this.connect();
+    } catch (error) {
+      // If connection fails, retry will be triggered by close handler
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this._logger.error(
+        { event: 'btp_connection_error', error: errorMessage },
+        'Connection retry failed'
+      );
+    }
+  }
+
+  /**
+   * Start keep-alive ping/pong mechanism
+   * @private
+   */
+  private _startKeepAlive(): void {
+    this._stopKeepAlive();
+
+    this._pingInterval = setInterval(() => {
+      if (this._ws && this.isConnected) {
+        this._logger.debug({ event: 'btp_ping_sent' }, 'Sending ping');
+        this._ws.ping();
+
+        // Set pong timeout
+        this._pongTimeout = setTimeout(() => {
+          this._logger.warn({ event: 'btp_pong_timeout' }, 'Pong timeout - reconnecting');
+          this._ws?.close();
+        }, this._pongTimeoutMs);
+      }
+    }, this._pingIntervalMs);
+  }
+
+  /**
+   * Stop keep-alive ping/pong mechanism
+   * @private
+   */
+  private _stopKeepAlive(): void {
+    if (this._pingInterval) {
+      clearInterval(this._pingInterval);
+      this._pingInterval = null;
+    }
+
+    if (this._pongTimeout) {
+      clearTimeout(this._pongTimeout);
+      this._pongTimeout = null;
+    }
+  }
+
+  /**
+   * Handle pong response
+   * @private
+   */
+  private _handlePong(): void {
+    this._logger.debug({ event: 'btp_pong_received' }, 'Received pong');
+
+    if (this._pongTimeout) {
+      clearTimeout(this._pongTimeout);
+      this._pongTimeout = null;
+    }
+  }
+
+  /**
+   * Generate unique request ID
+   * @private
+   */
+  private _generateRequestId(): number {
+    this._requestIdCounter = (this._requestIdCounter + 1) & 0xffffffff; // Keep within uint32 range
+    return this._requestIdCounter;
+  }
+}

@@ -17,8 +17,8 @@ This project addresses the gap by building an observability-first ILP connector 
 
 ## Change Log
 
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-12-26 | 0.1 | Initial PRD creation | PM Agent (John) |
+| Date       | Version | Description          | Author          |
+| ---------- | ------- | -------------------- | --------------- |
+| 2025-12-26 | 0.1     | Initial PRD creation | PM Agent (John) |
 
 ---

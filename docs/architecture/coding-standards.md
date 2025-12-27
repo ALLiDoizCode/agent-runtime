@@ -10,14 +10,14 @@
 
 ## Naming Conventions
 
-| Element | Convention | Example |
-|---------|-----------|---------|
-| Files (TypeScript) | kebab-case | `packet-handler.ts` |
-| Classes | PascalCase | `PacketHandler` |
-| Interfaces/Types | PascalCase with `I` prefix for interfaces | `ILPPacket`, `RoutingTableEntry` |
-| Functions/Methods | camelCase | `validatePacket()` |
-| Constants | UPPER_SNAKE_CASE | `DEFAULT_BTP_PORT` |
-| Private members | camelCase with `_` prefix | `_internalState` |
+| Element            | Convention                                | Example                          |
+| ------------------ | ----------------------------------------- | -------------------------------- |
+| Files (TypeScript) | kebab-case                                | `packet-handler.ts`              |
+| Classes            | PascalCase                                | `PacketHandler`                  |
+| Interfaces/Types   | PascalCase with `I` prefix for interfaces | `ILPPacket`, `RoutingTableEntry` |
+| Functions/Methods  | camelCase                                 | `validatePacket()`               |
+| Constants          | UPPER_SNAKE_CASE                          | `DEFAULT_BTP_PORT`               |
+| Private members    | camelCase with `_` prefix                 | `_internalState`                 |
 
 ## Critical Rules
 
