@@ -32,6 +32,7 @@ module.exports = {
   },
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+    '^react-cytoscapejs$': '<rootDir>/src/__mocks__/react-cytoscapejs.tsx',
   },
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
 };

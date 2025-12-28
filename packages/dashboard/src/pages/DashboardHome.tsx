@@ -1,10 +1,75 @@
+import { useTelemetry } from '../hooks/useTelemetry';
+import { useNetworkGraph } from '../hooks/useNetworkGraph';
+import { NetworkGraph } from '../components/NetworkGraph';
+
 function DashboardHome(): JSX.Element {
+  const { events, connected, error } = useTelemetry();
+  const { graphData } = useNetworkGraph(events);
+
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="text-center">
-        <h2 className="text-3xl font-bold mb-4">Welcome to ILP Network Visualizer</h2>
-        <p className="text-gray-400">
-          Dashboard content will be implemented in future stories
+    <div className="p-6">
+      {/* Header and connection status */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold mb-2">ILP Network Topology</h1>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400">Telemetry Status:</span>
+            <span
+              className={`text-sm font-medium ${
+                connected ? 'text-green-500' : 'text-red-500'
+              }`}
+            >
+              {connected ? 'Connected' : 'Not Connected'}
+            </span>
+          </div>
+          {error && (
+            <div className="text-sm text-red-400">
+              Error: {error.message}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Node status legend */}
+      <div className="mb-4 flex items-center gap-6 text-sm">
+        <span className="text-gray-400">Node Status:</span>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+          <span className="text-gray-300">Healthy</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+          <span className="text-gray-300">Starting</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500"></div>
+          <span className="text-gray-300">Unhealthy</span>
+        </div>
+      </div>
+
+      {/* Network graph visualization */}
+      <div className="bg-gray-800 rounded-lg p-4">
+        {graphData.nodes.length === 0 ? (
+          <div className="flex items-center justify-center h-[600px] text-gray-400">
+            <div className="text-center">
+              <p className="text-lg mb-2">No nodes detected</p>
+              <p className="text-sm">
+                {connected
+                  ? 'Waiting for NODE_STATUS telemetry events...'
+                  : 'Telemetry server not connected'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <NetworkGraph graphData={graphData} />
+        )}
+      </div>
+
+      {/* Graph interaction instructions */}
+      <div className="mt-4 text-sm text-gray-400">
+        <p>
+          <strong>Interactions:</strong> Scroll to zoom, drag background to pan,
+          drag nodes to reposition, double-click background to reset layout
         </p>
       </div>
     </div>
