@@ -10,6 +10,8 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/**/*.test.{ts,tsx}',
     '!src/**/__mocks__/**',
+    '!src/main.tsx',
+    '!src/setupTests.ts',
   ],
   coverageThreshold: {
     global: {
@@ -31,4 +33,5 @@ module.exports = {
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
   },
+  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
 };

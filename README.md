@@ -95,8 +95,9 @@ Applies Prettier formatting rules (100 char line length, single quotes) to all T
 # Start connector in watch mode
 npm run dev --workspace=@m2m/connector
 
-# Start dashboard in watch mode (future stories)
+# Start dashboard in watch mode
 npm run dev --workspace=@m2m/dashboard
+# Access at http://localhost:3000
 ```
 
 ### Running Tests with Coverage
@@ -236,10 +237,12 @@ Deploy a multi-node ILP network with a single command using Docker Compose. This
 # Build the connector image
 docker build -t ilp-connector .
 
-# Start the network
+# Start the network (connectors + dashboard)
 docker-compose up -d
 
-# View logs from all connectors
+# Access dashboard at http://localhost:8080
+
+# View logs from all services
 docker-compose logs -f
 
 # Check health status
@@ -404,9 +407,10 @@ http://localhost:{HEALTH_CHECK_PORT}/health
 ```
 
 Default ports:
-- **connector-a**: http://localhost:8080/health
-- **connector-b**: http://localhost:8081/health
-- **connector-c**: http://localhost:8082/health
+- **connector-a**: http://localhost:9080/health
+- **connector-b**: http://localhost:9081/health
+- **connector-c**: http://localhost:9082/health
+- **dashboard**: http://localhost:8080 (web UI, not health endpoint)
 
 #### Health Status Response Format
 
@@ -461,13 +465,13 @@ connector-c    Up 26 seconds (healthy)   0.0.0.0:3002->3002/tcp, 0.0.0.0:8082->8
 
 ```bash
 # Check connector-a health
-curl http://localhost:8080/health | jq
+curl http://localhost:9080/health | jq
 
 # Check connector-b health
-curl http://localhost:8081/health | jq
+curl http://localhost:9081/health | jq
 
 # Check connector-c health
-curl http://localhost:8082/health | jq
+curl http://localhost:9082/health | jq
 ```
 
 #### Inspect Docker Health Status
@@ -661,6 +665,136 @@ connector-a:
         cpus: '0.25'
         memory: 256M
 ```
+
+## Dashboard
+
+The M2M project includes a React-based network visualization dashboard for real-time monitoring of ILP packet flows and connector topology.
+
+### Accessing the Dashboard
+
+#### With Docker Compose
+
+The dashboard is automatically deployed when using Docker Compose:
+
+```bash
+# Start all services (connectors + dashboard)
+docker-compose up -d
+
+# Open browser to dashboard
+# http://localhost:8080
+```
+
+The dashboard UI will display:
+- Network visualization (placeholder in current version)
+- Real-time packet flow animations (future stories)
+- Connector health status (future stories)
+- Routing topology graph (future stories)
+
+#### Development Mode
+
+For rapid UI development with hot module replacement:
+
+```bash
+# Start Vite dev server
+npm run dev --workspace=packages/dashboard
+
+# Access at http://localhost:3000 with hot reload
+# Changes to React components auto-update in browser
+```
+
+Development mode is useful for:
+- Building new UI features without Docker rebuilds
+- Testing component changes instantly
+- Debugging React components with browser DevTools
+
+### Building Dashboard
+
+#### Production Build
+
+```bash
+# Build optimized production assets
+npm run build --workspace=packages/dashboard
+
+# Output to packages/dashboard/dist/
+# - index.html (entry point)
+# - assets/main.[hash].js (~50KB gzipped)
+# - assets/vendor.[hash].js (~150KB gzipped, React + Router)
+# - assets/index.[hash].css (~10KB gzipped, TailwindCSS)
+```
+
+#### Preview Production Build
+
+```bash
+# Preview production build locally
+npm run preview --workspace=packages/dashboard
+
+# Access at http://localhost:4173
+```
+
+### Technology Stack
+
+The dashboard uses modern React tooling optimized for performance:
+
+| Component | Technology | Version | Purpose |
+|-----------|-----------|---------|---------|
+| Framework | React | 18.2.x | UI component model |
+| Build Tool | Vite | 5.0.x | Fast HMR and optimized bundling |
+| Styling | TailwindCSS | 3.4.x | Utility-first CSS framework |
+| Routing | React Router | 6.22.x | Client-side navigation |
+| Language | TypeScript | 5.3.3 | Type safety |
+
+**Dark Theme**: The dashboard uses a dark color scheme by default (bg-gray-900) for reduced eye strain during extended monitoring sessions.
+
+**Custom Colors**: ILP packet types have dedicated color coding:
+- **Prepare packets**: Blue (#3b82f6)
+- **Fulfill packets**: Green (#10b981)
+- **Reject packets**: Red (#ef4444)
+
+### Port Allocation
+
+The Docker Compose setup uses the following port mappings:
+
+- **Dashboard**: http://localhost:8080 (nginx serving React app)
+- **Connector A Health**: http://localhost:9080/health
+- **Connector B Health**: http://localhost:9081/health
+- **Connector C Health**: http://localhost:9082/health
+- **Connector A BTP**: port 3000
+- **Connector B BTP**: port 3001
+- **Connector C BTP**: port 3002
+
+**Note**: Connector health check ports were moved from 8080-8082 to 9080-9082 to avoid conflicts with the dashboard on port 8080.
+
+### Development Workflow
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Start development server
+npm run dev --workspace=packages/dashboard
+
+# 3. Make changes to React components in packages/dashboard/src/
+
+# 4. Browser auto-updates with hot module replacement
+
+# 5. Build for production
+npm run build --workspace=packages/dashboard
+
+# 6. Test Docker deployment
+docker-compose build dashboard
+docker-compose up dashboard
+```
+
+### Future Features
+
+The current dashboard displays a placeholder welcome message. Future stories will add:
+
+- **Story 3.2**: Network topology visualization with Cytoscape.js
+- **Story 3.3**: WebSocket connection to telemetry backend
+- **Story 3.4**: Real-time packet flow data display
+- **Story 3.5**: Animated packet flow visualization
+- **Story 3.6**: Detailed packet inspection panel
+- **Story 3.7**: Connector health metrics display
 
 ## Documentation
 

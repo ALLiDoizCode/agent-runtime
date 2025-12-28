@@ -6,7 +6,10 @@
     "composite": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "moduleResolution": "bundler",
+    "types": ["vite/client"],
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
   "references": [

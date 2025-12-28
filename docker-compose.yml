@@ -40,7 +40,7 @@ services:
       - ./examples/linear-3-nodes-a.yaml:/app/config.yaml:ro
     ports:
       - "3000:3000"  # BTP server port
-      - "8080:8080"  # Health check HTTP port
+      - "9080:8080"  # Health check HTTP port
     networks:
       - ilp-network
     restart: unless-stopped
@@ -64,7 +64,7 @@ services:
       - ./examples/linear-3-nodes-b.yaml:/app/config.yaml:ro
     ports:
       - "3001:3001"  # BTP server port
-      - "8081:8080"  # Health check HTTP port (mapped to host port 8081)
+      - "9081:8080"  # Health check HTTP port
     networks:
       - ilp-network
     depends_on:
@@ -90,7 +90,7 @@ services:
       - ./examples/linear-3-nodes-c.yaml:/app/config.yaml:ro
     ports:
       - "3002:3002"  # BTP server port
-      - "8082:8080"  # Health check HTTP port (mapped to host port 8082)
+      - "9082:8080"  # Health check HTTP port
     networks:
       - ilp-network
     depends_on:
@@ -102,6 +102,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Dashboard - Network visualization UI
+  dashboard:
+    build:
+      context: .
+      dockerfile: packages/dashboard/Dockerfile
+    container_name: ilp-dashboard
+    ports:
+      - "8080:80"  # Dashboard HTTP port
+    networks:
+      - ilp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 networks:
   ilp-network:
