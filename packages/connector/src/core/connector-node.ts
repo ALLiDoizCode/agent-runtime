@@ -14,6 +14,8 @@ import { ConnectorConfig } from '../config/types';
 import { ConfigLoader, ConfigurationError } from '../config/config-loader';
 import { HealthServer } from '../http/health-server';
 import { HealthStatus, HealthStatusProvider } from '../http/types';
+import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
+import { PeerStatus } from '../telemetry/types';
 // Import package.json for version information
 import packageJson from '../../package.json';
 
@@ -30,6 +32,7 @@ export class ConnectorNode implements HealthStatusProvider {
   private readonly _packetHandler: PacketHandler;
   private readonly _btpServer: BTPServer;
   private readonly _healthServer: HealthServer;
+  private readonly _telemetryEmitter: TelemetryEmitter | null;
   private _healthStatus: 'healthy' | 'unhealthy' | 'starting' = 'starting';
   private readonly _startTime: Date = new Date();
   private _btpServerStarted: boolean = false;
@@ -90,12 +93,33 @@ export class ConnectorNode implements HealthStatusProvider {
       logger.child({ component: 'BTPClientManager' })
     );
 
-    // Initialize packet handler
+    // Initialize telemetry emitter if DASHBOARD_TELEMETRY_URL is set
+    const dashboardUrl = process.env.DASHBOARD_TELEMETRY_URL;
+    if (dashboardUrl) {
+      this._telemetryEmitter = new TelemetryEmitter(
+        dashboardUrl,
+        config.nodeId,
+        logger.child({ component: 'TelemetryEmitter' })
+      );
+      this._logger.info(
+        { event: 'telemetry_enabled', dashboardUrl },
+        'Telemetry emitter initialized'
+      );
+    } else {
+      this._telemetryEmitter = null;
+      this._logger.info(
+        { event: 'telemetry_disabled' },
+        'Telemetry disabled (DASHBOARD_TELEMETRY_URL not set)'
+      );
+    }
+
+    // Initialize packet handler (pass telemetryEmitter for telemetry integration)
     this._packetHandler = new PacketHandler(
       this._routingTable,
       this._btpClientManager,
       config.nodeId,
-      logger.child({ component: 'PacketHandler' })
+      logger.child({ component: 'PacketHandler' }),
+      this._telemetryEmitter
     );
 
     // Initialize BTP server
@@ -179,6 +203,38 @@ export class ConnectorNode implements HealthStatusProvider {
       // Update health status to healthy after all components started
       this._updateHealthStatus();
 
+      // Connect telemetry emitter and emit NODE_STATUS if enabled
+      if (this._telemetryEmitter) {
+        try {
+          await this._telemetryEmitter.connect();
+          this._logger.info(
+            { event: 'telemetry_connected' },
+            'Telemetry connected to dashboard'
+          );
+
+          // Emit NODE_STATUS telemetry after successful connection
+          const routes = this._routingTable.getAllRoutes();
+          const peers: PeerStatus[] = this._config.peers.map((peerConfig) => ({
+            id: peerConfig.id,
+            url: peerConfig.url,
+            connected: connectedPeers.get(peerConfig.id) || false,
+          }));
+
+          this._telemetryEmitter.emitNodeStatus(routes, peers, this._healthStatus);
+          this._logger.debug(
+            { event: 'telemetry_node_status_emitted' },
+            'NODE_STATUS telemetry emitted'
+          );
+        } catch (error) {
+          // Telemetry failures should not prevent connector startup
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this._logger.warn(
+            { event: 'telemetry_connect_failed', error: errorMessage },
+            'Failed to connect telemetry (connector continues running)'
+          );
+        }
+      }
+
       this._logger.info(
         {
           event: 'connector_ready',
@@ -218,6 +274,15 @@ export class ConnectorNode implements HealthStatusProvider {
     );
 
     try {
+      // Disconnect telemetry emitter if enabled
+      if (this._telemetryEmitter) {
+        await this._telemetryEmitter.disconnect();
+        this._logger.info(
+          { event: 'telemetry_disconnected' },
+          'Telemetry disconnected'
+        );
+      }
+
       // Disconnect all BTP clients
       const peerIds = this._btpClientManager.getPeerIds();
       for (const peerId of peerIds) {

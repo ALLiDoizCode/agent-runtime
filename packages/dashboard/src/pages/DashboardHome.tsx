@@ -1,10 +1,34 @@
+import { useState } from 'react';
 import { useTelemetry } from '../hooks/useTelemetry';
 import { useNetworkGraph } from '../hooks/useNetworkGraph';
+import { usePacketAnimation } from '../hooks/usePacketAnimation';
+import { usePacketDetail } from '../hooks/usePacketDetail';
+import { useNodeStatus } from '../hooks/useNodeStatus';
 import { NetworkGraph } from '../components/NetworkGraph';
+import { PacketAnimation } from '../components/PacketAnimation';
+import { PacketDetailPanel } from '../components/PacketDetailPanel';
+import { NodeStatusPanel } from '../components/NodeStatusPanel';
+import { Toaster } from '@/components/ui/toaster';
+import Cytoscape from 'cytoscape';
 
 function DashboardHome(): JSX.Element {
   const { events, connected, error } = useTelemetry();
   const { graphData } = useNetworkGraph(events);
+  const { activePackets } = usePacketAnimation(events);
+  const {
+    selectedPacketId,
+    selectPacket,
+    clearSelection,
+    getSelectedPacket,
+    recentPackets,
+  } = usePacketDetail(events);
+  const {
+    selectedNodeId,
+    selectNode,
+    clearSelection: clearNodeSelection,
+    getSelectedNode,
+  } = useNodeStatus(events);
+  const [cyInstance, setCyInstance] = useState<Cytoscape.Core | null>(null);
 
   return (
     <div className="p-6">
@@ -61,7 +85,18 @@ function DashboardHome(): JSX.Element {
             </div>
           </div>
         ) : (
-          <NetworkGraph graphData={graphData} />
+          <>
+            <NetworkGraph
+              graphData={graphData}
+              onCyReady={setCyInstance}
+              onNodeClick={selectNode}
+            />
+            <PacketAnimation
+              activePackets={activePackets}
+              cyInstance={cyInstance}
+              onPacketClick={selectPacket}
+            />
+          </>
         )}
       </div>
 
@@ -69,9 +104,29 @@ function DashboardHome(): JSX.Element {
       <div className="mt-4 text-sm text-gray-400">
         <p>
           <strong>Interactions:</strong> Scroll to zoom, drag background to pan,
-          drag nodes to reposition, double-click background to reset layout
+          drag nodes to reposition, double-click background to reset layout,
+          click packets to inspect details, click nodes to view status
         </p>
       </div>
+
+      {/* Packet Detail Panel */}
+      <PacketDetailPanel
+        open={!!selectedPacketId}
+        onOpenChange={(open) => !open && clearSelection()}
+        packet={getSelectedPacket()}
+        recentPacketIds={recentPackets}
+        onSelectPacket={selectPacket}
+      />
+
+      {/* Node Status Panel */}
+      <NodeStatusPanel
+        open={!!selectedNodeId}
+        onOpenChange={(open) => !open && clearNodeSelection()}
+        node={getSelectedNode()}
+      />
+
+      {/* Toast notifications */}
+      <Toaster />
     </div>
   );
 }

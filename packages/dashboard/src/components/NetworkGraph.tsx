@@ -10,6 +10,8 @@ import Cytoscape from 'cytoscape';
 
 export interface NetworkGraphProps {
   graphData: NetworkGraphData;
+  onCyReady?: (cy: Cytoscape.Core) => void;
+  onNodeClick?: (nodeId: string) => void;
 }
 
 /**
@@ -17,7 +19,11 @@ export interface NetworkGraphProps {
  * Features: interactive zoom/pan/drag, health status color coding, automatic layout
  * Optimized with React.memo to prevent unnecessary re-renders
  */
-const NetworkGraphComponent = ({ graphData }: NetworkGraphProps): JSX.Element => {
+const NetworkGraphComponent = ({
+  graphData,
+  onCyReady,
+  onNodeClick,
+}: NetworkGraphProps): JSX.Element => {
   const cyRef = useRef<Cytoscape.Core | null>(null);
 
   // Convert NetworkGraphData to Cytoscape element format
@@ -27,6 +33,7 @@ const NetworkGraphComponent = ({ graphData }: NetworkGraphProps): JSX.Element =>
         id: node.id,
         label: node.label,
         healthStatus: node.healthStatus,
+        type: 'connector', // Mark as connector node for click handling
       },
     }));
 
@@ -67,6 +74,13 @@ const NetworkGraphComponent = ({ graphData }: NetworkGraphProps): JSX.Element =>
           'text-margin-y': 5,
           'border-width': 2,
           'border-color': '#1f2937',
+        },
+      },
+      {
+        selector: 'node[type="connector"]:active',
+        style: {
+          'border-width': 3,
+          'border-color': '#3b82f6',
         },
       },
       {
@@ -165,25 +179,50 @@ const NetworkGraphComponent = ({ graphData }: NetworkGraphProps): JSX.Element =>
   }, [graphData]);
 
   // Handle Cytoscape instance initialization
-  const handleCyInit = useCallback((cy: Cytoscape.Core) => {
-    cyRef.current = cy;
+  const handleCyInit = useCallback(
+    (cy: Cytoscape.Core) => {
+      cyRef.current = cy;
 
-    // Fit to viewport on initialization
-    cy.fit();
-
-    // Enable performance optimizations
-    cy.ready(() => {
+      // Fit to viewport on initialization
       cy.fit();
-    });
 
-    // Add double-click to reset layout
-    cy.on('dblclick', (event) => {
-      if (event.target === cy) {
-        // Double-click on background resets layout
-        cy.layout(layout).run();
+      // Enable performance optimizations
+      cy.ready(() => {
+        cy.fit();
+      });
+
+      // Add double-click to reset layout
+      cy.on('dblclick', (event) => {
+        if (event.target === cy) {
+          // Double-click on background resets layout
+          cy.layout(layout).run();
+        }
+      });
+
+      // Add node click handling
+      if (onNodeClick) {
+        cy.on('tap', 'node[type="connector"]', (event) => {
+          const nodeId = event.target.id();
+          onNodeClick(nodeId);
+        });
+
+        // Add cursor pointer on hover for connector nodes
+        cy.on('mouseover', 'node[type="connector"]', () => {
+          document.body.style.cursor = 'pointer';
+        });
+
+        cy.on('mouseout', 'node[type="connector"]', () => {
+          document.body.style.cursor = 'default';
+        });
       }
-    });
-  }, [layout]);
+
+      // Notify parent component that Cytoscape instance is ready
+      if (onCyReady) {
+        onCyReady(cy);
+      }
+    },
+    [layout, onCyReady, onNodeClick]
+  );
 
   return (
     <div className="network-graph-container">

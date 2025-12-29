@@ -36,6 +36,7 @@ services:
       NODE_ID: connector-a
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/linear-3-nodes-a.yaml:/app/config.yaml:ro
     ports:
@@ -60,6 +61,7 @@ services:
       NODE_ID: connector-b
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/linear-3-nodes-b.yaml:/app/config.yaml:ro
     ports:
@@ -86,6 +88,7 @@ services:
       NODE_ID: connector-c
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      DASHBOARD_TELEMETRY_URL: ws://dashboard:9000
     volumes:
       - ./examples/linear-3-nodes-c.yaml:/app/config.yaml:ro
     ports:
@@ -103,19 +106,23 @@ services:
       retries: 3
       start_period: 40s
 
-  # Dashboard - Network visualization UI
+  # Dashboard - Network visualization UI and telemetry server
   dashboard:
     build:
       context: .
       dockerfile: packages/dashboard/Dockerfile
     container_name: ilp-dashboard
+    environment:
+      TELEMETRY_WS_PORT: 9000
+      LOG_LEVEL: info
     ports:
-      - "8080:80"  # Dashboard HTTP port
+      - "8080:8080"  # Dashboard HTTP port
+      - "9000:9000"  # Telemetry WebSocket port
     networks:
       - ilp-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

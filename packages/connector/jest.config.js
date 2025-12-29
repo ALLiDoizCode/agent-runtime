@@ -21,6 +21,9 @@ module.exports = {
     },
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
+  moduleNameMapper: {
+    '^@m2m/shared$': '<rootDir>/../shared/src/index.ts',
+  },
   transform: {
     '^.+\\.ts$': [
       'ts-jest',

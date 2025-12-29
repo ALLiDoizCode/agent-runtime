@@ -8,6 +8,7 @@ When building any user interface components, dashboards, forms, or interactive e
 
 - **ALWAYS use shadcn-ui components** via the shadcn-ui MCP server
 - **ALWAYS call `get_component_demo` first** to understand proper usage patterns before implementing
+- **ALWAYS verify UI implementations** using Playwright MCP tools in the browser after building
 - **DO NOT use other UI libraries** (Material-UI, Ant Design, Chakra UI, etc.) unless explicitly requested
 - **DO NOT write custom UI components** for functionality that shadcn-ui already provides
 - **Leverage shadcn-ui blocks** for complete UI patterns (dashboards, login pages, settings panels, etc.)
@@ -124,14 +125,16 @@ This project contains specialized RFC skills for Interledger Protocol specificat
 - Always prefer skill-based answers over general knowledge for RFC-related questions
 - Skills automatically use MCP tools to fetch the latest documentation
 
-## UI Testing and Browser Automation
+## UI Development and Browser Verification
 
-This project has the **Playwright MCP server** configured for browser automation and UI testing tasks.
+This project has the **Playwright MCP server** configured for browser automation, UI verification, and testing tasks.
 
 ### When to Use Playwright MCP Tools
 
 **Automatically use Playwright MCP tools** whenever tasks involve:
 
+- **UI Development**: Verifying UI components and layouts work correctly in the browser after implementation
+- **Component Verification**: Testing that shadcn-ui components render and behave as expected
 - **UI Testing**: Writing or running tests for user interface components
 - **Browser Automation**: Automating interactions with web pages
 - **Visual Verification**: Taking screenshots or snapshots of UI states
@@ -159,12 +162,21 @@ The following MCP tools are available (all prefixed with `mcp__playwright__brows
 
 ### Behavior Guidelines
 
+- **UI Development Workflow**: After implementing or modifying UI components, use Playwright tools to verify they work correctly in the browser
 - **Proactive Tool Usage**: When a task mentions UI, frontend, browser, or testing, immediately consider using Playwright tools
 - **Prefer Snapshots**: Use `browser_snapshot` over `take_screenshot` when you need to interact with the page
+- **Component Verification**: When building with shadcn-ui, use Playwright to verify the component renders and functions properly
 - **Test Writing**: When writing UI tests, use Playwright tools to validate the implementation
 - **Documentation**: Reference Playwright MCP capabilities when suggesting UI testing approaches
 
 ### Example Scenarios
+
+**User asks:** "Add a contact form to the page"
+**Action:**
+1. Use shadcn-ui MCP to get form component demos
+2. Implement the contact form with shadcn-ui components
+3. Use Playwright MCP to navigate to the page and verify the form renders correctly
+4. Use Playwright to test form interactions (filling fields, validation, submission)
 
 **User asks:** "Test the login form"
 **Action:** Use Playwright MCP tools to navigate to the page, fill the form, and verify the behavior

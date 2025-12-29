@@ -1,17 +1,59 @@
 /** @type {import('jest').Config} */
 module.exports = {
-  displayName: 'dashboard',
-  preset: 'ts-jest',
-  testEnvironment: 'jsdom',
-  roots: ['<rootDir>/src'],
-  testMatch: ['**/*.test.ts', '**/*.test.tsx'],
-  collectCoverageFrom: [
-    'src/**/*.{ts,tsx}',
-    '!src/**/*.d.ts',
-    '!src/**/*.test.{ts,tsx}',
-    '!src/**/__mocks__/**',
-    '!src/main.tsx',
-    '!src/setupTests.ts',
+  projects: [
+    // Frontend tests (React components, hooks)
+    {
+      displayName: 'dashboard-frontend',
+      preset: 'ts-jest',
+      testEnvironment: 'jsdom',
+      roots: ['<rootDir>/src'],
+      testMatch: ['<rootDir>/src/**/*.test.ts', '<rootDir>/src/**/*.test.tsx'],
+      collectCoverageFrom: [
+        'src/**/*.{ts,tsx}',
+        '!src/**/*.d.ts',
+        '!src/**/*.test.{ts,tsx}',
+        '!src/**/__mocks__/**',
+        '!src/main.tsx',
+        '!src/setupTests.ts',
+      ],
+      moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
+      transform: {
+        '^.+\\.(ts|tsx)$': [
+          'ts-jest',
+          {
+            tsconfig: '<rootDir>/tsconfig.json',
+          },
+        ],
+      },
+      moduleNameMapper: {
+        '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+        '^react-cytoscapejs$': '<rootDir>/src/__mocks__/react-cytoscapejs.tsx',
+        '^@/(.*)$': '<rootDir>/src/$1',
+      },
+      setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
+    },
+    // Backend tests (Node.js server)
+    {
+      displayName: 'dashboard-backend',
+      preset: 'ts-jest',
+      testEnvironment: 'node',
+      roots: ['<rootDir>/server'],
+      testMatch: ['<rootDir>/server/**/*.test.ts'],
+      collectCoverageFrom: [
+        'server/**/*.ts',
+        '!server/**/*.d.ts',
+        '!server/**/*.test.ts',
+      ],
+      moduleFileExtensions: ['ts', 'js', 'json'],
+      transform: {
+        '^.+\\.ts$': [
+          'ts-jest',
+          {
+            tsconfig: '<rootDir>/tsconfig.server.json',
+          },
+        ],
+      },
+    },
   ],
   coverageThreshold: {
     global: {
@@ -21,18 +63,4 @@ module.exports = {
       statements: 70,
     },
   },
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
-  transform: {
-    '^.+\\.(ts|tsx)$': [
-      'ts-jest',
-      {
-        tsconfig: '<rootDir>/tsconfig.json',
-      },
-    ],
-  },
-  moduleNameMapper: {
-    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
-    '^react-cytoscapejs$': '<rootDir>/src/__mocks__/react-cytoscapejs.tsx',
-  },
-  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
 };

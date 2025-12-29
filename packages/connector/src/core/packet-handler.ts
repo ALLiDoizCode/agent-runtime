@@ -16,6 +16,7 @@ import { RoutingTable } from '../routing/routing-table';
 import { Logger, generateCorrelationId } from '../utils/logger';
 import { BTPClientManager } from '../btp/btp-client-manager';
 import { BTPConnectionError, BTPAuthenticationError } from '../btp/btp-client';
+import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 
 /**
  * Packet validation result
@@ -73,22 +74,30 @@ export class PacketHandler {
   private readonly nodeId: string;
 
   /**
+   * Telemetry emitter for sending telemetry to dashboard (optional)
+   */
+  private readonly telemetryEmitter: TelemetryEmitter | null;
+
+  /**
    * Creates a new PacketHandler instance
    * @param routingTable - Routing table for next-hop lookups
    * @param btpClientManager - BTP client manager for forwarding packets to peers
    * @param nodeId - Connector node ID for reject packet triggeredBy field
    * @param logger - Pino logger instance for structured logging
+   * @param telemetryEmitter - Optional telemetry emitter for dashboard reporting
    */
   constructor(
     routingTable: RoutingTable,
     btpClientManager: BTPClientManager,
     nodeId: string,
-    logger: Logger
+    logger: Logger,
+    telemetryEmitter: TelemetryEmitter | null = null
   ) {
     this.routingTable = routingTable;
     this.btpClientManager = btpClientManager;
     this.nodeId = nodeId;
     this.logger = logger;
+    this.telemetryEmitter = telemetryEmitter;
   }
 
   /**
@@ -398,6 +407,11 @@ export class PacketHandler {
       'Packet received'
     );
 
+    // Emit PACKET_RECEIVED telemetry
+    if (this.telemetryEmitter) {
+      this.telemetryEmitter.emitPacketReceived(packet, 'unknown');
+    }
+
     // Validate packet
     const validation = this.validatePacket(packet);
     if (!validation.isValid) {
@@ -431,6 +445,12 @@ export class PacketHandler {
         },
         'Routing decision'
       );
+
+      // Emit ROUTE_LOOKUP telemetry for failed lookup
+      if (this.telemetryEmitter) {
+        this.telemetryEmitter.emitRouteLookup(packet.destination, null, 'no route found');
+      }
+
       this.logger.error(
         {
           correlationId,
@@ -458,6 +478,11 @@ export class PacketHandler {
       },
       'Routing decision'
     );
+
+    // Emit ROUTE_LOOKUP telemetry for successful lookup
+    if (this.telemetryEmitter) {
+      this.telemetryEmitter.emitRouteLookup(packet.destination, nextHop, 'longest prefix match');
+    }
 
     // Decrement expiry
     const newExpiry = this.decrementExpiry(packet.expiresAt, EXPIRY_SAFETY_MARGIN_MS);
@@ -489,6 +514,12 @@ export class PacketHandler {
 
     // Forward to next hop via BTP and return response
     const response = await this.forwardToNextHop(forwardingPacket, nextHop, correlationId);
+
+    // Emit PACKET_SENT telemetry after successful forward
+    if (this.telemetryEmitter) {
+      const packetId = packet.executionCondition.toString('hex');
+      this.telemetryEmitter.emitPacketSent(packetId, nextHop);
+    }
 
     this.logger.info(
       {
