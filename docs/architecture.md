@@ -1342,7 +1342,7 @@ M2M implements the following Interledger RFCs to ensure authentic protocol behav
 
 ### RFC-0027: Interledger Protocol v4 (ILPv4)
 
-**URL:** [https://interledger.org/rfcs/0027-interledger-protocol-4/](https://interledger.org/rfcs/0027-interledger-protocol-4/)
+**URL:** [https://interledger.org/developers/rfcs/interledger-protocol/](https://interledger.org/developers/rfcs/interledger-protocol/)
 
 **Relevance:**
 
@@ -1368,7 +1368,7 @@ M2M implements the following Interledger RFCs to ensure authentic protocol behav
 
 ### RFC-0023: Bilateral Transfer Protocol (BTP)
 
-**URL:** [https://interledger.org/rfcs/0023-bilateral-transfer-protocol/](https://interledger.org/rfcs/0023-bilateral-transfer-protocol/)
+**URL:** [https://interledger.org/developers/rfcs/bilateral-transfer-protocol/](https://interledger.org/developers/rfcs/bilateral-transfer-protocol/)
 
 **Relevance:**
 
@@ -1405,7 +1405,7 @@ M2M implements the following Interledger RFCs to ensure authentic protocol behav
 
 ### RFC-0030: Notes on OER Encoding
 
-**URL:** [https://interledger.org/rfcs/0030-notes-on-oer-encoding/](https://interledger.org/rfcs/0030-notes-on-oer-encoding/)
+**URL:** [https://interledger.org/developers/rfcs/oer-encoding/](https://interledger.org/developers/rfcs/oer-encoding/)
 
 **Relevance:**
 
@@ -1436,7 +1436,7 @@ M2M implements the following Interledger RFCs to ensure authentic protocol behav
 
 ### RFC-0015: ILP Addresses
 
-**URL:** [https://interledger.org/rfcs/0015-ilp-addresses/](https://interledger.org/rfcs/0015-ilp-addresses/)
+**URL:** [https://interledger.org/developers/rfcs/ilp-addresses/](https://interledger.org/developers/rfcs/ilp-addresses/)
 
 **Relevance:**
 
@@ -1466,7 +1466,7 @@ M2M implements the following Interledger RFCs to ensure authentic protocol behav
 
 ### RFC-0001: Interledger Architecture
 
-**URL:** [https://interledger.org/rfcs/0001-interledger-architecture/](https://interledger.org/rfcs/0001-interledger-architecture/)
+**URL:** [https://interledger.org/developers/rfcs/interledger-architecture/](https://interledger.org/developers/rfcs/interledger-architecture/)
 
 **Relevance:**
 

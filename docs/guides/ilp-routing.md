@@ -706,8 +706,8 @@ This guide references the M2M connector implementation:
 - **Interledger.org:** [https://interledger.org](https://interledger.org)
   Official Interledger Protocol website
 
-- **Interledger RFCs:** [https://interledger.org/rfcs/](https://interledger.org/rfcs/)
-  Complete list of Interledger Request for Comments documents
+- **Interledger RFCs:** [https://interledger.org/developers/](https://interledger.org/developers/)
+  Interledger developer resources including protocol specifications
 
 ---
 

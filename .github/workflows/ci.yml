@@ -129,6 +129,26 @@ jobs:
       - name: Type check all packages
         run: npx tsc --noEmit --composite false --skipLibCheck true -p packages/connector/tsconfig.json && npx tsc --noEmit --composite false --skipLibCheck true -p packages/dashboard/tsconfig.json && npx tsc --noEmit --composite false --skipLibCheck true -p packages/shared/tsconfig.json
 
+  rfc-links:
+    name: Verify RFC Links
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.11.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify RFC Links
+        run: npm run test:rfc-links
+
   e2e-test:
     name: E2E Full System Test
     runs-on: ubuntu-latest

@@ -12,6 +12,7 @@
     "test": "npm run test --workspaces --if-present",
     "test:coverage": "npm run test:coverage --workspaces --if-present",
     "test:watch": "npm run test:watch --workspaces --if-present",
+    "test:rfc-links": "npm run test:rfc-links --workspace=packages/connector",
     "lint": "npm run lint --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",

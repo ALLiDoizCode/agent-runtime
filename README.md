@@ -1820,19 +1820,19 @@ The current dashboard displays a placeholder welcome message. Future stories wil
 
 M2M implements key Interledger Protocol specifications. For deeper understanding of the underlying protocols, see:
 
-- **[RFC-0027: Interledger Protocol v4 (ILPv4)](https://interledger.org/rfcs/0027-interledger-protocol-4/)**
+- **[RFC-0027: Interledger Protocol v4 (ILPv4)](https://interledger.org/developers/rfcs/interledger-protocol/)**
   Core ILP packet format, routing semantics, error codes
 
-- **[RFC-0023: Bilateral Transfer Protocol (BTP)](https://interledger.org/rfcs/0023-bilateral-transfer-protocol/)**
+- **[RFC-0023: Bilateral Transfer Protocol (BTP)](https://interledger.org/developers/rfcs/bilateral-transfer-protocol/)**
   WebSocket-based ledger plugin protocol for connector-to-connector communication
 
-- **[RFC-0030: Notes on OER Encoding](https://interledger.org/rfcs/0030-notes-on-oer-encoding/)**
+- **[RFC-0030: Notes on OER Encoding](https://interledger.org/developers/rfcs/oer-encoding/)**
   Octet Encoding Rules for ILP packet serialization
 
-- **[RFC-0015: ILP Addresses](https://interledger.org/rfcs/0015-ilp-addresses/)**
+- **[RFC-0015: ILP Addresses](https://interledger.org/developers/rfcs/ilp-addresses/)**
   Hierarchical addressing scheme for routing (e.g., g.alice, g.bob.crypto)
 
-- **[RFC-0001: Interledger Architecture](https://interledger.org/rfcs/0001-interledger-architecture/)**
+- **[RFC-0001: Interledger Architecture](https://interledger.org/developers/rfcs/interledger-architecture/)**
   High-level protocol architecture and design philosophy
 
 For M2M-specific implementation details, see [`docs/architecture.md`](docs/architecture.md) and [`docs/configuration-schema.md`](docs/configuration-schema.md).
@@ -1916,9 +1916,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## References
 
-- [Interledger Protocol v4 (RFC-0027)](https://interledger.org/rfcs/0027-interledger-protocol-4/)
-- [Bilateral Transfer Protocol (RFC-0023)](https://interledger.org/rfcs/0023-bilateral-transfer-protocol/)
-- [OER Encoding (RFC-0030)](https://interledger.org/rfcs/0030-notes-on-oer-encoding/)
+- [Interledger Protocol v4 (RFC-0027)](https://interledger.org/developers/rfcs/interledger-protocol/)
+- [Bilateral Transfer Protocol (RFC-0023)](https://interledger.org/developers/rfcs/bilateral-transfer-protocol/)
+- [OER Encoding (RFC-0030)](https://interledger.org/developers/rfcs/oer-encoding/)
 
 ---
 

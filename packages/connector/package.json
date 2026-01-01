@@ -10,6 +10,7 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
+    "test:rfc-links": "jest test/integration/rfc-links.test.ts",
     "lint": "eslint src --ext .ts",
     "dev": "tsc --watch"
   },
