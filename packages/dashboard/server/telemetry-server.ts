@@ -18,6 +18,7 @@ export class TelemetryServer {
   private connectorConnections: Map<string, WebSocketWithMetadata> = new Map();
   private clientConnections: Set<WebSocketWithMetadata> = new Set();
   private pendingConnections: Set<WebSocketWithMetadata> = new Set();
+  private lastNodeStatus: Map<string, TelemetryMessage> = new Map(); // Cache latest NODE_STATUS per connector
   private port: number;
   private logger: Logger;
 
@@ -119,6 +120,11 @@ export class TelemetryServer {
         this.registerConnector(ws, message.nodeId);
       }
 
+      // Cache NODE_STATUS messages for replay to new clients
+      if (message.type === 'NODE_STATUS' && message.nodeId) {
+        this.lastNodeStatus.set(message.nodeId, message);
+      }
+
       // Broadcast to all clients
       this.broadcast(message);
     }
@@ -149,7 +155,15 @@ export class TelemetryServer {
     this.pendingConnections.delete(ws);
     ws.isClient = true;
     this.clientConnections.add(ws);
-    this.logger.info('Dashboard client connected');
+    this.logger.info('Dashboard client connected', { cachedNodeStatusCount: this.lastNodeStatus.size });
+
+    // Replay all cached NODE_STATUS messages to the new client
+    this.lastNodeStatus.forEach((nodeStatus, nodeId) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(nodeStatus));
+        this.logger.info('Replayed cached NODE_STATUS to client', { nodeId });
+      }
+    });
   }
 
   /**

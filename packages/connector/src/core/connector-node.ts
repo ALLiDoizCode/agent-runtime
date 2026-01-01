@@ -226,6 +226,7 @@ export class ConnectorNode implements HealthStatusProvider {
           this._logger.info({ event: 'telemetry_connected' }, 'Telemetry connected to dashboard');
 
           // Emit NODE_STATUS telemetry after successful connection
+          this._logger.info({ event: 'preparing_node_status' }, 'Preparing NODE_STATUS telemetry');
           const routes = this._routingTable.getAllRoutes();
           const peers: PeerStatus[] = this._config.peers.map((peerConfig) => ({
             id: peerConfig.id,
@@ -233,9 +234,13 @@ export class ConnectorNode implements HealthStatusProvider {
             connected: connectedPeers.get(peerConfig.id) || false,
           }));
 
+          this._logger.info(
+            { event: 'emitting_node_status', routes: routes.length, peers: peers.length, health: this._healthStatus },
+            'Emitting NODE_STATUS telemetry'
+          );
           this._telemetryEmitter.emitNodeStatus(routes, peers, this._healthStatus);
-          this._logger.debug(
-            { event: 'telemetry_node_status_emitted' },
+          this._logger.info(
+            { event: 'telemetry_node_status_emitted', routes: routes.length, peers: peers.length },
             'NODE_STATUS telemetry emitted'
           );
         } catch (error) {

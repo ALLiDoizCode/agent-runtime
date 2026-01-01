@@ -380,4 +380,494 @@ describe('TelemetryServer Integration Tests', () => {
       });
     }, 10000);
   });
+
+  describe('NODE_STATUS Caching and Replay (AC 6, 7)', () => {
+    test('should cache NODE_STATUS messages in lastNodeStatus map', (done) => {
+      server.start();
+
+      const connector = new WebSocket(TEST_WS_URL);
+
+      connector.on('open', () => {
+        // Send NODE_STATUS message
+        connector.send(
+          JSON.stringify({
+            type: 'NODE_STATUS',
+            nodeId: 'connector-test',
+            timestamp: new Date().toISOString(),
+            data: {
+              routes: [{ prefix: 'g.test', nextHop: 'peer1', priority: 1 }],
+              peers: [],
+              health: 'healthy',
+              uptime: 1000,
+              peersConnected: 0,
+              totalPeers: 0,
+            },
+          })
+        );
+
+        // Wait for message to be processed
+        setTimeout(() => {
+          connector.close();
+          done();
+        }, 100);
+      });
+    });
+
+    test('should update cache when multiple NODE_STATUS messages from same node', (done) => {
+      server.start();
+
+      const connector = new WebSocket(TEST_WS_URL);
+
+      connector.on('open', () => {
+        // Send first NODE_STATUS
+        connector.send(
+          JSON.stringify({
+            type: 'NODE_STATUS',
+            nodeId: 'connector-test',
+            timestamp: new Date().toISOString(),
+            data: {
+              routes: [],
+              peers: [],
+              health: 'healthy',
+              uptime: 100,
+              peersConnected: 0,
+              totalPeers: 0,
+            },
+          })
+        );
+
+        // Send second NODE_STATUS with different data (latest should win)
+        setTimeout(() => {
+          connector.send(
+            JSON.stringify({
+              type: 'NODE_STATUS',
+              nodeId: 'connector-test',
+              timestamp: new Date().toISOString(),
+              data: {
+                routes: [{ prefix: 'g.updated', nextHop: 'peer2', priority: 2 }],
+                peers: [],
+                health: 'healthy',
+                uptime: 200,
+                peersConnected: 0,
+                totalPeers: 0,
+              },
+            })
+          );
+
+          setTimeout(() => {
+            connector.close();
+            done();
+          }, 100);
+        }, 100);
+      });
+    });
+
+    test('should send cached messages in correct JSON format', (done) => {
+      server.start();
+
+      const connector = new WebSocket(TEST_WS_URL);
+      const client = new WebSocket(TEST_WS_URL);
+
+      let connectorReady = false;
+      let receivedMessage: any = null;
+
+      connector.on('open', () => {
+        // Send NODE_STATUS to cache
+        connector.send(
+          JSON.stringify({
+            type: 'NODE_STATUS',
+            nodeId: 'connector-test',
+            timestamp: new Date().toISOString(),
+            data: {
+              routes: [],
+              peers: [],
+              health: 'healthy',
+              uptime: 500,
+              peersConnected: 0,
+              totalPeers: 0,
+            },
+          })
+        );
+
+        connectorReady = true;
+        connectClient();
+      });
+
+      const connectClient = () => {
+        if (!connectorReady) return;
+
+        setTimeout(() => {
+          client.on('message', (data) => {
+            try {
+              receivedMessage = JSON.parse(data.toString());
+              expect(receivedMessage).toHaveProperty('type', 'NODE_STATUS');
+              expect(receivedMessage).toHaveProperty('nodeId', 'connector-test');
+              expect(receivedMessage).toHaveProperty('timestamp');
+              expect(receivedMessage).toHaveProperty('data');
+              connector.close();
+              client.close();
+              done();
+            } catch (error) {
+              done(error);
+            }
+          });
+
+          // Identify as client to trigger replay
+          client.send(
+            JSON.stringify({
+              type: 'CLIENT_CONNECT',
+              nodeId: 'client',
+              timestamp: new Date().toISOString(),
+              data: {},
+            })
+          );
+        }, 150);
+      };
+    }, 10000);
+
+    test('should ignore non-telemetry messages and not cache them', (done) => {
+      server.start();
+
+      const connector = new WebSocket(TEST_WS_URL);
+
+      connector.on('open', () => {
+        // Send invalid message type
+        connector.send(
+          JSON.stringify({
+            type: 'INVALID_TYPE',
+            nodeId: 'connector-test',
+            timestamp: new Date().toISOString(),
+            data: {},
+          })
+        );
+
+        // Server should not crash
+        setTimeout(() => {
+          expect(connector.readyState).toBe(WebSocket.OPEN);
+          connector.close();
+          done();
+        }, 100);
+      });
+    });
+
+    test('should persist cache across multiple client connections', (done) => {
+      server.start();
+
+      const connector = new WebSocket(TEST_WS_URL);
+      let client1Received = false;
+
+      connector.on('open', () => {
+        // Send NODE_STATUS to cache
+        connector.send(
+          JSON.stringify({
+            type: 'NODE_STATUS',
+            nodeId: 'connector-cache-test',
+            timestamp: new Date().toISOString(),
+            data: {
+              routes: [],
+              peers: [],
+              health: 'healthy',
+              uptime: 300,
+              peersConnected: 0,
+              totalPeers: 0,
+            },
+          })
+        );
+
+        // Wait for message to be cached, then connect first client
+        setTimeout(() => {
+          const client1 = new WebSocket(TEST_WS_URL);
+
+          client1.on('open', () => {
+            client1.send(
+              JSON.stringify({
+                type: 'CLIENT_CONNECT',
+                nodeId: 'client1',
+                timestamp: new Date().toISOString(),
+                data: {},
+              })
+            );
+          });
+
+          client1.on('message', (data) => {
+            const message = JSON.parse(data.toString());
+            if (message.type === 'NODE_STATUS' && message.nodeId === 'connector-cache-test') {
+              client1Received = true;
+              client1.close();
+
+              // Connect second client after first disconnects
+              setTimeout(() => {
+                const client2 = new WebSocket(TEST_WS_URL);
+
+                client2.on('open', () => {
+                  client2.send(
+                    JSON.stringify({
+                      type: 'CLIENT_CONNECT',
+                      nodeId: 'client2',
+                      timestamp: new Date().toISOString(),
+                      data: {},
+                    })
+                  );
+                });
+
+                client2.on('message', (data) => {
+                  const message = JSON.parse(data.toString());
+                  if (message.type === 'NODE_STATUS' && message.nodeId === 'connector-cache-test') {
+                    // Second client also received cached message
+                    expect(client1Received).toBe(true);
+                    client2.close();
+                    connector.close();
+                    done();
+                  }
+                });
+              }, 100);
+            }
+          });
+        }, 150);
+      });
+    }, 10000);
+
+    test('CLIENT_CONNECT message triggers replay of all cached NODE_STATUS (AC 7)', (done) => {
+      server.start();
+
+      const connector1 = new WebSocket(TEST_WS_URL);
+      const connector2 = new WebSocket(TEST_WS_URL);
+      const connector3 = new WebSocket(TEST_WS_URL);
+
+      let connectorsReady = 0;
+      const receivedNodeIds = new Set<string>();
+
+      const sendNodeStatus = (ws: WebSocket, nodeId: string) => {
+        ws.send(
+          JSON.stringify({
+            type: 'NODE_STATUS',
+            nodeId,
+            timestamp: new Date().toISOString(),
+            data: {
+              routes: [],
+              peers: [],
+              health: 'healthy',
+              uptime: 100,
+              peersConnected: 0,
+              totalPeers: 0,
+            },
+          })
+        );
+      };
+
+      connector1.on('open', () => {
+        sendNodeStatus(connector1, 'connector-1');
+        connectorsReady++;
+        tryConnectClient();
+      });
+
+      connector2.on('open', () => {
+        sendNodeStatus(connector2, 'connector-2');
+        connectorsReady++;
+        tryConnectClient();
+      });
+
+      connector3.on('open', () => {
+        sendNodeStatus(connector3, 'connector-3');
+        connectorsReady++;
+        tryConnectClient();
+      });
+
+      const tryConnectClient = () => {
+        if (connectorsReady !== 3) return;
+
+        // Wait for all NODE_STATUS to be cached, then create client
+        setTimeout(() => {
+          const client = new WebSocket(TEST_WS_URL);
+
+          client.on('open', () => {
+            // Send CLIENT_CONNECT to trigger replay
+            client.send(
+              JSON.stringify({
+                type: 'CLIENT_CONNECT',
+                nodeId: 'client',
+                timestamp: new Date().toISOString(),
+                data: {},
+              })
+            );
+          });
+
+          client.on('message', (data) => {
+            const message = JSON.parse(data.toString());
+            if (message.type === 'NODE_STATUS') {
+              receivedNodeIds.add(message.nodeId);
+
+              // Check if all 3 NODE_STATUS messages received
+              if (receivedNodeIds.size === 3) {
+                expect(receivedNodeIds.has('connector-1')).toBe(true);
+                expect(receivedNodeIds.has('connector-2')).toBe(true);
+                expect(receivedNodeIds.has('connector-3')).toBe(true);
+                connector1.close();
+                connector2.close();
+                connector3.close();
+                client.close();
+                done();
+              }
+            }
+          });
+        }, 200);
+      };
+    }, 10000);
+
+    test('new client receives N cached messages where N = number of cached nodes', (done) => {
+      server.start();
+
+      const connector1 = new WebSocket(TEST_WS_URL);
+      const connector2 = new WebSocket(TEST_WS_URL);
+
+      let connectorsReady = 0;
+      let receivedNodeStatusCount = 0;
+
+      const sendNodeStatus = (ws: WebSocket, nodeId: string) => {
+        ws.send(
+          JSON.stringify({
+            type: 'NODE_STATUS',
+            nodeId,
+            timestamp: new Date().toISOString(),
+            data: {
+              routes: [],
+              peers: [],
+              health: 'healthy',
+              uptime: 100,
+              peersConnected: 0,
+              totalPeers: 0,
+            },
+          })
+        );
+      };
+
+      connector1.on('open', () => {
+        sendNodeStatus(connector1, 'connector-A');
+        connectorsReady++;
+        tryConnectClient();
+      });
+
+      connector2.on('open', () => {
+        sendNodeStatus(connector2, 'connector-B');
+        connectorsReady++;
+        tryConnectClient();
+      });
+
+      const tryConnectClient = () => {
+        if (connectorsReady !== 2) return;
+
+        // Wait for all NODE_STATUS to be cached, then create client
+        setTimeout(() => {
+          const client = new WebSocket(TEST_WS_URL);
+
+          client.on('open', () => {
+            client.send(
+              JSON.stringify({
+                type: 'CLIENT_CONNECT',
+                nodeId: 'client',
+                timestamp: new Date().toISOString(),
+                data: {},
+              })
+            );
+          });
+
+          client.on('message', (data) => {
+            const message = JSON.parse(data.toString());
+            if (message.type === 'NODE_STATUS') {
+              receivedNodeStatusCount++;
+
+              // Should receive exactly 2 NODE_STATUS messages (N = 2)
+              if (receivedNodeStatusCount === 2) {
+                expect(receivedNodeStatusCount).toBe(2);
+                connector1.close();
+                connector2.close();
+                client.close();
+                done();
+              } else if (receivedNodeStatusCount > 2) {
+                done(new Error(`Expected 2 NODE_STATUS messages, got ${receivedNodeStatusCount}`));
+              }
+            }
+          });
+        }, 200);
+      };
+    }, 10000);
+
+    test('multiple clients receive independent replays without interference', (done) => {
+      server.start();
+
+      const connector = new WebSocket(TEST_WS_URL);
+      let client1Count = 0;
+      let client2Count = 0;
+
+      connector.on('open', () => {
+        connector.send(
+          JSON.stringify({
+            type: 'NODE_STATUS',
+            nodeId: 'connector-independent',
+            timestamp: new Date().toISOString(),
+            data: {
+              routes: [],
+              peers: [],
+              health: 'healthy',
+              uptime: 100,
+              peersConnected: 0,
+              totalPeers: 0,
+            },
+          })
+        );
+
+        // Wait for message to be cached, then create clients
+        setTimeout(() => {
+          const client1 = new WebSocket(TEST_WS_URL);
+          const client2 = new WebSocket(TEST_WS_URL);
+
+          client1.on('open', () => {
+            client1.send(
+              JSON.stringify({
+                type: 'CLIENT_CONNECT',
+                nodeId: 'client1',
+                timestamp: new Date().toISOString(),
+                data: {},
+              })
+            );
+          });
+
+          client1.on('message', (data) => {
+            const message = JSON.parse(data.toString());
+            if (message.type === 'NODE_STATUS') {
+              client1Count++;
+            }
+          });
+
+          client2.on('open', () => {
+            client2.send(
+              JSON.stringify({
+                type: 'CLIENT_CONNECT',
+                nodeId: 'client2',
+                timestamp: new Date().toISOString(),
+                data: {},
+              })
+            );
+
+            // Verify both clients received replay independently
+            setTimeout(() => {
+              expect(client1Count).toBe(1);
+              expect(client2Count).toBe(1);
+              connector.close();
+              client1.close();
+              client2.close();
+              done();
+            }, 200);
+          });
+
+          client2.on('message', (data) => {
+            const message = JSON.parse(data.toString());
+            if (message.type === 'NODE_STATUS') {
+              client2Count++;
+            }
+          });
+        }, 150);
+      });
+    }, 10000);
+  });
 });

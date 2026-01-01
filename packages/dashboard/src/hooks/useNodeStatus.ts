@@ -30,16 +30,20 @@ export interface UseNodeStatusResult {
 export function useNodeStatus(events: TelemetryEvent[]): UseNodeStatusResult {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nodeStatuses, setNodeStatuses] = useState<Map<string, NodeStatus>>(new Map());
+  const [processedEventCount, setProcessedEventCount] = useState<number>(0);
 
   // Build node statuses cache from telemetry events
   useEffect(() => {
-    if (events.length === 0) return;
+    if (events.length === 0 || events.length === processedEventCount) return;
+
+    // Only process new events since last update
+    const newEvents = events.slice(processedEventCount);
 
     setNodeStatuses((prevStatuses) => {
       const updatedStatuses = new Map<string, NodeStatus>(prevStatuses);
       let hasChanges = false;
 
-      events.forEach((event) => {
+      newEvents.forEach((event) => {
         // Process NODE_STATUS events to build/update node status cache
         if (event.type === 'NODE_STATUS') {
           const nodeStatus = parseNodeStatus(event);
@@ -77,7 +81,10 @@ export function useNodeStatus(events: TelemetryEvent[]): UseNodeStatusResult {
 
       return hasChanges ? updatedStatuses : prevStatuses;
     });
-  }, [events]);
+
+    // Update processed event count
+    setProcessedEventCount(events.length);
+  }, [events, processedEventCount]);
 
   const selectNode = (nodeId: string): void => {
     setSelectedNodeId(nodeId);

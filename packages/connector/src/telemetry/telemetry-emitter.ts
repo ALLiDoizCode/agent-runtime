@@ -57,38 +57,51 @@ export class TelemetryEmitter {
    * Safe to call during connector startup - failures won't prevent startup.
    */
   async connect(): Promise<void> {
-    try {
-      this._ws = new WebSocket(this._dashboardUrl);
+    return new Promise((resolve, reject) => {
+      try {
+        this._ws = new WebSocket(this._dashboardUrl);
+        let settled = false; // Track if promise has been settled
 
-      this._ws.on('open', () => {
-        this._connected = true;
-        this._reconnectDelay = 1000; // Reset backoff on successful connection
-        this._logger.info(
-          { event: 'telemetry_connected', dashboardUrl: this._dashboardUrl },
-          'Telemetry connected to dashboard'
-        );
-      });
+        this._ws.on('open', () => {
+          this._connected = true;
+          this._reconnectDelay = 1000; // Reset backoff on successful connection
+          this._logger.info(
+            { event: 'telemetry_connected', dashboardUrl: this._dashboardUrl },
+            'Telemetry connected to dashboard'
+          );
+          if (!settled) {
+            settled = true;
+            resolve(); // Resolve promise when connection is open
+          }
+        });
 
-      this._ws.on('error', (error) => {
+        this._ws.on('error', (error) => {
+          this._logger.warn(
+            { event: 'telemetry_error', error: error.message },
+            'Telemetry connection error'
+          );
+          this._connected = false;
+          // Only reject if we haven't successfully connected yet
+          if (!settled) {
+            settled = true;
+            reject(error);
+          }
+        });
+
+        this._ws.on('close', () => {
+          this._connected = false;
+          this._logger.info({ event: 'telemetry_disconnected' }, 'Telemetry disconnected');
+          this._scheduleReconnect();
+        });
+      } catch (error) {
         this._logger.warn(
-          { event: 'telemetry_error', error: error.message },
-          'Telemetry connection error'
+          { event: 'telemetry_connect_failed', error },
+          'Failed to connect telemetry'
         );
-        this._connected = false;
-      });
-
-      this._ws.on('close', () => {
-        this._connected = false;
-        this._logger.info({ event: 'telemetry_disconnected' }, 'Telemetry disconnected');
         this._scheduleReconnect();
-      });
-    } catch (error) {
-      this._logger.warn(
-        { event: 'telemetry_connect_failed', error },
-        'Failed to connect telemetry'
-      );
-      this._scheduleReconnect();
-    }
+        reject(error);
+      }
+    });
   }
 
   /**

@@ -60,6 +60,17 @@ export function useTelemetry(): UseTelemetryResult {
           // Reset reconnection state on successful connection
           reconnectAttemptsRef.current = 0;
           reconnectDelayRef.current = INITIAL_RECONNECT_DELAY;
+
+          // Send CLIENT_CONNECT message to register as a dashboard client
+          const clientConnectMessage = {
+            type: 'CLIENT_CONNECT',
+            nodeId: 'dashboard-client',
+            timestamp: new Date().toISOString(),
+            data: {},
+          };
+          ws.send(JSON.stringify(clientConnectMessage));
+          // eslint-disable-next-line no-console
+          console.debug('[useTelemetry] Sent CLIENT_CONNECT message');
         };
 
         ws.onmessage = (event) => {
