@@ -12,4 +12,7 @@ Build React-based network visualization showing topology and animated packet flo
 **Epic 4: Logging, Configuration & Developer Experience**
 Implement comprehensive structured logging with filterable log viewer, add support for multiple network topology configurations, create test packet sender utility, and complete documentation for user onboarding.
 
+**Epic 5: Documentation and RFC Integration**
+Create comprehensive developer documentation explaining ILP concepts and ensure all RFC references are accurate, accessible, and properly integrated into the M2M project documentation.
+
 ---
