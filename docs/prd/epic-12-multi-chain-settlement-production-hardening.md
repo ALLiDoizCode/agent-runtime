@@ -1,16 +1,16 @@
-# Epic 10: Multi-Chain Settlement & Production Hardening
+# Epic 12: Multi-Chain Settlement & Production Hardening
 
-**Epic Number:** 10
+**Epic Number:** 12
 
 **Goal:** Deliver production-ready M2M economy infrastructure with multi-chain settlement coordination, enterprise-grade security hardening, AI agent micropayment performance optimization (10K+ TPS target), and simplified Docker-based deployment for easy peer onboarding. This epic transforms the M2M platform from development prototype to production-ready system capable of powering a global machine-to-machine economy with real cryptocurrency settlement across multiple blockchains (Base L2, XRP Ledger, and future chains). Focus areas include cross-chain settlement coordination, HSM/KMS key management, rate limiting and fraud detection, performance optimization, monitoring and alerting, CI/CD automation, and comprehensive operator documentation.
 
-**Foundation:** This epic builds on all previous epics (1-9) to deliver a complete, production-hardened system ready for real-world deployment with AI agents and M2M micropayments.
+**Foundation:** This epic builds on all previous epics (1-11) to deliver a complete, production-hardened system ready for real-world deployment with AI agents and M2M micropayments.
 
-**Important:** This epic is the **final integration and hardening phase**. All core functionality is complete from Epics 1-9. This epic adds production-grade reliability, security, performance, and operational tooling required for enterprise deployment.
+**Important:** This epic is the **final integration and hardening phase**. All core functionality is complete from Epics 1-11. This epic adds production-grade reliability, security, performance, and operational tooling required for enterprise deployment.
 
 ---
 
-## Story 10.1: Cross-Chain Settlement Coordination and Routing
+## Story 12.1: Cross-Chain Settlement Coordination and Routing
 
 As a settlement coordinator,
 I want intelligent cross-chain settlement routing that optimizes for cost, speed, and availability,
@@ -163,7 +163,7 @@ async executeSettlementWithFallback(
 
 ---
 
-## Story 10.2: HSM/KMS Key Management and Secret Security
+## Story 12.2: HSM/KMS Key Management and Secret Security
 
 As a security engineer,
 I want enterprise-grade key management using HSM or cloud KMS,
@@ -311,7 +311,7 @@ security:
 
 ---
 
-## Story 10.3: Rate Limiting and DDoS Protection
+## Story 12.3: Rate Limiting and DDoS Protection
 
 As a network operator,
 I want rate limiting and DDoS protection on all connector endpoints,
@@ -458,7 +458,7 @@ security:
 
 ---
 
-## Story 10.4: Fraud Detection and Anomaly Monitoring
+## Story 12.4: Fraud Detection and Anomaly Monitoring
 
 As a security operator,
 I want automated fraud detection and anomaly monitoring,
@@ -629,7 +629,7 @@ security:
 
 ---
 
-## Story 10.5: Performance Optimization for 10K+ TPS
+## Story 12.5: Performance Optimization for 10K+ TPS
 
 As a performance engineer,
 I want the connector optimized for 10,000+ transactions per second throughput,
@@ -826,7 +826,7 @@ performance:
 
 ---
 
-## Story 10.6: Production Monitoring and Alerting
+## Story 12.6: Production Monitoring and Alerting
 
 As a DevOps engineer,
 I want comprehensive monitoring and alerting for all production connectors,
@@ -1015,7 +1015,7 @@ groups:
 
 ---
 
-## Story 10.7: Production Docker Deployment and Peer Onboarding
+## Story 12.7: Production Docker Deployment and Peer Onboarding
 
 As a new connector operator,
 I want simplified Docker-based deployment with automated peer onboarding,
@@ -1220,7 +1220,7 @@ LOG_LEVEL=info
 
 ---
 
-## Story 10.8: CI/CD Pipeline and Automated Testing
+## Story 12.8: CI/CD Pipeline and Automated Testing
 
 As a development team,
 I want CI/CD pipelines for automated testing and deployment,
@@ -1383,7 +1383,7 @@ jobs:
 
 ---
 
-## Story 10.9: Comprehensive Operator Documentation
+## Story 12.9: Comprehensive Operator Documentation
 
 As a connector operator,
 I want comprehensive documentation covering deployment, configuration, monitoring, and troubleshooting,
@@ -1495,7 +1495,7 @@ so that I can successfully run a production connector node.
 
 ---
 
-## Story 10.10: Production Acceptance Testing and Go-Live
+## Story 12.10: Production Acceptance Testing and Go-Live
 
 As a project stakeholder,
 I want comprehensive production acceptance testing demonstrating the system meets all requirements,
@@ -1586,7 +1586,7 @@ describe('Production Acceptance Tests', () => {
     });
   });
 
-  describe('Epic 10: Production Hardening', () => {
+  describe('Epic 12: Production Hardening', () => {
     it('should sustain 10,000 TPS for 24 hours', async () => {
       const duration = 24 * 60 * 60 * 1000;  // 24 hours
       const startTime = Date.now();
@@ -1714,10 +1714,10 @@ describe('Production Acceptance Tests', () => {
 
 - **Weeks 1-2:** Cross-chain coordination and HSM/KMS (Stories 10.1-10.2)
 - **Weeks 3-4:** Security hardening (rate limiting, fraud detection) (Stories 10.3-10.4)
-- **Weeks 5-7:** Performance optimization and benchmarking (Story 10.5)
+- **Weeks 5-7:** Performance optimization and benchmarking (Story 12.5)
 - **Weeks 8-9:** Monitoring, Docker deployment, CI/CD (Stories 10.6-10.8)
-- **Week 10:** Documentation and operator guides (Story 10.9)
-- **Weeks 11-12:** Production acceptance testing and launch (Story 10.10)
+- **Week 10:** Documentation and operator guides (Story 12.9)
+- **Weeks 11-12:** Production acceptance testing and launch (Story 12.10)
 
 **Critical Path:** Performance optimization (Weeks 5-7) is the most time-intensive
 
