@@ -94,7 +94,7 @@ describe('BTPClient and BTPServer Integration', () => {
       lastSeen: new Date(),
     };
 
-    client = new BTPClient(mockPeer, logger);
+    client = new BTPClient(mockPeer, 'test-client', logger);
   });
 
   afterEach(async () => {
@@ -122,7 +122,7 @@ describe('BTPClient and BTPServer Integration', () => {
           secret: 'wrong-secret',
         }),
       };
-      const badClient = new BTPClient(badPeer, createLogger('bad-client', 'error'));
+      const badClient = new BTPClient(badPeer, 'bad-client', createLogger('bad-client', 'error'));
 
       // Act & Assert
       await expect(badClient.connect()).rejects.toThrow();
@@ -270,6 +270,7 @@ describe('BTPClient and BTPServer Integration', () => {
           ...mockPeer,
           url: `ws://localhost:${serverPort + 1}`, // Different port
         },
+        'test-client',
         createLogger('test-client', 'error'),
         2 // Max 2 retries for faster test
       );
