@@ -126,6 +126,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build shared package (required for type checking other packages)
+        run: npm run build --workspace=packages/shared
+
       - name: Type check all packages
         run: npx tsc --noEmit --composite false --skipLibCheck true -p packages/connector/tsconfig.json && npx tsc --noEmit --composite false --skipLibCheck true -p packages/dashboard/tsconfig.json && npx tsc --noEmit --composite false --skipLibCheck true -p packages/shared/tsconfig.json
 
