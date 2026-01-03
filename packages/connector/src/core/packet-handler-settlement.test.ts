@@ -29,7 +29,7 @@ jest.mock('../settlement/account-manager');
 
 describe('PacketHandler Settlement Integration (Story 6.4)', () => {
   // Test helpers
-  const createMockLogger = () => pino({ level: 'silent' });
+  const createMockLogger = (): pino.Logger => pino({ level: 'silent' });
 
   const createValidPreparePacket = (): ILPPreparePacket => ({
     type: PacketType.PREPARE,
@@ -40,7 +40,7 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
     data: Buffer.alloc(0),
   });
 
-  const createMockAccountManager = () => {
+  const createMockAccountManager = (): jest.Mocked<AccountManager> => {
     const mockAccountManager = {
       getPeerAccountPair: jest.fn().mockReturnValue({
         debitAccountId: 123n,
@@ -56,7 +56,7 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
     return mockAccountManager as unknown as jest.Mocked<AccountManager>;
   };
 
-  const createMockBTPClientManager = () => {
+  const createMockBTPClientManager = (): jest.Mocked<BTPClientManager> => {
     const mockClientManager = {
       sendToPeer: jest.fn().mockResolvedValue({
         type: PacketType.FULFILL,
