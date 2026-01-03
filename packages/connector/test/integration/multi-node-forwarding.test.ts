@@ -172,7 +172,7 @@ describe('Multi-Node Packet Forwarding', () => {
       lastSeen: new Date(),
     };
 
-    testClient = new BTPClient(testPeer, createLogger('testClient', 'error'));
+    testClient = new BTPClient(testPeer, 'test-client', createLogger('testClient', 'error'));
     await testClient.connect();
   });
 
