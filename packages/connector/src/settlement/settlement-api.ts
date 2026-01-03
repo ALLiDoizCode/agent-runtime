@@ -275,16 +275,10 @@ async function executeMockSettlement(
 
   try {
     // Get balance before settlement
-    const balanceBefore = await config.accountManager.getAccountBalance(
-      peerId,
-      tokenId
-    );
+    const balanceBefore = await config.accountManager.getAccountBalance(peerId, tokenId);
     const settledAmount = balanceBefore.creditBalance;
 
-    logger.info(
-      { settledAmount: settledAmount.toString() },
-      'Settlement amount calculated'
-    );
+    logger.info({ settledAmount: settledAmount.toString() }, 'Settlement amount calculated');
 
     // Mock blockchain transaction delay (simulate on-chain settlement time)
     // Real settlement (Epic 7) will have 1-5 second delay for blockchain confirmation
@@ -295,10 +289,7 @@ async function executeMockSettlement(
     await config.accountManager.recordSettlement(peerId, tokenId, settledAmount);
 
     // Get balance after settlement (verify reduction)
-    const balanceAfter = await config.accountManager.getAccountBalance(
-      peerId,
-      tokenId
-    );
+    const balanceAfter = await config.accountManager.getAccountBalance(peerId, tokenId);
 
     // Verify balance reduced to zero
     if (balanceAfter.creditBalance !== 0n) {
@@ -309,9 +300,7 @@ async function executeMockSettlement(
         },
         'Settlement did not reduce balance to zero'
       );
-      throw new Error(
-        'Settlement verification failed: balance not reduced to zero'
-      );
+      throw new Error('Settlement verification failed: balance not reduced to zero');
     }
 
     // Mark settlement completed (reset to IDLE state)
@@ -348,10 +337,7 @@ async function executeMockSettlement(
           success: true,
           timestamp: new Date().toISOString(),
         });
-        logger.debug(
-          { peerId, tokenId },
-          'Settlement completion telemetry emitted'
-        );
+        logger.debug({ peerId, tokenId }, 'Settlement completion telemetry emitted');
       } catch (telemetryError) {
         // Non-blocking: Log but don't throw
         logger.warn(
@@ -388,10 +374,7 @@ async function executeMockSettlement(
     if (config.telemetryEmitter) {
       try {
         // Get balance to report in error case
-        const balanceAfterError = await config.accountManager.getAccountBalance(
-          peerId,
-          tokenId
-        );
+        const balanceAfterError = await config.accountManager.getAccountBalance(peerId, tokenId);
         config.telemetryEmitter.emit({
           type: 'SETTLEMENT_COMPLETED',
           nodeId: config.nodeId ?? 'unknown',
@@ -405,10 +388,7 @@ async function executeMockSettlement(
           errorMessage: error instanceof Error ? error.message : 'Unknown error',
           timestamp: new Date().toISOString(),
         });
-        logger.debug(
-          { peerId, tokenId, success: false },
-          'Settlement failure telemetry emitted'
-        );
+        logger.debug({ peerId, tokenId, success: false }, 'Settlement failure telemetry emitted');
       } catch (telemetryError) {
         // Non-blocking: Log but don't throw
         logger.warn(
@@ -525,9 +505,7 @@ function createAuthMiddleware(
  * // GET http://localhost:8080/settlement/status/peer-a
  * ```
  */
-export function createSettlementRouter(
-  config: SettlementAPIConfig
-): Router {
+export function createSettlementRouter(config: SettlementAPIConfig): Router {
   const router = Router();
   const logger = config.logger.child({ component: 'settlement-api' });
 
@@ -539,9 +517,7 @@ export function createSettlementRouter(
 
   // Log authentication status
   if (!config.authToken || config.authToken.trim() === '') {
-    logger.warn(
-      'Settlement API authentication DISABLED (no SETTLEMENT_AUTH_TOKEN configured)'
-    );
+    logger.warn('Settlement API authentication DISABLED (no SETTLEMENT_AUTH_TOKEN configured)');
   } else {
     logger.info('Settlement API authentication ENABLED');
   }
@@ -574,9 +550,7 @@ export function createSettlementRouter(
     }
   });
 
-  logger.info(
-    'SettlementMonitor attached to SettlementAPI, automatic settlement enabled'
-  );
+  logger.info('SettlementMonitor attached to SettlementAPI, automatic settlement enabled');
 
   /**
    * POST /settlement/execute
@@ -610,49 +584,45 @@ export function createSettlementRouter(
    * - 403 Forbidden: Invalid bearer token
    * - 500 Internal Server Error: Settlement execution failed
    */
-  router.post(
-    '/settlement/execute',
-    async (req: Request, res: Response): Promise<void> => {
-      try {
-        const { peerId, tokenId = 'ILP' } = req.body as ExecuteSettlementRequest;
+  router.post('/settlement/execute', async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { peerId, tokenId = 'ILP' } = req.body as ExecuteSettlementRequest;
 
-        // Validate peerId
-        if (!peerId || typeof peerId !== 'string') {
-          res.status(400).json({
-            error: 'Invalid peerId',
-          } as ErrorResponse);
-          return;
-        }
-
-        // Validate tokenId (if provided)
-        if (tokenId && typeof tokenId !== 'string') {
-          res.status(400).json({
-            error: 'Invalid tokenId',
-          } as ErrorResponse);
-          return;
-        }
-
-        logger.info({ peerId, tokenId }, 'Settlement execution requested');
-
-        // Execute mock settlement
-        const result = await executeMockSettlement(config, peerId, tokenId);
-
-        res.status(200).json(result);
-      } catch (error) {
-        logger.error(
-          {
-            error: error instanceof Error ? error.message : 'Unknown error',
-          },
-          'Settlement execution failed'
-        );
-
-        res.status(500).json({
-          error:
-            error instanceof Error ? error.message : 'Settlement execution failed',
+      // Validate peerId
+      if (!peerId || typeof peerId !== 'string') {
+        res.status(400).json({
+          error: 'Invalid peerId',
         } as ErrorResponse);
+        return;
       }
+
+      // Validate tokenId (if provided)
+      if (tokenId && typeof tokenId !== 'string') {
+        res.status(400).json({
+          error: 'Invalid tokenId',
+        } as ErrorResponse);
+        return;
+      }
+
+      logger.info({ peerId, tokenId }, 'Settlement execution requested');
+
+      // Execute mock settlement
+      const result = await executeMockSettlement(config, peerId, tokenId);
+
+      res.status(200).json(result);
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        'Settlement execution failed'
+      );
+
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Settlement execution failed',
+      } as ErrorResponse);
     }
-  );
+  });
 
   /**
    * GET /settlement/status/:peerId
@@ -678,69 +648,57 @@ export function createSettlementRouter(
    * - 404 Not Found: Account not found
    * - 500 Internal Server Error: Balance query failed
    */
-  router.get(
-    '/settlement/status/:peerId',
-    async (req: Request, res: Response): Promise<void> => {
-      try {
-        const { peerId } = req.params;
-        const tokenId = (req.query.tokenId as string) ?? 'ILP';
+  router.get('/settlement/status/:peerId', async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { peerId } = req.params;
+      const tokenId = (req.query.tokenId as string) ?? 'ILP';
 
-        // Validate peerId
-        if (!peerId) {
-          res.status(400).json({
-            error: 'peerId required',
-          } as ErrorResponse);
-          return;
-        }
-
-        logger.debug({ peerId, tokenId }, 'Settlement status queried');
-
-        // Query current balance
-        const balance = await config.accountManager.getAccountBalance(
-          peerId,
-          tokenId
-        );
-
-        // Query settlement state
-        const state = config.settlementMonitor.getSettlementState(peerId, tokenId);
-
-        const response: SettlementStatusResponse = {
-          peerId,
-          tokenId,
-          currentBalance: balance.creditBalance.toString(),
-          settlementState: state,
-          timestamp: new Date().toISOString(),
-        };
-
-        res.status(200).json(response);
-      } catch (error) {
-        logger.error(
-          {
-            error: error instanceof Error ? error.message : 'Unknown error',
-          },
-          'Settlement status query failed'
-        );
-
-        // Check if account not found (404)
-        if (
-          error instanceof Error &&
-          error.message.includes('not found')
-        ) {
-          res.status(404).json({
-            error: error.message,
-          } as ErrorResponse);
-          return;
-        }
-
-        res.status(500).json({
-          error:
-            error instanceof Error
-              ? error.message
-              : 'Settlement status query failed',
+      // Validate peerId
+      if (!peerId) {
+        res.status(400).json({
+          error: 'peerId required',
         } as ErrorResponse);
+        return;
       }
+
+      logger.debug({ peerId, tokenId }, 'Settlement status queried');
+
+      // Query current balance
+      const balance = await config.accountManager.getAccountBalance(peerId, tokenId);
+
+      // Query settlement state
+      const state = config.settlementMonitor.getSettlementState(peerId, tokenId);
+
+      const response: SettlementStatusResponse = {
+        peerId,
+        tokenId,
+        currentBalance: balance.creditBalance.toString(),
+        settlementState: state,
+        timestamp: new Date().toISOString(),
+      };
+
+      res.status(200).json(response);
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        'Settlement status query failed'
+      );
+
+      // Check if account not found (404)
+      if (error instanceof Error && error.message.includes('not found')) {
+        res.status(404).json({
+          error: error.message,
+        } as ErrorResponse);
+        return;
+      }
+
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Settlement status query failed',
+      } as ErrorResponse);
     }
-  );
+  });
 
   return router;
 }

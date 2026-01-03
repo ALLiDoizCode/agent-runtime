@@ -211,7 +211,7 @@ services:
       - ilp-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
+      test: ['CMD-SHELL', 'nc -z localhost 3000 || exit 1']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -256,12 +256,12 @@ networks:
 
 TigerBeetle configuration is controlled via environment variables in `.env.production.example`:
 
-| Variable                     | Default | Description                                                           | Notes                                               |
-| ---------------------------- | ------- | --------------------------------------------------------------------- | --------------------------------------------------- |
-| `TIGERBEETLE_CLUSTER_ID`     | `0`     | Unique cluster identifier (0-255)                                     | **IMMUTABLE** - cannot change after initialization  |
-| `TIGERBEETLE_REPLICA_COUNT`  | `1`     | Number of replicas in cluster (1, 3, 5, ...)                          | Odd number required for quorum consensus            |
-| `TIGERBEETLE_PORT`           | `3000`  | Client connection port (internal network only)                        | Do NOT expose to host (security risk)               |
-| `TIGERBEETLE_DATA_DIR`       | `/data` | Data directory inside container                                       | Do not change (TigerBeetle convention)              |
+| Variable                    | Default | Description                                    | Notes                                              |
+| --------------------------- | ------- | ---------------------------------------------- | -------------------------------------------------- |
+| `TIGERBEETLE_CLUSTER_ID`    | `0`     | Unique cluster identifier (0-255)              | **IMMUTABLE** - cannot change after initialization |
+| `TIGERBEETLE_REPLICA_COUNT` | `1`     | Number of replicas in cluster (1, 3, 5, ...)   | Odd number required for quorum consensus           |
+| `TIGERBEETLE_PORT`          | `3000`  | Client connection port (internal network only) | Do NOT expose to host (security risk)              |
+| `TIGERBEETLE_DATA_DIR`      | `/data` | Data directory inside container                | Do not change (TigerBeetle convention)             |
 
 **Example `.env` file:**
 

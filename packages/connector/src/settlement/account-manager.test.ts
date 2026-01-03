@@ -153,9 +153,7 @@ describe('AccountManager', () => {
       // Mock error for duplicate account
       mockTigerBeetleClient.createAccountsBatch = jest
         .fn()
-        .mockRejectedValue(
-          new TigerBeetleAccountError('Account creation failed: exists', 123n)
-        );
+        .mockRejectedValue(new TigerBeetleAccountError('Account creation failed: exists', 123n));
 
       // Should NOT throw error (idempotent)
       const accountPair = await accountManager.createPeerAccounts('peer-d', 'USD');

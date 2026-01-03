@@ -35,7 +35,6 @@ describe('TigerBeetleClient Integration Tests', () => {
     }
   };
 
-
   beforeAll(async () => {
     // Skip tests if Docker not available
     const dockerAvailable = await isDockerAvailable();
@@ -76,15 +75,11 @@ describe('TigerBeetleClient Integration Tests', () => {
       // Initialize with Promise.race to ensure it times out quickly
       await Promise.race([
         client.initialize(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Connection timeout')), 5000)
-        ),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000)),
       ]);
       console.log('TigerBeetle client initialized successfully');
     } catch (error) {
-      console.log(
-        'TigerBeetle container not accessible. Integration tests will be skipped.'
-      );
+      console.log('TigerBeetle container not accessible. Integration tests will be skipped.');
       console.log(
         'To run integration tests, ensure TigerBeetle container is running with port 3000 exposed.'
       );
@@ -146,14 +141,7 @@ describe('TigerBeetleClient Integration Tests', () => {
     await client.createAccount(creditAccountId, 1, 100);
 
     // Create transfer: debit account -> credit account, amount 1000
-    await client.createTransfer(
-      transferId,
-      debitAccountId,
-      creditAccountId,
-      1000n,
-      1,
-      100
-    );
+    await client.createTransfer(transferId, debitAccountId, creditAccountId, 1000n, 1, 100);
 
     // Query balances after transfer
     const debitBalance = await client.getAccountBalance(debitAccountId);
@@ -208,9 +196,7 @@ describe('TigerBeetleClient Integration Tests', () => {
     await client.createAccount(accountId, 1, 100);
 
     // Attempt to create same account again
-    await expect(client.createAccount(accountId, 1, 100)).rejects.toThrow(
-      TigerBeetleAccountError
-    );
+    await expect(client.createAccount(accountId, 1, 100)).rejects.toThrow(TigerBeetleAccountError);
   });
 
   it('should handle transfer with insufficient balance', async () => {
@@ -294,8 +280,6 @@ describe('TigerBeetleClient Integration Tests', () => {
     // Query non-existent account
     const nonExistentId = BigInt(Date.now()) * 1000n + 999999n;
 
-    await expect(client.getAccountBalance(nonExistentId)).rejects.toThrow(
-      TigerBeetleAccountError
-    );
+    await expect(client.getAccountBalance(nonExistentId)).rejects.toThrow(TigerBeetleAccountError);
   });
 });

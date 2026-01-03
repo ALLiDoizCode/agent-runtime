@@ -265,7 +265,9 @@ export class TelemetryServer {
     this.pendingConnections.delete(ws);
     ws.isClient = true;
     this.clientConnections.add(ws);
-    this.logger.info('Dashboard client connected', { cachedNodeStatusCount: this.lastNodeStatus.size });
+    this.logger.info('Dashboard client connected', {
+      cachedNodeStatusCount: this.lastNodeStatus.size,
+    });
 
     // Replay all cached NODE_STATUS messages to the new client
     this.lastNodeStatus.forEach((nodeStatus, nodeId) => {

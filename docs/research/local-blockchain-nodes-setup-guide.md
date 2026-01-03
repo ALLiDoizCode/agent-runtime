@@ -1,4 +1,5 @@
 # Local Blockchain Node Setup Guide for Payment Channel Testing
+
 # M2M Project - Base L2 (EVM) and XRP Ledger Local Development
 
 **Document Version:** 1.0
@@ -14,12 +15,14 @@ This guide provides comprehensive instructions for setting up local Base L2 (EVM
 ### Key Recommendations
 
 **For Base L2 (EVM) Development:**
+
 - **Primary Recommendation:** Use **Anvil (Foundry)** for local development
 - **Approach:** Fork Base Sepolia testnet for realistic testing
 - **Why:** Instant blocks, zero gas costs, 10 pre-funded accounts, fast iteration
 - **Alternative:** Hardhat Network with Base Sepolia fork
 
 **For XRP Ledger Development:**
+
 - **Primary Recommendation:** Use **rippled standalone mode** via Docker
 - **Approach:** Docker container with manual ledger advancement
 - **Why:** Official implementation, payment channel support, complete control
@@ -27,10 +30,10 @@ This guide provides comprehensive instructions for setting up local Base L2 (EVM
 
 ### Quick Start Summary
 
-| Chain | Tool | Command | RPC Endpoint | Setup Time |
-|-------|------|---------|--------------|------------|
-| Base L2 | Anvil | `anvil --fork-url https://sepolia.base.org` | http://localhost:8545 | 30 seconds |
-| XRPL | Docker | `docker run -p 5005:5005 xrpllabsofficial/xrpld:latest -a` | http://localhost:5005 | 1 minute |
+| Chain   | Tool   | Command                                                    | RPC Endpoint          | Setup Time |
+| ------- | ------ | ---------------------------------------------------------- | --------------------- | ---------- |
+| Base L2 | Anvil  | `anvil --fork-url https://sepolia.base.org`                | http://localhost:8545 | 30 seconds |
+| XRPL    | Docker | `docker run -p 5005:5005 xrpllabsofficial/xrpld:latest -a` | http://localhost:5005 | 1 minute   |
 
 ### Estimated Setup Time and Learning Curve
 
@@ -42,12 +45,14 @@ This guide provides comprehensive instructions for setting up local Base L2 (EVM
 ### Critical Gotchas and Limitations
 
 **Base L2 (Anvil):**
+
 - Forking requires external RPC endpoint (can hit rate limits on free tiers)
 - Fork state diverges from mainnet over time - use `--fork-block-number` to pin
 - OP Stack-specific features require `--optimism` flag
 - No persistence by default - use `--dump-state`/`--load-state` for stateful testing
 
 **XRPL (rippled standalone):**
+
 - Ledgers don't advance automatically - must call `ledger_accept` after each transaction
 - No consensus process - all transactions succeed immediately
 - Testnet resets periodically (data loss risk)
@@ -114,6 +119,7 @@ anvil
 ```
 
 **Example output:**
+
 ```
 Available Accounts
 ==================
@@ -148,16 +154,16 @@ anvil \
 
 **Configuration Options:**
 
-| Option | Purpose | Example |
-|--------|---------|---------|
-| `--fork-url <RPC>` | Fork from external RPC | `https://sepolia.base.org` |
-| `--fork-block-number <N>` | Pin to specific block (prevents drift) | `20702367` |
-| `--chain-id <ID>` | Override chain ID | `84532` (Base Sepolia) |
-| `--optimism` | Enable Optimism/OP Stack features | Required for Base L2 |
-| `--port <PORT>` | Change RPC port | `8545` (default) |
-| `--host <HOST>` | Bind to specific host | `0.0.0.0` (all interfaces) |
-| `--dump-state <FILE>` | Save state on exit | `state.json` |
-| `--load-state <FILE>` | Restore previous state | `state.json` |
+| Option                    | Purpose                                | Example                    |
+| ------------------------- | -------------------------------------- | -------------------------- |
+| `--fork-url <RPC>`        | Fork from external RPC                 | `https://sepolia.base.org` |
+| `--fork-block-number <N>` | Pin to specific block (prevents drift) | `20702367`                 |
+| `--chain-id <ID>`         | Override chain ID                      | `84532` (Base Sepolia)     |
+| `--optimism`              | Enable Optimism/OP Stack features      | Required for Base L2       |
+| `--port <PORT>`           | Change RPC port                        | `8545` (default)           |
+| `--host <HOST>`           | Bind to specific host                  | `0.0.0.0` (all interfaces) |
+| `--dump-state <FILE>`     | Save state on exit                     | `state.json`               |
+| `--load-state <FILE>`     | Restore previous state                 | `state.json`               |
 
 #### Fork Base Mainnet
 
@@ -171,6 +177,7 @@ anvil --fork-url https://base.gateway.tenderly.co
 ```
 
 **Note:** Free public RPC endpoints are rate-limited. For heavy development, use:
+
 - **Alchemy:** https://www.alchemy.com/rpc/base
 - **QuickNode:** https://www.quicknode.com/
 - **Infura:** (Base support coming soon)
@@ -266,37 +273,37 @@ npx hardhat init
 
 ```javascript
 // hardhat.config.js
-require("@nomiclabs/hardhat-waffle");
-require("@nomiclabs/hardhat-ethers");
-require("dotenv").config();
+require('@nomiclabs/hardhat-waffle');
+require('@nomiclabs/hardhat-ethers');
+require('dotenv').config();
 
 module.exports = {
-  solidity: "0.8.20",
+  solidity: '0.8.20',
   networks: {
     hardhat: {
       // Local Hardhat Network (no forking)
-      chainId: 31337
+      chainId: 31337,
     },
     baseFork: {
       // Fork Base Sepolia locally
-      url: "http://127.0.0.1:8545",
+      url: 'http://127.0.0.1:8545',
       forking: {
-        url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
+        url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
         blockNumber: 20702367, // Optional: pin to specific block
-        enabled: true
-      }
+        enabled: true,
+      },
     },
     base_sepolia: {
-      url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
+      url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
       accounts: [process.env.PRIVATE_KEY],
-      chainId: 84532
+      chainId: 84532,
     },
     base_mainnet: {
-      url: process.env.BASE_MAINNET_RPC_URL || "https://mainnet.base.org",
+      url: process.env.BASE_MAINNET_RPC_URL || 'https://mainnet.base.org',
       accounts: [process.env.PRIVATE_KEY],
-      chainId: 8453
-    }
-  }
+      chainId: 8453,
+    },
+  },
 };
 ```
 
@@ -320,17 +327,17 @@ npx hardhat run scripts/deploy.js --network base_sepolia
 
 ```javascript
 // scripts/deploy.js
-const hre = require("hardhat");
+const hre = require('hardhat');
 
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
-  console.log("Deploying with account:", deployer.address);
+  console.log('Deploying with account:', deployer.address);
 
-  const PaymentChannel = await hre.ethers.getContractFactory("PaymentChannel");
+  const PaymentChannel = await hre.ethers.getContractFactory('PaymentChannel');
   const channel = await PaymentChannel.deploy();
   await channel.deployed();
 
-  console.log("PaymentChannel deployed to:", channel.address);
+  console.log('PaymentChannel deployed to:', channel.address);
 }
 
 main().catch((error) => {
@@ -364,6 +371,7 @@ npx hardhat test --network baseFork
 #### Hardware Requirements
 
 **Production Node:**
+
 - **CPU:** Intel i7 or AMD Ryzen 7 (8+ cores, 16+ threads)
 - **RAM:** 16 GB minimum, 32 GB recommended
 - **Storage:** 2+ TB NVMe SSD (10,000+ IOPS sustained)
@@ -376,6 +384,7 @@ npx hardhat test --network baseFork
 - **L1 Beacon API:** Access to Ethereum consensus client (Lighthouse, Prysm, Teku)
 
 **Options for L1 endpoints:**
+
 - Self-hosted Ethereum node
 - Alchemy, Infura, or QuickNode (paid)
 
@@ -406,6 +415,7 @@ NETWORK_ENV=.env.sepolia docker compose up --build
 - **With snapshot:** 4-8 hours (recommended - snapshots updated daily)
 
 **Using snapshots:**
+
 ```bash
 # Download Base mainnet snapshot
 wget https://base-snapshots.example.com/latest.tar.gz
@@ -443,12 +453,14 @@ tar -xzf latest.tar.gz -C ./base-data
 #### System Requirements
 
 **Development/Testing:**
+
 - **CPU:** 64-bit x86_64, 4+ cores
 - **RAM:** 4-8 GB (standalone mode is lightweight)
 - **Disk:** 10 GB minimum (no historical ledgers)
 - **OS:** Linux, macOS, Windows (via Docker)
 
 **Production Node (for reference only):**
+
 - **CPU:** 3+ GHz, 8+ cores
 - **RAM:** 16+ GB
 - **Disk:** 50+ GB SSD/NVMe (10,000+ IOPS sustained)
@@ -474,6 +486,7 @@ docker exec rippled_standalone rippled --help
 ```
 
 **Port Configuration:**
+
 - `5005`: JSON-RPC (HTTP) endpoint
 - `6006`: WebSocket endpoint
 
@@ -507,6 +520,7 @@ curl -X POST http://localhost:5005 \
 ```
 
 **Response:**
+
 ```json
 {
   "result": {
@@ -605,7 +619,7 @@ async function createTestAccounts() {
     TransactionType: 'Payment',
     Account: 'rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh', // Genesis account
     Destination: wallet.address,
-    Amount: '1000000000' // 1,000 XRP (in drops)
+    Amount: '1000000000', // 1,000 XRP (in drops)
   };
 
   const prepared = await client.autofill(payment);
@@ -631,6 +645,7 @@ XRPL payment channels are fully supported in standalone mode, allowing comprehen
 #### Payment Channel Overview
 
 **XRPL Payment Channels:**
+
 - **Unidirectional:** XRP flows from source to destination
 - **Claim-based:** Receiver claims XRP with signed authorization
 - **Time-locked:** Settlement delay protects against disputes
@@ -658,14 +673,14 @@ XRPL payment channels are fully supported in standalone mode, allowing comprehen
 
 **Field Descriptions:**
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| `Account` | Channel source (payer) | `rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEkk` |
-| `Amount` | XRP allocated to channel (in drops) | `100000000` (100 XRP) |
-| `Destination` | Channel destination (payee) | `rLHzPsX6oXkzU9fXkSuXZvHJiVGgzRx3mR` |
-| `SettleDelay` | Seconds before channel can close | `86400` (24 hours) |
-| `PublicKey` | Source's public key for signatures | `02F89E...` |
-| `Fee` | Transaction fee (in drops) | `10` |
+| Field         | Description                         | Example                              |
+| ------------- | ----------------------------------- | ------------------------------------ |
+| `Account`     | Channel source (payer)              | `rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEkk` |
+| `Amount`      | XRP allocated to channel (in drops) | `100000000` (100 XRP)                |
+| `Destination` | Channel destination (payee)         | `rLHzPsX6oXkzU9fXkSuXZvHJiVGgzRx3mR` |
+| `SettleDelay` | Seconds before channel can close    | `86400` (24 hours)                   |
+| `PublicKey`   | Source's public key for signatures  | `02F89E...`                          |
+| `Fee`         | Transaction fee (in drops)          | `10`                                 |
 
 #### Example: Claim from Payment Channel
 
@@ -684,13 +699,13 @@ XRPL payment channels are fully supported in standalone mode, allowing comprehen
 
 **Field Descriptions:**
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| `Account` | Who submits the claim (usually payee) | `rLHzP...` |
-| `Channel` | Channel ID (64-char hex) | `5DB01B...` |
-| `Amount` | Cumulative XRP authorized (in drops) | `1000000` (1 XRP) |
-| `Balance` | XRP to deliver this transaction | `1000000` |
-| `Signature` | Source's signature authorizing amount | `30440220...` |
+| Field       | Description                           | Example           |
+| ----------- | ------------------------------------- | ----------------- |
+| `Account`   | Who submits the claim (usually payee) | `rLHzP...`        |
+| `Channel`   | Channel ID (64-char hex)              | `5DB01B...`       |
+| `Amount`    | Cumulative XRP authorized (in drops)  | `1000000` (1 XRP) |
+| `Balance`   | XRP to deliver this transaction       | `1000000`         |
+| `Signature` | Source's signature authorizing amount | `30440220...`     |
 
 #### Generating Signatures (Off-Chain)
 
@@ -751,6 +766,7 @@ curl -X POST http://localhost:5005 \
 ```
 
 **Response:**
+
 ```json
 {
   "result": {
@@ -795,13 +811,19 @@ services:
       --chain-id 84532
       --optimism
     ports:
-      - "8545:8545"
+      - '8545:8545'
     networks:
       - blockchain_network
     environment:
       - BASE_SEPOLIA_RPC_URL=${BASE_SEPOLIA_RPC_URL}
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -f http://localhost:8545 -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' || exit 1"]
+      test:
+        [
+          'CMD',
+          'sh',
+          '-c',
+          'curl -f http://localhost:8545 -X POST -H ''Content-Type: application/json'' --data ''{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'' || exit 1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -811,14 +833,20 @@ services:
   rippled:
     image: xrpllabsofficial/xrpld:latest
     container_name: rippled_standalone
-    command: ["-a"]
+    command: ['-a']
     ports:
-      - "5005:5005"  # JSON-RPC
-      - "6006:6006"  # WebSocket
+      - '5005:5005' # JSON-RPC
+      - '6006:6006' # WebSocket
     networks:
       - blockchain_network
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -f http://localhost:5005 -X POST -H 'Content-Type: application/json' --data '{\"method\":\"server_info\",\"params\":[]}' || exit 1"]
+      test:
+        [
+          'CMD',
+          'sh',
+          '-c',
+          'curl -f http://localhost:5005 -X POST -H ''Content-Type: application/json'' --data ''{"method":"server_info","params":[]}'' || exit 1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -883,6 +911,7 @@ docker-compose down -v
 ### Health Checks
 
 **Anvil health check:**
+
 ```bash
 curl -X POST http://localhost:8545 \
   -H "Content-Type: application/json" \
@@ -895,6 +924,7 @@ curl -X POST http://localhost:8545 \
 ```
 
 **rippled health check:**
+
 ```bash
 curl -X POST http://localhost:5005 \
   -H "Content-Type: application/json" \
@@ -1047,6 +1077,7 @@ contract SimplePaymentChannelTest is Test {
 ```
 
 **Run tests:**
+
 ```bash
 forge test -vvv
 ```
@@ -1085,7 +1116,10 @@ async function signPaymentChannelClaim(
 
 // Example usage
 const provider = new ethers.JsonRpcProvider('http://localhost:8545');
-const wallet = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
+const wallet = new ethers.Wallet(
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+  provider
+);
 
 const channelId = '0x5db01b...'; // From contract
 const amount = ethers.parseEther('0.5');
@@ -1098,17 +1132,20 @@ console.log('Signature:', signature);
 #### Complete Testing Workflow
 
 1. **Deploy contract to Anvil**
+
    ```bash
    forge create SimplePaymentChannel --rpc-url http://localhost:8545 --private-key <KEY>
    ```
 
 2. **Open payment channel**
+
    ```bash
    cast send <CONTRACT> "openChannel(address,uint256)" <RECEIVER> 1000000000000000000 \
      --rpc-url http://localhost:8545 --private-key <KEY> --value 1ether
    ```
 
 3. **Sign off-chain payment**
+
    ```typescript
    const signature = await signPaymentChannelClaim(wallet, channelId, amount, nonce);
    ```
@@ -1152,7 +1189,7 @@ async function testXRPLPaymentChannel() {
     Amount: '100000000', // 100 XRP
     Destination: receiver.address,
     SettleDelay: 86400, // 24 hours
-    PublicKey: sender.publicKey
+    PublicKey: sender.publicKey,
   };
 
   const preparedChannel = await client.autofill(channelTx);
@@ -1161,9 +1198,9 @@ async function testXRPLPaymentChannel() {
 
   await client.request({ command: 'ledger_accept' });
 
-  const channelId = resultChannel.result.meta.AffectedNodes
-    .find(node => node.CreatedNode?.LedgerEntryType === 'PayChannel')
-    ?.CreatedNode.LedgerIndex;
+  const channelId = resultChannel.result.meta.AffectedNodes.find(
+    (node) => node.CreatedNode?.LedgerEntryType === 'PayChannel'
+  )?.CreatedNode.LedgerIndex;
 
   console.log('Channel Created:', channelId);
 
@@ -1180,7 +1217,7 @@ async function testXRPLPaymentChannel() {
     Amount: claimAmount,
     Balance: claimAmount,
     Signature: signature.toUpperCase(),
-    PublicKey: sender.publicKey
+    PublicKey: sender.publicKey,
   };
 
   const preparedClaim = await client.autofill(claimTx);
@@ -1194,7 +1231,7 @@ async function testXRPLPaymentChannel() {
   // 4. Check channel state
   const channels = await client.request({
     command: 'account_channels',
-    account: sender.address
+    account: sender.address,
   });
 
   console.log('Channel State:', JSON.stringify(channels.result.channels, null, 2));
@@ -1208,7 +1245,7 @@ async function fundAccount(client, address, amount) {
     TransactionType: 'Payment',
     Account: 'rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh', // Genesis account
     Destination: address,
-    Amount: amount
+    Amount: amount,
   };
 
   const prepared = await client.autofill(payment);
@@ -1298,6 +1335,7 @@ curl -X POST https://faucet.devnet.rippletest.net/accounts
 ```
 
 **Response:**
+
 ```json
 {
   "account": {
@@ -1309,6 +1347,7 @@ curl -X POST https://faucet.devnet.rippletest.net/accounts
 ```
 
 **Funding limits (2025):**
+
 - Default: 100 XRP per request
 - Maximum: 1,000 XRP per request
 
@@ -1324,6 +1363,7 @@ XRPL_RPC_URL=http://localhost:5005
 ```
 
 **Best practices:**
+
 - Use separate keys for each network (local, testnet, mainnet)
 - Never hardcode private keys in source code
 - Use environment variables or secret management (Vault, AWS Secrets Manager)
@@ -1336,6 +1376,7 @@ XRPL_RPC_URL=http://localhost:5005
 #### Reset Anvil State
 
 **Option 1: Restart Anvil (ephemeral mode)**
+
 ```bash
 # Stop Anvil (Ctrl+C)
 # Restart Anvil - state is lost
@@ -1343,6 +1384,7 @@ anvil --fork-url https://sepolia.base.org
 ```
 
 **Option 2: Use state snapshots**
+
 ```bash
 # Save state before resetting
 cast rpc evm_snapshot --rpc-url http://localhost:8545
@@ -1356,11 +1398,13 @@ cast rpc evm_revert 0x1 --rpc-url http://localhost:8545
 #### Reset rippled State
 
 **Option 1: Restart container**
+
 ```bash
 docker restart rippled_standalone
 ```
 
 **Option 2: Recreate container (clean state)**
+
 ```bash
 docker rm -f rippled_standalone
 docker run -d --name rippled_standalone -p 5005:5005 -p 6006:6006 xrpllabsofficial/xrpld:latest -a
@@ -1373,11 +1417,13 @@ docker run -d --name rippled_standalone -p 5005:5005 -p 6006:6006 xrpllabsoffici
 #### Anvil Debugging
 
 **Enable verbose logging:**
+
 ```bash
 anvil --fork-url https://sepolia.base.org -vvv
 ```
 
 **Monitor transactions:**
+
 ```bash
 # Watch latest block
 watch -n 1 'cast block-number --rpc-url http://localhost:8545'
@@ -1389,11 +1435,13 @@ cast receipt <TX_HASH> --rpc-url http://localhost:8545
 #### rippled Debugging
 
 **View logs:**
+
 ```bash
 docker logs -f rippled_standalone
 ```
 
 **Check transaction status:**
+
 ```bash
 curl -X POST http://localhost:5005 \
   -H "Content-Type: application/json" \
@@ -1406,6 +1454,7 @@ curl -X POST http://localhost:5005 \
 ```
 
 **Monitor ledger advancement:**
+
 ```bash
 watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/json" -d "{\"method\":\"ledger\",\"params\":[]}" | jq .result.ledger_index'
 ```
@@ -1416,42 +1465,45 @@ watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/
 
 ### Resource Comparison Table
 
-| Component | CPU | RAM | Disk | Startup Time | Block Time |
-|-----------|-----|-----|------|--------------|------------|
-| **Anvil (local)** | 1-2 cores | 1-2 GB | Minimal | < 5 seconds | Instant |
-| **Anvil (forked)** | 2-4 cores | 2-4 GB | Minimal | 10-30 seconds | Instant |
-| **Hardhat** | 2-4 cores | 2-4 GB | Minimal | 10-30 seconds | Configurable (default: instant) |
-| **Base Full Node** | 8+ cores | 16+ GB | 2+ TB NVMe | 1-3 days (sync) | 2 seconds |
-| **rippled (standalone)** | 2-4 cores | 4-8 GB | 10 GB | < 10 seconds | Manual (instant) |
-| **rippled (production)** | 8+ cores | 16+ GB | 50+ GB NVMe | 2-6 hours (sync) | 3-5 seconds |
+| Component                | CPU       | RAM    | Disk        | Startup Time     | Block Time                      |
+| ------------------------ | --------- | ------ | ----------- | ---------------- | ------------------------------- |
+| **Anvil (local)**        | 1-2 cores | 1-2 GB | Minimal     | < 5 seconds      | Instant                         |
+| **Anvil (forked)**       | 2-4 cores | 2-4 GB | Minimal     | 10-30 seconds    | Instant                         |
+| **Hardhat**              | 2-4 cores | 2-4 GB | Minimal     | 10-30 seconds    | Configurable (default: instant) |
+| **Base Full Node**       | 8+ cores  | 16+ GB | 2+ TB NVMe  | 1-3 days (sync)  | 2 seconds                       |
+| **rippled (standalone)** | 2-4 cores | 4-8 GB | 10 GB       | < 10 seconds     | Manual (instant)                |
+| **rippled (production)** | 8+ cores  | 16+ GB | 50+ GB NVMe | 2-6 hours (sync) | 3-5 seconds                     |
 
 ### Performance Benchmarks
 
 **Anvil (Foundry):**
+
 - **Transaction throughput:** 1,200+ tests/second
 - **Contract deployment:** < 100ms
 - **State queries:** < 10ms
 - **Fork initialization:** 10-30 seconds (depends on RPC latency)
 
 **Hardhat:**
+
 - **Transaction throughput:** 450 tests/second
 - **Contract deployment:** < 200ms
 - **State queries:** < 20ms
 
 **rippled (standalone):**
+
 - **Transaction submission:** < 50ms
 - **Ledger advancement:** < 100ms (manual)
 - **State queries:** < 10ms
 
 ### Typical Block Time and Confirmation Latency
 
-| Network | Block Time | Finality | Confirmation Time |
-|---------|------------|----------|-------------------|
-| Anvil (local) | Instant | Instant | < 1ms |
-| Base Sepolia (testnet) | ~2 seconds | ~2 seconds | 2-4 seconds |
-| Base Mainnet | ~2 seconds | ~2 seconds | 2-4 seconds |
-| XRPL (standalone) | Manual | Instant | < 100ms |
-| XRPL (testnet) | 3-5 seconds | 3-5 seconds | 3-5 seconds |
+| Network                | Block Time  | Finality    | Confirmation Time |
+| ---------------------- | ----------- | ----------- | ----------------- |
+| Anvil (local)          | Instant     | Instant     | < 1ms             |
+| Base Sepolia (testnet) | ~2 seconds  | ~2 seconds  | 2-4 seconds       |
+| Base Mainnet           | ~2 seconds  | ~2 seconds  | 2-4 seconds       |
+| XRPL (standalone)      | Manual      | Instant     | < 100ms           |
+| XRPL (testnet)         | 3-5 seconds | 3-5 seconds | 3-5 seconds       |
 
 ---
 
@@ -1462,8 +1514,10 @@ watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/
 #### Anvil Issues
 
 **Problem: "error sending request for url"**
+
 - **Cause:** RPC endpoint unreachable or rate-limited
 - **Solution:**
+
   ```bash
   # Use alternative RPC endpoint
   anvil --fork-url https://base.gateway.tenderly.co
@@ -1473,6 +1527,7 @@ watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/
   ```
 
 **Problem: "fork block mismatch"**
+
 - **Cause:** Forked state diverged from upstream
 - **Solution:**
   ```bash
@@ -1481,6 +1536,7 @@ watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/
   ```
 
 **Problem: "out of gas"**
+
 - **Cause:** Gas limit too low for forked state
 - **Solution:**
   ```bash
@@ -1491,8 +1547,10 @@ watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/
 #### rippled Issues
 
 **Problem: "Could not connect to server"**
+
 - **Cause:** rippled container not running or port conflict
 - **Solution:**
+
   ```bash
   # Check if container is running
   docker ps | grep rippled
@@ -1505,6 +1563,7 @@ watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/
   ```
 
 **Problem: "Transaction failed: tefPAST_SEQ"**
+
 - **Cause:** Sequence number mismatch (ledger not advanced)
 - **Solution:**
   ```bash
@@ -1515,6 +1574,7 @@ watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/
   ```
 
 **Problem: "tecNO_DST_INSUF_XRP"**
+
 - **Cause:** Destination account doesn't exist or has insufficient XRP reserve
 - **Solution:**
   ```bash
@@ -1525,6 +1585,7 @@ watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/
 #### Docker Compose Issues
 
 **Problem: "service 'anvil' failed to build"**
+
 - **Cause:** Foundry image not available
 - **Solution:**
   ```bash
@@ -1533,8 +1594,10 @@ watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/
   ```
 
 **Problem: "unhealthy" service status**
+
 - **Cause:** Health check failing
 - **Solution:**
+
   ```bash
   # Check service logs
   docker-compose logs anvil
@@ -1551,6 +1614,7 @@ watch -n 1 'curl -s -X POST http://localhost:5005 -H "Content-Type: application/
 #### For EVM (Anvil/Hardhat)
 
 **Foundry tools:**
+
 ```bash
 # Trace transaction execution
 cast run <TX_HASH> --rpc-url http://localhost:8545 --trace
@@ -1563,6 +1627,7 @@ cast storage <CONTRACT> <SLOT> --rpc-url http://localhost:8545
 ```
 
 **Hardhat console:**
+
 ```bash
 npx hardhat console --network localhost
 ```
@@ -1570,11 +1635,13 @@ npx hardhat console --network localhost
 #### For XRPL (rippled)
 
 **xrpl.js debugging:**
+
 ```javascript
 const client = new xrpl.Client('ws://localhost:6006', { trace: true });
 ```
 
 **Manual transaction inspection:**
+
 ```bash
 curl -X POST http://localhost:5005 \
   -H "Content-Type: application/json" \
@@ -1594,40 +1661,47 @@ curl -X POST http://localhost:5005 \
 ### Official Documentation
 
 **Base L2:**
+
 - Base Docs: https://docs.base.org/
 - Base GitHub: https://github.com/base/node
 - Base Sepolia Faucet: https://www.alchemy.com/faucets/base-sepolia
 - Basescan Explorer: https://sepolia.basescan.org/
 
 **Foundry (Anvil):**
+
 - Foundry Book: https://book.getfoundry.sh/
 - Anvil Reference: https://book.getfoundry.sh/reference/anvil/
 - Foundry GitHub: https://github.com/foundry-rs/foundry
 
 **Hardhat:**
+
 - Hardhat Docs: https://hardhat.org/docs
 - Hardhat Network: https://hardhat.org/hardhat-network/docs
 - Base Integration: https://docs.base.org/learn/hardhat/hardhat-setup-overview
 
 **XRP Ledger:**
+
 - XRPL Docs: https://xrpl.org/docs
 - Payment Channels: https://xrpl.org/docs/concepts/payment-types/payment-channels
 - rippled Setup: https://xrpl.org/docs/infrastructure/installation/system-requirements
 - xrpl.js Library: https://js.xrpl.org/
 
 **Docker:**
+
 - Docker Compose: https://docs.docker.com/compose/
 - Health Checks: https://docs.docker.com/engine/reference/builder/#healthcheck
 
 ### GitHub Examples
 
 **Payment Channel Implementations:**
+
 - Raiden Network (EVM): https://github.com/raiden-network/raiden-contracts
 - Connext (EVM): https://github.com/connext/contracts
 - ERC-1630 HTLC: https://github.com/ethereum/EIPs/pull/1630
 - XRPL Payment Channels: https://github.com/XRPLF/xrpl.js/wiki/Using-the-Testnet-and-Devnet-faucets-programmatically
 
 **Local Node Setups:**
+
 - Base Node Docker: https://github.com/base/node
 - rippled Docker: https://github.com/WietseWind/docker-rippled
 - OP Stack Devnet: https://github.com/op-rs/op-up
@@ -1635,12 +1709,14 @@ curl -X POST http://localhost:5005 \
 ### Community Resources
 
 **Forums and Support:**
+
 - Base Discord: https://discord.gg/buildonbase
 - Foundry Telegram: https://t.me/foundry_support
 - XRPL Developer Discord: https://discord.gg/xrpl
 - Ethereum Stack Exchange: https://ethereum.stackexchange.com/
 
 **Tutorials:**
+
 - Base Smart Contract Development: https://docs.base.org/cookbook/smart-contract-development/
 - Foundry Tutorial: https://updraft.cyfrin.io/courses/foundry
 - XRPL Payment Channels Tutorial: https://xrpl.org/docs/tutorials/how-tos/use-specialized-payment-types/use-payment-channels
@@ -1746,6 +1822,7 @@ This guide provides everything needed to set up local Base L2 and XRP Ledger nod
 With these tools, developers can iterate rapidly on payment channel implementations, test edge cases locally, and deploy to testnets/mainnets with confidence.
 
 **Next Steps:**
+
 1. Follow Story 7.1 in Epic 7 to set up the Foundry development environment
 2. Deploy payment channel smart contracts to local Anvil
 3. Integrate with Epic 6's settlement monitoring for automated on-chain settlement

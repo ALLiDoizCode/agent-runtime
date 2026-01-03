@@ -104,7 +104,9 @@ export interface AccountManagerConfig {
  * // Returns: { debitBalance: 1000n, creditBalance: 500n, netBalance: -500n }
  */
 export class AccountManager {
-  private readonly _config: Required<Omit<AccountManagerConfig, 'creditLimits' | 'telemetryEmitter' | 'settlementThresholds'>>;
+  private readonly _config: Required<
+    Omit<AccountManagerConfig, 'creditLimits' | 'telemetryEmitter' | 'settlementThresholds'>
+  >;
   private readonly _accountCache: Map<string, PeerAccountPair>;
   private readonly _creditLimitConfig: CreditLimitConfig | undefined;
   private readonly _telemetryEmitter: TelemetryEmitter | undefined;
@@ -209,17 +211,19 @@ export class AccountManager {
 
     try {
       // Build account objects with metadata encoding
-      const debitAccount = this._buildAccountObject(
-        debitAccountId,
-        AccountType.DEBIT,
-        { nodeId: this._config.nodeId, peerId, tokenId, accountType: AccountType.DEBIT }
-      );
+      const debitAccount = this._buildAccountObject(debitAccountId, AccountType.DEBIT, {
+        nodeId: this._config.nodeId,
+        peerId,
+        tokenId,
+        accountType: AccountType.DEBIT,
+      });
 
-      const creditAccount = this._buildAccountObject(
-        creditAccountId,
-        AccountType.CREDIT,
-        { nodeId: this._config.nodeId, peerId, tokenId, accountType: AccountType.CREDIT }
-      );
+      const creditAccount = this._buildAccountObject(creditAccountId, AccountType.CREDIT, {
+        nodeId: this._config.nodeId,
+        peerId,
+        tokenId,
+        accountType: AccountType.CREDIT,
+      });
 
       // Create both accounts atomically in a batch operation
       // This ensures either both accounts are created or neither
@@ -313,10 +317,7 @@ export class AccountManager {
     // Check cache first
     const cached = this._accountCache.get(cacheKey);
     if (cached) {
-      this._logger.debug(
-        { peerId, tokenId, source: 'cache' },
-        'Retrieved account pair from cache'
-      );
+      this._logger.debug({ peerId, tokenId, source: 'cache' }, 'Retrieved account pair from cache');
       return cached;
     }
 
@@ -690,11 +691,7 @@ export class AccountManager {
    *   // Reject packet
    * }
    */
-  async wouldExceedCreditLimit(
-    peerId: string,
-    tokenId: string,
-    amount: bigint
-  ): Promise<boolean> {
+  async wouldExceedCreditLimit(peerId: string, tokenId: string, amount: bigint): Promise<boolean> {
     const violation = await this.checkCreditLimit(peerId, tokenId, amount);
     return violation !== null;
   }
@@ -754,11 +751,7 @@ export class AccountManager {
    * const newBalance = await accountManager.getAccountBalance('peer-a', 'ILP');
    * console.log(newBalance.creditBalance); // 0n
    */
-  async recordSettlement(
-    peerId: string,
-    tokenId: string,
-    amount: bigint
-  ): Promise<void> {
+  async recordSettlement(peerId: string, tokenId: string, amount: bigint): Promise<void> {
     // Get peer account IDs
     const accountPair = this.getPeerAccountPair(peerId, tokenId);
 
@@ -787,15 +780,15 @@ export class AccountManager {
     // - Crediting debit account (reduce debt peer owes us)
     const transfer: Transfer = {
       id: transferId,
-      debit_account_id: accountPair.creditAccountId,  // Reduce our debt to peer
-      credit_account_id: accountPair.debitAccountId,  // Reduce peer's debt to us
+      debit_account_id: accountPair.creditAccountId, // Reduce our debt to peer
+      credit_account_id: accountPair.debitAccountId, // Reduce peer's debt to us
       amount,
       pending_id: 0n, // No pending transfer for settlement
       ledger: this._config.defaultLedger,
       code: 1, // Settlement transfer code (distinguishes from packet transfers)
       flags: TransferFlags.none,
       user_data_128: 0n, // Future: Settlement metadata (settlement ID, blockchain tx hash)
-      user_data_64: 0n,  // Future: Settlement reason code
+      user_data_64: 0n, // Future: Settlement reason code
       user_data_32: 0,
       timeout: 0,
       timestamp: 0n,
@@ -906,9 +899,7 @@ export class AccountManager {
     }
 
     // Priority 1: Check token-specific limit
-    const tokenSpecificLimit = this._creditLimitConfig.perTokenLimits
-      ?.get(peerId)
-      ?.get(tokenId);
+    const tokenSpecificLimit = this._creditLimitConfig.perTokenLimits?.get(peerId)?.get(tokenId);
     if (tokenSpecificLimit !== undefined) {
       return tokenSpecificLimit;
     }
@@ -989,10 +980,7 @@ export class AccountManager {
    * @returns Promise<void> - Non-blocking, errors logged
    * @private
    */
-  private async _emitAccountBalanceTelemetry(
-    peerId: string,
-    tokenId: string
-  ): Promise<void> {
+  private async _emitAccountBalanceTelemetry(peerId: string, tokenId: string): Promise<void> {
     // Skip if no telemetry emitter configured
     if (!this._telemetryEmitter) {
       return;

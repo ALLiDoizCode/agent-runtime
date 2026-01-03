@@ -139,10 +139,7 @@ export class TigerBeetleClient {
         },
         'Failed to initialize TigerBeetle client'
       );
-      throw new TigerBeetleConnectionError(
-        'Failed to initialize TigerBeetle client',
-        error
-      );
+      throw new TigerBeetleConnectionError('Failed to initialize TigerBeetle client', error);
     }
   }
 
@@ -181,10 +178,7 @@ export class TigerBeetleClient {
 
     // Validate inputs before sending to TigerBeetle
     if (accountId === 0n) {
-      throw new TigerBeetleAccountError(
-        'Account ID must be non-zero',
-        accountId
-      );
+      throw new TigerBeetleAccountError('Account ID must be non-zero', accountId);
     }
 
     const account: Account = {
@@ -204,10 +198,7 @@ export class TigerBeetleClient {
     };
 
     try {
-      this._logger.debug(
-        { accountId, ledger, code, flags },
-        'Creating account in TigerBeetle'
-      );
+      this._logger.debug({ accountId, ledger, code, flags }, 'Creating account in TigerBeetle');
 
       const errors = await this.withTimeout(
         this._client!.createAccounts([account]),
@@ -220,24 +211,14 @@ export class TigerBeetleClient {
         throw this.mapAccountError(error, accountId);
       }
 
-      this._logger.info(
-        { accountId, ledger, code },
-        'Account created successfully'
-      );
+      this._logger.info({ accountId, ledger, code }, 'Account created successfully');
     } catch (error) {
       if (error instanceof TigerBeetleError) {
         throw error;
       }
 
-      this._logger.error(
-        { error, accountId, ledger, code },
-        'Failed to create account'
-      );
-      throw new TigerBeetleAccountError(
-        'Failed to create account',
-        accountId,
-        error
-      );
+      this._logger.error({ error, accountId, ledger, code }, 'Failed to create account');
+      throw new TigerBeetleAccountError('Failed to create account', accountId, error);
     }
   }
 
@@ -293,10 +274,7 @@ export class TigerBeetleClient {
         );
       }
 
-      this._logger.info(
-        { accountCount: accounts.length },
-        'Account batch created successfully'
-      );
+      this._logger.info({ accountCount: accounts.length }, 'Account batch created successfully');
     } catch (error) {
       if (error instanceof TigerBeetleError) {
         throw error;
@@ -333,10 +311,7 @@ export class TigerBeetleClient {
 
     // Validate inputs
     if (transferId === 0n) {
-      throw new TigerBeetleTransferError(
-        'Transfer ID must be non-zero',
-        transferId
-      );
+      throw new TigerBeetleTransferError('Transfer ID must be non-zero', transferId);
     }
     if (amount <= 0n) {
       throw new TigerBeetleTransferError(
@@ -455,10 +430,7 @@ export class TigerBeetleClient {
     // Validate all transfers before posting
     for (const transfer of transfers) {
       if (transfer.id === 0n) {
-        throw new TigerBeetleTransferError(
-          'Transfer ID must be non-zero',
-          transfer.id
-        );
+        throw new TigerBeetleTransferError('Transfer ID must be non-zero', transfer.id);
       }
       if (transfer.amount <= 0n) {
         throw new TigerBeetleTransferError(
@@ -506,10 +478,7 @@ export class TigerBeetleClient {
         );
       }
 
-      this._logger.info(
-        { transferCount: transfers.length },
-        'Transfer batch created successfully'
-      );
+      this._logger.info({ transferCount: transfers.length }, 'Transfer batch created successfully');
     } catch (error) {
       if (error instanceof TigerBeetleError) {
         throw error;
@@ -549,10 +518,7 @@ export class TigerBeetleClient {
       );
 
       if (accounts.length === 0) {
-        throw new TigerBeetleAccountError(
-          `Account not found: ${accountId}`,
-          accountId
-        );
+        throw new TigerBeetleAccountError(`Account not found: ${accountId}`, accountId);
       }
 
       const account = accounts[0]!;
@@ -574,11 +540,7 @@ export class TigerBeetleClient {
       }
 
       this._logger.error({ error, accountId }, 'Failed to query account balance');
-      throw new TigerBeetleAccountError(
-        'Failed to query account balance',
-        accountId,
-        error
-      );
+      throw new TigerBeetleAccountError('Failed to query account balance', accountId, error);
     }
   }
 
@@ -592,10 +554,7 @@ export class TigerBeetleClient {
     this.ensureConnected();
 
     try {
-      this._logger.debug(
-        { accountCount: accountIds.length },
-        'Querying account batch balances'
-      );
+      this._logger.debug({ accountCount: accountIds.length }, 'Querying account batch balances');
 
       const accounts = await this.withTimeout(
         this._client!.lookupAccounts(accountIds),
@@ -623,11 +582,7 @@ export class TigerBeetleClient {
         { error, accountCount: accountIds.length },
         'Failed to query account batch balances'
       );
-      throw new TigerBeetleAccountError(
-        'Failed to query account batch balances',
-        undefined,
-        error
-      );
+      throw new TigerBeetleAccountError('Failed to query account batch balances', undefined, error);
     }
   }
 
@@ -662,10 +617,7 @@ export class TigerBeetleClient {
       promise,
       new Promise<T>((_, reject) => {
         setTimeout(() => {
-          this._logger.warn(
-            { operation, timeoutMs },
-            'TigerBeetle operation timed out'
-          );
+          this._logger.warn({ operation, timeoutMs }, 'TigerBeetle operation timed out');
           reject(
             new TigerBeetleTimeoutError(
               `TigerBeetle operation '${operation}' timed out after ${timeoutMs}ms`,
@@ -688,10 +640,7 @@ export class TigerBeetleClient {
     const errorCode = CreateAccountError[error.result];
     const message = `Account creation failed: ${errorCode}`;
 
-    this._logger.error(
-      { accountId, errorCode, errorIndex: error.index },
-      message
-    );
+    this._logger.error({ accountId, errorCode, errorIndex: error.index }, message);
 
     return new TigerBeetleAccountError(message, accountId, error);
   }

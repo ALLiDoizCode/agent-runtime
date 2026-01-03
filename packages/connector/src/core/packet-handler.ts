@@ -184,7 +184,10 @@ export class PacketHandler {
    * @returns 128-bit transfer ID as bigint
    * @private
    */
-  private generateTransferId(executionCondition: Buffer, direction: 'incoming' | 'outgoing'): bigint {
+  private generateTransferId(
+    executionCondition: Buffer,
+    direction: 'incoming' | 'outgoing'
+  ): bigint {
     // Use first 16 bytes of execution condition for base ID
     // XOR with direction byte to differentiate incoming vs outgoing
     const directionByte = direction === 'incoming' ? 0x01 : 0x02;
@@ -319,7 +322,6 @@ export class PacketHandler {
         },
         'Settlement transfers recorded: incoming={originalAmount} from {fromPeerId}, outgoing={forwardedAmount} to {toPeerId}, fee={connectorFee}'
       );
-
     } catch (error) {
       this.logger.error(
         {

@@ -46,7 +46,7 @@ async function waitForHealthy(containerName: string, timeoutMs: number): Promise
     }
 
     // Wait 1 second before checking again
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   throw new Error(`Container ${containerName} did not become healthy within ${timeoutMs}ms`);

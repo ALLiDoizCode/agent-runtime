@@ -105,10 +105,7 @@ async function isDockerComposeRunning(): Promise<boolean> {
 /**
  * Wait for dashboard health endpoint to be ready
  */
-async function waitForDashboard(
-  maxRetries = 30,
-  retryDelayMs = 1000
-): Promise<boolean> {
+async function waitForDashboard(maxRetries = 30, retryDelayMs = 1000): Promise<boolean> {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const response = await axios.get('http://localhost:3001/health', {
@@ -177,9 +174,7 @@ async function waitForEvent(
   const startTime = Date.now();
 
   while (Date.now() - startTime < timeoutMs) {
-    const event = events.find(
-      (e) => e.type === eventType && (!filter || filter(e))
-    );
+    const event = events.find((e) => e.type === eventType && (!filter || filter(e)));
     if (event) {
       return event;
     }
@@ -205,7 +200,9 @@ describe('Settlement Telemetry Integration Test (Story 6.8)', () => {
     // Check Docker Compose services
     dockerComposeRunning = await isDockerComposeRunning();
     if (!dockerComposeRunning) {
-      console.log('⚠️  Docker Compose not running (run: docker-compose up -d), skipping integration test');
+      console.log(
+        '⚠️  Docker Compose not running (run: docker-compose up -d), skipping integration test'
+      );
       return;
     }
 
@@ -262,10 +259,14 @@ describe('Settlement Telemetry Integration Test (Story 6.8)', () => {
         expect(accountBalance.creditBalance).toBeDefined();
         expect(accountBalance.debitBalance).toBeDefined();
         expect(accountBalance.netBalance).toBeDefined();
-        expect(accountBalance.settlementState).toMatch(/IDLE|SETTLEMENT_PENDING|SETTLEMENT_IN_PROGRESS/);
+        expect(accountBalance.settlementState).toMatch(
+          /IDLE|SETTLEMENT_PENDING|SETTLEMENT_IN_PROGRESS/
+        );
         expect(accountBalance.timestamp).toBeDefined();
       } else {
-        console.log('⚠️  No ACCOUNT_BALANCE event received - may indicate no packet forwarding activity');
+        console.log(
+          '⚠️  No ACCOUNT_BALANCE event received - may indicate no packet forwarding activity'
+        );
         // Not failing test since this depends on active packet forwarding
       }
 
@@ -313,7 +314,9 @@ describe('Settlement Telemetry Integration Test (Story 6.8)', () => {
         expect(currentBalance > threshold).toBe(true);
         expect(exceedsBy).toBe(currentBalance - threshold);
       } else {
-        console.log('⚠️  No SETTLEMENT_TRIGGERED event received - may indicate balances below threshold');
+        console.log(
+          '⚠️  No SETTLEMENT_TRIGGERED event received - may indicate balances below threshold'
+        );
         // Not failing test since this depends on settlement threshold configuration
       }
 
@@ -366,7 +369,9 @@ describe('Settlement Telemetry Integration Test (Story 6.8)', () => {
           expect(completed.errorMessage).toBeDefined();
         }
       } else {
-        console.log('⚠️  No SETTLEMENT_COMPLETED event received - may indicate no settlement execution');
+        console.log(
+          '⚠️  No SETTLEMENT_COMPLETED event received - may indicate no settlement execution'
+        );
         // Not failing test since this depends on settlement trigger and execution
       }
 

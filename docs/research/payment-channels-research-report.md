@@ -12,6 +12,7 @@
 After comprehensive research into XRP payment channels, Ethereum state channel implementations (Raiden, Connext, Celer, Perun), and EVM smart contract patterns, the following architecture is recommended for building XRP-style payment channels with multi-token and multi-user support:
 
 **Core Architecture:**
+
 - **Registry Pattern:** Single `TokenNetworkRegistry` contract that deploys separate `TokenNetwork` contracts for each ERC20 token
 - **Channel Model:** Duplex channels with two unidirectional simplex channels for efficiency
 - **Signature Scheme:** EIP-712 typed structured data signing for human-readable, secure signatures
@@ -19,6 +20,7 @@ After comprehensive research into XRP payment channels, Ethereum state channel i
 - **Multi-Token Support:** Isolated token networks rather than single contract handling all tokens (better gas efficiency and security isolation)
 
 **Recommended Stack:**
+
 - Solidity 0.8.x with custom errors for gas optimization
 - OpenZeppelin libraries (SafeERC20, ReentrancyGuard, ECDSA)
 - Foundry for testing with built-in fuzzing
@@ -52,6 +54,7 @@ After comprehensive research into XRP payment channels, Ethereum state channel i
 **Complexity: Medium-High**
 
 **Breakdown:**
+
 - **Smart Contracts:** Medium - Core logic is well-understood, but edge cases are complex
 - **Security Considerations:** High - Multiple attack vectors require careful mitigation
 - **Testing Requirements:** High - Requires extensive fuzzing and formal verification
@@ -59,6 +62,7 @@ After comprehensive research into XRP payment channels, Ethereum state channel i
 - **Gas Optimization:** Medium - Requires careful storage layout and operation batching
 
 **Estimated Development Timeline:**
+
 - Core smart contracts: 3-4 weeks
 - Security hardening: 2-3 weeks
 - Testing and fuzzing: 2-3 weeks
@@ -134,6 +138,7 @@ contract TokenNetworkRegistry {
 ```
 
 **Key Features:**
+
 - One TokenNetwork per ERC20 token
 - Prevents duplicate token networks
 - Provides lookup functionality
@@ -241,6 +246,7 @@ struct BalanceProof {
 **Recommended: Separate TokenNetwork per Token**
 
 **Advantages:**
+
 - Gas efficient: No token address in storage per channel
 - Security isolation: Bug in one token doesn't affect others
 - Upgradeable: Can deploy new TokenNetwork for new token
@@ -249,6 +255,7 @@ struct BalanceProof {
 **Alternative: Single Universal Contract (Not Recommended)**
 
 **Disadvantages:**
+
 - Higher gas costs: Must store token address per channel
 - Single point of failure: One bug affects all tokens
 - Complex state management: Must track multiple token types
@@ -259,6 +266,7 @@ struct BalanceProof {
 #### EIP-712 Typed Structured Data
 
 **Domain Separator:**
+
 ```solidity
 bytes32 public DOMAIN_SEPARATOR = keccak256(abi.encode(
     keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
@@ -270,6 +278,7 @@ bytes32 public DOMAIN_SEPARATOR = keccak256(abi.encode(
 ```
 
 **Balance Proof Type Hash:**
+
 ```solidity
 bytes32 public constant BALANCE_PROOF_TYPEHASH = keccak256(
     "BalanceProof(bytes32 channelId,uint256 nonce,uint256 transferredAmount,uint256 lockedAmount,bytes32 locksRoot)"
@@ -277,6 +286,7 @@ bytes32 public constant BALANCE_PROOF_TYPEHASH = keccak256(
 ```
 
 **Signature Verification:**
+
 ```solidity
 function verifySignature(
     BalanceProof memory proof,
@@ -305,6 +315,7 @@ function verifySignature(
 ```
 
 **Security Requirements:**
+
 1. **Always use OpenZeppelin ECDSA library** - Handles signature malleability
 2. **Check for address(0)** - ecrecover returns 0x0 on invalid signatures
 3. **Include chainId** - Prevents cross-chain replay attacks
@@ -317,32 +328,33 @@ function verifySignature(
 
 ### Detailed Comparison Table
 
-| Feature | XRP Channels | Raiden | Connext | Perun | Celer Network |
-|---------|-------------|---------|----------|-------|---------------|
-| **Blockchain** | XRP Ledger | Ethereum | Ethereum | Ethereum/Multi-chain | Ethereum/Multi-chain |
-| **Channel Type** | Unidirectional | Bidirectional | Bidirectional | Bidirectional/Virtual | Duplex (2 simplex) |
-| **Token Support** | XRP only | One ERC20 per TokenNetwork | ERC20 + ETH | ERC20 + ETH | ERC20 + ETH |
-| **Multi-User** | Two parties | Two parties per channel | Two parties per channel | Multi-party virtual channels | Two parties per duplex |
-| **Settlement** | Claim-based with expiry | Challenge period (500 blocks default) | Challenge period | Challenge period | Cooperative + Unilateral |
-| **Signature** | ECDSA/Ed25519 | ECDSA (secp256k1) | ECDSA | ECDSA | ECDSA |
-| **Network Support** | No (direct channels only) | Network of channels | Network via routers | Virtual channels via hubs | Virtual channels supported |
-| **Smart Contracts** | Built-in ledger | Solidity 0.8.x | Solidity 0.8.x | Solidity | Solidity 0.5.x+ |
-| **Gas Cost (Open)** | N/A | ~100,000-150,000 | ~80,000-120,000 | ~120,000-180,000 | ~100,000-140,000 |
-| **Gas Cost (Close)** | N/A | ~70,000-100,000 | ~60,000-90,000 | ~80,000-120,000 | ~70,000-110,000 |
-| **Challenge Window** | Expiry + Settlement delay | Configurable (default 500 blocks) | Configurable | Configurable | Configurable |
-| **State Format** | Balance + Claims | Balance proofs with nonces | Balance + conditional transfers | State hashes | Balance proofs |
-| **Conditional Payments** | Yes (via claims) | Hash-time locks | Conditional transfers | General conditions | Hash locks + contracts |
-| **Dispute Resolution** | On-ledger with claims | On-chain settlement | On-chain with routers | On-chain adjudicator | On-chain with challenge |
-| **Upgradability** | No (ledger-native) | Proxy patterns possible | Proxy patterns used | Proxy patterns possible | Modular design |
-| **Audit Status** | Core ledger | Multiple audits | Multiple audits (0xMacro, etc.) | Academic research + audits | Multiple audits |
-| **Production Status** | Production | Production (limited use) | Production | Research/Production | Production |
-| **License** | ISC | MIT | MIT | Apache 2.0 | Apache 2.0/MIT |
+| Feature                  | XRP Channels              | Raiden                                | Connext                         | Perun                        | Celer Network              |
+| ------------------------ | ------------------------- | ------------------------------------- | ------------------------------- | ---------------------------- | -------------------------- |
+| **Blockchain**           | XRP Ledger                | Ethereum                              | Ethereum                        | Ethereum/Multi-chain         | Ethereum/Multi-chain       |
+| **Channel Type**         | Unidirectional            | Bidirectional                         | Bidirectional                   | Bidirectional/Virtual        | Duplex (2 simplex)         |
+| **Token Support**        | XRP only                  | One ERC20 per TokenNetwork            | ERC20 + ETH                     | ERC20 + ETH                  | ERC20 + ETH                |
+| **Multi-User**           | Two parties               | Two parties per channel               | Two parties per channel         | Multi-party virtual channels | Two parties per duplex     |
+| **Settlement**           | Claim-based with expiry   | Challenge period (500 blocks default) | Challenge period                | Challenge period             | Cooperative + Unilateral   |
+| **Signature**            | ECDSA/Ed25519             | ECDSA (secp256k1)                     | ECDSA                           | ECDSA                        | ECDSA                      |
+| **Network Support**      | No (direct channels only) | Network of channels                   | Network via routers             | Virtual channels via hubs    | Virtual channels supported |
+| **Smart Contracts**      | Built-in ledger           | Solidity 0.8.x                        | Solidity 0.8.x                  | Solidity                     | Solidity 0.5.x+            |
+| **Gas Cost (Open)**      | N/A                       | ~100,000-150,000                      | ~80,000-120,000                 | ~120,000-180,000             | ~100,000-140,000           |
+| **Gas Cost (Close)**     | N/A                       | ~70,000-100,000                       | ~60,000-90,000                  | ~80,000-120,000              | ~70,000-110,000            |
+| **Challenge Window**     | Expiry + Settlement delay | Configurable (default 500 blocks)     | Configurable                    | Configurable                 | Configurable               |
+| **State Format**         | Balance + Claims          | Balance proofs with nonces            | Balance + conditional transfers | State hashes                 | Balance proofs             |
+| **Conditional Payments** | Yes (via claims)          | Hash-time locks                       | Conditional transfers           | General conditions           | Hash locks + contracts     |
+| **Dispute Resolution**   | On-ledger with claims     | On-chain settlement                   | On-chain with routers           | On-chain adjudicator         | On-chain with challenge    |
+| **Upgradability**        | No (ledger-native)        | Proxy patterns possible               | Proxy patterns used             | Proxy patterns possible      | Modular design             |
+| **Audit Status**         | Core ledger               | Multiple audits                       | Multiple audits (0xMacro, etc.) | Academic research + audits   | Multiple audits            |
+| **Production Status**    | Production                | Production (limited use)              | Production                      | Research/Production          | Production                 |
+| **License**              | ISC                       | MIT                                   | MIT                             | Apache 2.0                   | Apache 2.0/MIT             |
 
 ### Detailed Analysis by Implementation
 
 #### XRP Payment Channels
 
 **Architecture:**
+
 - Built into XRP Ledger at protocol level
 - Uses `PaymentChannelCreate` transaction to establish channel
 - Sender signs claims off-chain, recipient verifies
@@ -350,18 +362,21 @@ function verifySignature(
 - Settlement delay protects recipient from early closure
 
 **Pros:**
+
 - Extremely efficient (protocol-level)
 - Simple unidirectional model
 - Fast Ed25519 signature verification (70,000+ sigs/sec)
 - Well-tested in production
 
 **Cons:**
+
 - XRP only (no multi-token)
 - Cannot extend or customize
 - No network routing built-in
 - Unidirectional only
 
 **EVM Adaptation Insights:**
+
 - Claim-based model is simpler than bidirectional
 - Could implement similar expiry + settlement delay
 - Signature verification pattern is sound
@@ -369,6 +384,7 @@ function verifySignature(
 #### Raiden Network
 
 **Architecture:**
+
 - `TokenNetworkRegistry` creates `TokenNetwork` per ERC20
 - Channels store monotonically increasing deposits/withdrawals
 - Balance proofs track transferred amounts with nonces
@@ -376,6 +392,7 @@ function verifySignature(
 - Supports channel networks via hash-locked transfers
 
 **Pros:**
+
 - Proven production architecture
 - Clean separation: one token = one contract
 - Excellent documentation and specifications
@@ -383,12 +400,14 @@ function verifySignature(
 - Supports token networks
 
 **Cons:**
+
 - Project development slowed (rollups preferred)
 - Complex for simple use cases
 - Higher gas costs than optimized implementations
 - Limited recent updates
 
 **Key Learnings:**
+
 - Monotonic deposits/withdrawals pattern is gas-efficient
 - Separate TokenNetwork per token is best approach
 - Nonce-based state updates prevent replay
@@ -399,23 +418,27 @@ function verifySignature(
 #### Connext Network
 
 **Architecture:**
+
 - Focus on cross-chain communication via `xcall` primitive
 - Vector protocol for generalized state channels
 - Supports conditional transfers
 - Router-based network topology
 
 **Pros:**
+
 - Cross-chain support
 - Active development (audits in 2023-2024)
 - Clean modular architecture
 - Strong security practices
 
 **Cons:**
+
 - More complex than needed for simple channels
 - Router dependency
 - Cross-chain focus adds complexity
 
 **Key Learnings:**
+
 - Conditional transfers enable complex patterns
 - Router architecture enables networks
 - Multiple recent audits available for review
@@ -426,6 +449,7 @@ function verifySignature(
 #### Perun Network
 
 **Architecture:**
+
 - Virtual payment channels over existing channels
 - `AssetHolder` manages collateral
 - `Adjudicator` handles disputes
@@ -433,17 +457,20 @@ function verifySignature(
 - Research-focused with production implementations
 
 **Pros:**
+
 - Virtual channels reduce on-chain operations
 - Multi-party support
 - Strong academic foundation
 - Go-Perun library for off-chain logic
 
 **Cons:**
+
 - More complex setup
 - Virtual channels require intermediaries
 - Higher initial learning curve
 
 **Key Learnings:**
+
 - Virtual channels powerful for network topology
 - Separation of asset holding and adjudication
 - Multi-party channels possible but complex
@@ -454,6 +481,7 @@ function verifySignature(
 #### Celer Network
 
 **Architecture:**
+
 - Duplex channels = 2 unidirectional simplex channels
 - Decoupled payment (CelerPay) and app (CelerApp) layers
 - `CelerWallet` holds multi-owner, multi-token funds
@@ -461,17 +489,20 @@ function verifySignature(
 - Supports both cooperative and unilateral settlement
 
 **Pros:**
+
 - Duplex design simplifies off-chain logic
 - Conditional payments with multiple types
 - Flexible architecture
 - Well-documented API
 
 **Cons:**
+
 - More complex contract structure
 - Multiple contract interactions increase gas
 - Older Solidity versions
 
 **Key Learnings:**
+
 - Duplex model is more intuitive than bidirectional
 - Conditional payment framework is powerful
 - Modular design enables feature additions
@@ -488,11 +519,13 @@ function verifySignature(
 #### 1. Reentrancy Attacks
 
 **Attack Vector:**
+
 - Malicious ERC20 token with reentrant `transfer` or `transferFrom`
 - Attacker deposits malicious token, triggers reentrancy during withdrawal
 - Contract state manipulated before first call completes
 
 **Scenario:**
+
 ```solidity
 // Vulnerable pattern
 function withdraw(uint256 amount) external {
@@ -503,12 +536,14 @@ function withdraw(uint256 amount) external {
 ```
 
 **Mitigation Strategies:**
+
 1. **OpenZeppelin ReentrancyGuard:** Add `nonReentrant` modifier to all external functions
 2. **Checks-Effects-Interactions Pattern:** Update state before external calls
 3. **SafeERC20 Wrapper:** Use OpenZeppelin's SafeERC20 for all token operations
 4. **Pull Payment Pattern:** Let users withdraw rather than pushing funds
 
 **Implementation:**
+
 ```solidity
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -529,20 +564,24 @@ contract TokenNetwork is ReentrancyGuard {
 **Attack Vectors:**
 
 **A. Cross-Chain Replay:**
+
 - Signature valid on mainnet replayed on testnet or L2
 - Same addresses on different chains enable replay
 
 **B. Cross-Channel Replay:**
+
 - Signature from one channel replayed in another channel
 - If channel ID not properly included in signature
 
 **C. Historical Replay:**
+
 - Old signature replayed after channel state updated
 - Without nonce validation, old state can be submitted
 
 **Mitigation Strategies:**
 
 1. **Include chainId in EIP-712 Domain Separator:**
+
 ```solidity
 bytes32 DOMAIN_SEPARATOR = keccak256(abi.encode(
     DOMAIN_TYPEHASH,
@@ -554,6 +593,7 @@ bytes32 DOMAIN_SEPARATOR = keccak256(abi.encode(
 ```
 
 2. **Include Channel ID in Signed Message:**
+
 ```solidity
 bytes32 structHash = keccak256(abi.encode(
     BALANCE_PROOF_TYPEHASH,
@@ -565,12 +605,14 @@ bytes32 structHash = keccak256(abi.encode(
 ```
 
 3. **Monotonically Increasing Nonces:**
+
 ```solidity
 require(proof.nonce > channels[channelId].participants[signer].nonce, "Nonce not higher");
 channels[channelId].participants[signer].nonce = proof.nonce;
 ```
 
 4. **Check for address(0) on ecrecover:**
+
 ```solidity
 address recovered = ECDSA.recover(digest, signature);
 require(recovered != address(0) && recovered == expectedSigner, "Invalid signature");
@@ -579,17 +621,20 @@ require(recovered != address(0) && recovered == expectedSigner, "Invalid signatu
 #### 3. Signature Malleability
 
 **Attack Vector:**
+
 - ECDSA signatures have malleability: for signature (r, s, v), signature (r, -s mod n, v') is also valid
 - Attacker can create equivalent signature without private key
 - Can bypass signature uniqueness checks
 
 **Technical Details:**
+
 - For secp256k1 curve order n, if (r, s) is valid, then (r, n - s) is also valid
 - Only s values in lower half of curve are canonical
 
 **Mitigation Strategies:**
 
 1. **Use OpenZeppelin ECDSA Library:**
+
 ```solidity
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
@@ -598,6 +643,7 @@ address signer = ECDSA.recover(hash, signature);
 ```
 
 2. **Manual Validation (if not using OpenZeppelin):**
+
 ```solidity
 // secp256k1 curve order
 uint256 constant N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141;
@@ -613,20 +659,24 @@ function validateSignature(bytes32 r, bytes32 s, uint8 v) internal pure {
 **Problem Tokens:**
 
 **A. Fee-on-Transfer Tokens (e.g., USDT with fees enabled):**
+
 - Token deducts fee on transfer
 - Contract receives less than specified amount
 - Balance accounting becomes incorrect
 
 **B. Rebasing Tokens (e.g., Aave aTokens, Ampleforth):**
+
 - Balance changes without transfers
 - Channel balances become desynchronized
 - Settlement amounts incorrect
 
 **C. Deflationary Tokens:**
+
 - Burn percentage on each transfer
 - Similar to fee-on-transfer issues
 
 **D. Tokens without Return Values (e.g., USDT, BNB):**
+
 - Don't return bool on transfer/transferFrom
 - Standard ERC20 interface expects bool return
 - Can cause transaction reversion
@@ -634,6 +684,7 @@ function validateSignature(bytes32 r, bytes32 s, uint8 v) internal pure {
 **Mitigation Strategies:**
 
 1. **Measure Actual Balance Changes:**
+
 ```solidity
 function deposit(uint256 amount) external {
     uint256 balanceBefore = token.balanceOf(address(this));
@@ -646,6 +697,7 @@ function deposit(uint256 amount) external {
 ```
 
 2. **Use SafeERC20:**
+
 ```solidity
 using SafeERC20 for IERC20;
 
@@ -655,6 +707,7 @@ token.safeTransferFrom(sender, recipient, amount);
 ```
 
 3. **Token Whitelist:**
+
 ```solidity
 mapping(address => bool) public allowedTokens;
 
@@ -665,6 +718,7 @@ function createTokenNetwork(address token) external {
 ```
 
 4. **Explicit Documentation:**
+
 - Document which token types are NOT supported
 - Warn users about rebasing/fee-on-transfer tokens
 - Provide testing guidelines for new tokens
@@ -674,16 +728,19 @@ function createTokenNetwork(address token) external {
 **Attack Vectors:**
 
 **A. Channel Locking:**
+
 - Attacker opens many channels with victims
 - Never closes or responds to closure
 - Victim's funds locked until forced closure
 
 **B. Spam Channel Creation:**
+
 - Create many channels with minimal deposits
 - Bloat contract storage
 - Increase gas costs for all users
 
 **C. Challenge Window Griefing:**
+
 - Submit closure immediately before victim needs funds
 - Force victim to wait entire challenge window
 - Economic denial-of-service
@@ -691,6 +748,7 @@ function createTokenNetwork(address token) external {
 **Mitigation Strategies:**
 
 1. **Unilateral Closure:**
+
 ```solidity
 function closeChannel(
     bytes32 channelId,
@@ -710,6 +768,7 @@ function closeChannel(
 ```
 
 2. **Configurable Timeouts:**
+
 ```solidity
 // Shorter timeout for small amounts, longer for large
 function calculateTimeout(uint256 channelBalance) internal pure returns (uint256) {
@@ -720,6 +779,7 @@ function calculateTimeout(uint256 channelBalance) internal pure returns (uint256
 ```
 
 3. **Minimum Deposit Requirements:**
+
 ```solidity
 uint256 public constant MIN_DEPOSIT = 0.01 ether;
 
@@ -730,6 +790,7 @@ function openChannel(address partner, uint256 deposit) external {
 ```
 
 4. **Griefing Penalties:**
+
 ```solidity
 // Slash deposit if submitting provably old state
 if (closingProof.nonce < latestProof.nonce) {
@@ -742,11 +803,13 @@ if (closingProof.nonce < latestProof.nonce) {
 #### 6. Stale State Submission
 
 **Attack Vector:**
+
 - Alice and Bob have channel with 100 transfers
 - Bob submits state from transfer #10 during closure
 - If not challenged, Bob steals Alice's funds
 
 **Scenario:**
+
 ```
 Initial: Alice: 50, Bob: 50
 After 100 transfers: Alice: 30, Bob: 70
@@ -757,6 +820,7 @@ Bob gains 15 tokens if unchallenged
 **Mitigation Strategies:**
 
 1. **Monotonic Nonces:**
+
 ```solidity
 struct ParticipantState {
     uint256 nonce;  // Must always increase
@@ -775,6 +839,7 @@ function updateNonClosingBalanceProof(
 ```
 
 2. **Challenge Period:**
+
 ```solidity
 function settleChannel(bytes32 channelId) external {
     Channel storage channel = channels[channelId];
@@ -788,6 +853,7 @@ function settleChannel(bytes32 channelId) external {
 ```
 
 3. **Penalty for Fraud:**
+
 ```solidity
 function challengeClose(
     bytes32 channelId,
@@ -805,6 +871,7 @@ function challengeClose(
 #### 7. DoS via Block Gas Limit
 
 **Attack Vector:**
+
 - Attacker creates many pending transfers with locks
 - Settlement requires processing all locks
 - Gas required exceeds block limit
@@ -813,6 +880,7 @@ function challengeClose(
 **Mitigation Strategies:**
 
 1. **Limit Pending Transfers:**
+
 ```solidity
 uint256 public constant MAX_PENDING_TRANSFERS = 100;
 
@@ -825,6 +893,7 @@ function lockTransfer(...) external {
 ```
 
 2. **Batch Settlement:**
+
 ```solidity
 function settleChannelBatch(
     bytes32 channelId,
@@ -839,6 +908,7 @@ function settleChannelBatch(
 ```
 
 3. **Off-Chain Lock Resolution:**
+
 - Participants resolve locks off-chain
 - Submit only final resolved state on-chain
 - Reduces on-chain complexity
@@ -868,12 +938,14 @@ function settleChannelBatch(
 #### 1. Unit Testing with Foundry
 
 **Advantages:**
+
 - Tests written in Solidity
 - Built-in fuzzing support
 - Fast execution
 - Gas reporting
 
 **Example Test Structure:**
+
 ```solidity
 contract TokenNetworkTest is Test {
     TokenNetwork network;
@@ -899,6 +971,7 @@ contract TokenNetworkTest is Test {
 #### 2. Fuzz Testing
 
 **Critical Areas for Fuzzing:**
+
 - Deposit and withdrawal amounts
 - Nonce values and ordering
 - Signature components (v, r, s)
@@ -907,11 +980,13 @@ contract TokenNetworkTest is Test {
 - Channel state transitions
 
 **Tools:**
+
 - **Foundry built-in fuzzer:** Property-based testing
 - **Echidna:** Grammar-based fuzzing for invariants
 - **Diligence Fuzzing:** Continuous fuzzing service
 
 **Example Invariant:**
+
 ```solidity
 // Invariant: Total deposits >= Total withdrawals + Locked amounts
 function invariant_totalBalance() public {
@@ -926,6 +1001,7 @@ function invariant_totalBalance() public {
 #### 3. Integration Testing
 
 **Test Scenarios:**
+
 - Full channel lifecycle (open → transfer → close → settle)
 - Multiple concurrent channels
 - Different ERC20 tokens (including edge cases)
@@ -936,11 +1012,13 @@ function invariant_totalBalance() public {
 #### 4. Formal Verification
 
 **Tools:**
+
 - **Certora Prover:** Formal verification of Solidity
 - **K Framework:** Formal semantics and verification
 - **SMTChecker:** Solidity's built-in SMT-based verification
 
 **Properties to Verify:**
+
 - Conservation of funds: deposits = withdrawals + balances
 - State machine correctness: no invalid transitions
 - Access control: only authorized actions
@@ -949,6 +1027,7 @@ function invariant_totalBalance() public {
 #### 5. Audit Preparation
 
 **Pre-Audit Checklist:**
+
 - [ ] 100% test coverage on critical paths
 - [ ] Fuzz tests for all user inputs
 - [ ] Integration tests with real ERC20 tokens
@@ -959,6 +1038,7 @@ function invariant_totalBalance() public {
 - [ ] Upgrade plan documented (if applicable)
 
 **Recommended Auditors:**
+
 - **OpenZeppelin:** Excellent for DeFi and token contracts
 - **Trail of Bits:** Deep security expertise
 - **ConsenSys Diligence:** Ethereum-focused, comprehensive
@@ -973,27 +1053,28 @@ function invariant_totalBalance() public {
 
 Based on research of Raiden, Celer, and other implementations:
 
-| Operation | Estimated Gas | Cost at 50 gwei | Cost at 100 gwei |
-|-----------|---------------|-----------------|------------------|
-| **Registry Operations** | | | |
-| Create TokenNetwork | 2,000,000 - 3,000,000 | $4.00 - $6.00 | $8.00 - $12.00 |
-| | | | |
-| **Channel Lifecycle** | | | |
-| Open Channel | 80,000 - 120,000 | $0.16 - $0.24 | $0.32 - $0.48 |
-| Deposit (first time) | 60,000 - 80,000 | $0.12 - $0.16 | $0.24 - $0.32 |
-| Deposit (additional) | 40,000 - 60,000 | $0.08 - $0.12 | $0.16 - $0.24 |
-| Withdraw | 50,000 - 70,000 | $0.10 - $0.14 | $0.20 - $0.28 |
-| Cooperative Close | 60,000 - 90,000 | $0.12 - $0.18 | $0.24 - $0.36 |
-| Unilateral Close | 80,000 - 120,000 | $0.16 - $0.24 | $0.32 - $0.48 |
-| Update Non-Closing Proof | 70,000 - 100,000 | $0.14 - $0.20 | $0.28 - $0.40 |
-| Settle Channel | 70,000 - 110,000 | $0.14 - $0.22 | $0.28 - $0.44 |
-| | | | |
-| **Off-Chain** | | | |
-| Sign Balance Proof | 0 (off-chain) | $0.00 | $0.00 |
-| Verify Signature | 0 (off-chain) | $0.00 | $0.00 |
-| Exchange Messages | 0 (off-chain) | $0.00 | $0.00 |
+| Operation                | Estimated Gas         | Cost at 50 gwei | Cost at 100 gwei |
+| ------------------------ | --------------------- | --------------- | ---------------- |
+| **Registry Operations**  |                       |                 |                  |
+| Create TokenNetwork      | 2,000,000 - 3,000,000 | $4.00 - $6.00   | $8.00 - $12.00   |
+|                          |                       |                 |                  |
+| **Channel Lifecycle**    |                       |                 |                  |
+| Open Channel             | 80,000 - 120,000      | $0.16 - $0.24   | $0.32 - $0.48    |
+| Deposit (first time)     | 60,000 - 80,000       | $0.12 - $0.16   | $0.24 - $0.32    |
+| Deposit (additional)     | 40,000 - 60,000       | $0.08 - $0.12   | $0.16 - $0.24    |
+| Withdraw                 | 50,000 - 70,000       | $0.10 - $0.14   | $0.20 - $0.28    |
+| Cooperative Close        | 60,000 - 90,000       | $0.12 - $0.18   | $0.24 - $0.36    |
+| Unilateral Close         | 80,000 - 120,000      | $0.16 - $0.24   | $0.32 - $0.48    |
+| Update Non-Closing Proof | 70,000 - 100,000      | $0.14 - $0.20   | $0.28 - $0.40    |
+| Settle Channel           | 70,000 - 110,000      | $0.14 - $0.22   | $0.28 - $0.44    |
+|                          |                       |                 |                  |
+| **Off-Chain**            |                       |                 |                  |
+| Sign Balance Proof       | 0 (off-chain)         | $0.00           | $0.00            |
+| Verify Signature         | 0 (off-chain)         | $0.00           | $0.00            |
+| Exchange Messages        | 0 (off-chain)         | $0.00           | $0.00            |
 
 **Notes:**
+
 - Gas prices vary significantly: 50 gwei is moderate, 100 gwei is high
 - L2 costs are 10-100x lower (Arbitrum, Optimism)
 - Off-chain operations have zero gas cost
@@ -1004,6 +1085,7 @@ Based on research of Raiden, Celer, and other implementations:
 #### 1. Storage Layout Optimization
 
 **Pack Variables into 32-byte Slots:**
+
 ```solidity
 // Bad: Uses 3 storage slots
 struct Channel {
@@ -1196,26 +1278,31 @@ function recoverSigner(
 ### Trade-offs Between Features and Gas Costs
 
 #### Feature: Virtual Channels
+
 - **Gas Benefit:** Eliminates on-chain operations for intermediate hops
 - **Gas Cost:** More complex setup, higher deployment cost
 - **Recommendation:** Only if building channel network
 
 #### Feature: Conditional Payments
+
 - **Gas Benefit:** Enables complex payment patterns
 - **Gas Cost:** +30,000-50,000 gas for condition verification
 - **Recommendation:** Make optional, not required for all channels
 
 #### Feature: Multi-Token Single Contract
+
 - **Gas Benefit:** One deployment for all tokens
 - **Gas Cost:** +5,000-10,000 gas per operation (store token address)
 - **Recommendation:** Use separate TokenNetwork per token instead
 
 #### Feature: Upgradeable Contracts
+
 - **Gas Benefit:** Can fix bugs and add features
 - **Gas Cost:** +20,000-30,000 gas per call (proxy overhead)
 - **Recommendation:** Use for registry, not for channels themselves
 
 #### Feature: Emergency Pause
+
 - **Gas Benefit:** Can halt system during attack
 - **Gas Cost:** +2,000-3,000 gas per operation (pause check)
 - **Recommendation:** Essential for production, worth the cost
@@ -1223,18 +1310,21 @@ function recoverSigner(
 ### L2 Deployment Considerations
 
 **Arbitrum:**
+
 - Gas costs 10-50x lower than L1
 - Deployment: ~$5-10 vs $200-400 on L1
 - Same Solidity code, minimal changes
 - Consider Arbitrum-specific gas optimizations
 
 **Optimism:**
+
 - Gas costs similar to Arbitrum
 - Single-round fraud proofs vs Arbitrum's multi-round
 - EVM equivalence makes porting easy
 - Slightly higher fees than Arbitrum
 
 **zkSync/StarkNet:**
+
 - Lowest gas costs but different VM
 - Requires code adaptation
 - Better for high-throughput scenarios
@@ -1676,6 +1766,7 @@ contract TokenNetwork is ReentrancyGuard, Pausable {
 ```
 
 **Key Libraries:**
+
 1. **OpenZeppelin Contracts:**
    - `SafeERC20`: Safe token transfers
    - `ReentrancyGuard`: Reentrancy protection
@@ -1693,12 +1784,14 @@ contract TokenNetwork is ReentrancyGuard, Pausable {
 #### Option 1: Immutable Contracts (Recommended for Channels)
 
 **Pros:**
+
 - Simpler, more gas efficient
 - No proxy overhead
 - Easier to audit
 - Users trust immutability
 
 **Cons:**
+
 - Cannot fix bugs after deployment
 - Cannot add features
 - Must migrate to new contracts
@@ -1729,11 +1822,13 @@ contract TokenNetworkRegistryUpgradeable is
 ```
 
 **Pros:**
+
 - Can fix bugs and add features
 - Upgrade logic in implementation
 - More gas efficient than Transparent Proxy
 
 **Cons:**
+
 - More complex
 - Upgrade risks
 - Storage collision risks
@@ -1743,6 +1838,7 @@ contract TokenNetworkRegistryUpgradeable is
 #### Option 3: Diamond Pattern (Not Recommended)
 
 **Cons:**
+
 - Overly complex
 - Trail of Bits audit warned against it
 - Larger attack surface
@@ -1758,53 +1854,52 @@ contract TokenNetworkRegistryUpgradeable is
 import { ethers } from 'ethers';
 
 interface BalanceProof {
-    channelId: string;
-    nonce: number;
-    transferredAmount: bigint;
-    lockedAmount: bigint;
+  channelId: string;
+  nonce: number;
+  transferredAmount: bigint;
+  lockedAmount: bigint;
 }
 
 class PaymentChannelClient {
-    private signer: ethers.Signer;
-    private tokenNetwork: ethers.Contract;
+  private signer: ethers.Signer;
+  private tokenNetwork: ethers.Contract;
 
-    async signBalanceProof(proof: BalanceProof): Promise<string> {
-        const domain = {
-            name: 'PaymentChannel',
-            version: '1',
-            chainId: await this.signer.getChainId(),
-            verifyingContract: this.tokenNetwork.address
-        };
+  async signBalanceProof(proof: BalanceProof): Promise<string> {
+    const domain = {
+      name: 'PaymentChannel',
+      version: '1',
+      chainId: await this.signer.getChainId(),
+      verifyingContract: this.tokenNetwork.address,
+    };
 
-        const types = {
-            BalanceProof: [
-                { name: 'channelId', type: 'bytes32' },
-                { name: 'nonce', type: 'uint256' },
-                { name: 'transferredAmount', type: 'uint256' },
-                { name: 'lockedAmount', type: 'uint256' }
-            ]
-        };
+    const types = {
+      BalanceProof: [
+        { name: 'channelId', type: 'bytes32' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'transferredAmount', type: 'uint256' },
+        { name: 'lockedAmount', type: 'uint256' },
+      ],
+    };
 
-        return await this.signer._signTypedData(domain, types, proof);
-    }
+    return await this.signer._signTypedData(domain, types, proof);
+  }
 
-    async verifyBalanceProof(
-        proof: BalanceProof,
-        signature: string,
-        expectedSigner: string
-    ): Promise<boolean> {
-        const domain = { /* same as above */ };
-        const types = { /* same as above */ };
+  async verifyBalanceProof(
+    proof: BalanceProof,
+    signature: string,
+    expectedSigner: string
+  ): Promise<boolean> {
+    const domain = {
+      /* same as above */
+    };
+    const types = {
+      /* same as above */
+    };
 
-        const recovered = ethers.utils.verifyTypedData(
-            domain,
-            types,
-            proof,
-            signature
-        );
+    const recovered = ethers.utils.verifyTypedData(domain, types, proof, signature);
 
-        return recovered.toLowerCase() === expectedSigner.toLowerCase();
-    }
+    return recovered.toLowerCase() === expectedSigner.toLowerCase();
+  }
 }
 ```
 
@@ -1812,52 +1907,49 @@ class PaymentChannelClient {
 
 ```typescript
 interface ChannelState {
-    channelId: string;
-    participant1: string;
-    participant2: string;
-    nonce: number;
-    balances: {
-        [address: string]: {
-            deposit: bigint;
-            transferred: bigint;
-            locked: bigint;
-        }
+  channelId: string;
+  participant1: string;
+  participant2: string;
+  nonce: number;
+  balances: {
+    [address: string]: {
+      deposit: bigint;
+      transferred: bigint;
+      locked: bigint;
     };
+  };
 }
 
 class ChannelManager {
-    private channels: Map<string, ChannelState> = new Map();
+  private channels: Map<string, ChannelState> = new Map();
 
-    updateChannel(channelId: string, newState: Partial<ChannelState>) {
-        const current = this.channels.get(channelId);
-        this.channels.set(channelId, {
-            ...current,
-            ...newState,
-            nonce: (current?.nonce || 0) + 1
-        });
-    }
+  updateChannel(channelId: string, newState: Partial<ChannelState>) {
+    const current = this.channels.get(channelId);
+    this.channels.set(channelId, {
+      ...current,
+      ...newState,
+      nonce: (current?.nonce || 0) + 1,
+    });
+  }
 
-    async sendPayment(
-        channelId: string,
-        amount: bigint
-    ): Promise<BalanceProof> {
-        const channel = this.channels.get(channelId);
-        if (!channel) throw new Error('Channel not found');
+  async sendPayment(channelId: string, amount: bigint): Promise<BalanceProof> {
+    const channel = this.channels.get(channelId);
+    if (!channel) throw new Error('Channel not found');
 
-        // Update local state
-        channel.balances[myAddress].transferred += amount;
-        channel.nonce++;
+    // Update local state
+    channel.balances[myAddress].transferred += amount;
+    channel.nonce++;
 
-        // Create and sign balance proof
-        const proof: BalanceProof = {
-            channelId,
-            nonce: channel.nonce,
-            transferredAmount: channel.balances[myAddress].transferred,
-            lockedAmount: channel.balances[myAddress].locked
-        };
+    // Create and sign balance proof
+    const proof: BalanceProof = {
+      channelId,
+      nonce: channel.nonce,
+      transferredAmount: channel.balances[myAddress].transferred,
+      lockedAmount: channel.balances[myAddress].locked,
+    };
 
-        return proof;
-    }
+    return proof;
+  }
 }
 ```
 
@@ -1865,36 +1957,32 @@ class ChannelManager {
 
 ```typescript
 class EventMonitor {
-    private tokenNetwork: ethers.Contract;
+  private tokenNetwork: ethers.Contract;
 
-    async monitorChannel(channelId: string) {
-        // Listen for channel events
-        this.tokenNetwork.on('ChannelClosed', (id, closer, nonce) => {
-            if (id === channelId) {
-                this.handleChannelClosed(id, closer, nonce);
-            }
-        });
+  async monitorChannel(channelId: string) {
+    // Listen for channel events
+    this.tokenNetwork.on('ChannelClosed', (id, closer, nonce) => {
+      if (id === channelId) {
+        this.handleChannelClosed(id, closer, nonce);
+      }
+    });
 
-        this.tokenNetwork.on('ChannelSettled', (id, amount1, amount2) => {
-            if (id === channelId) {
-                this.handleChannelSettled(id, amount1, amount2);
-            }
-        });
+    this.tokenNetwork.on('ChannelSettled', (id, amount1, amount2) => {
+      if (id === channelId) {
+        this.handleChannelSettled(id, amount1, amount2);
+      }
+    });
+  }
+
+  private async handleChannelClosed(channelId: string, closer: string, nonce: number) {
+    // Check if we have a more recent state
+    const ourState = this.getChannelState(channelId);
+
+    if (ourState.nonce > nonce) {
+      // Submit our more recent state
+      await this.updateNonClosingBalanceProof(channelId, ourState);
     }
-
-    private async handleChannelClosed(
-        channelId: string,
-        closer: string,
-        nonce: number
-    ) {
-        // Check if we have a more recent state
-        const ourState = this.getChannelState(channelId);
-
-        if (ourState.nonce > nonce) {
-            // Submit our more recent state
-            await this.updateNonClosingBalanceProof(channelId, ourState);
-        }
-    }
+  }
 }
 ```
 
@@ -1905,6 +1993,7 @@ class EventMonitor {
 **Problem:** Contract receives less than specified amount
 
 **Handling:**
+
 ```solidity
 function deposit(bytes32 channelId, uint256 amount) external {
     uint256 balanceBefore = token.balanceOf(address(this));
@@ -1917,6 +2006,7 @@ function deposit(bytes32 channelId, uint256 amount) external {
 ```
 
 **Documentation:**
+
 ```
 WARNING: Fee-on-transfer tokens are supported but users will receive
 less than the nominal amount. Always check actual deposited amount.
@@ -1927,6 +2017,7 @@ less than the nominal amount. Always check actual deposited amount.
 **Problem:** Balances change without transfers
 
 **Handling:**
+
 ```
 NOT SUPPORTED. Rebasing tokens will cause incorrect settlement amounts.
 Use wrapped versions or convert to stable tokens before depositing.
@@ -1939,6 +2030,7 @@ Use wrapped versions or convert to stable tokens before depositing.
 **Problem:** transferFrom doesn't return bool
 
 **Handling:**
+
 ```solidity
 using SafeERC20 for IERC20;
 
@@ -1959,6 +2051,7 @@ token.safeTransferFrom(sender, recipient, amount);
 **Problem:** Token can blacklist addresses, blocking transfers
 
 **Handling:**
+
 ```solidity
 // Allow emergency withdrawal even if one participant is blacklisted
 function emergencyWithdraw(bytes32 channelId) external onlyOwner {
@@ -1968,6 +2061,7 @@ function emergencyWithdraw(bytes32 channelId) external onlyOwner {
 ```
 
 **Documentation:**
+
 ```
 WARNING: If either participant is blacklisted by the token contract,
 channel settlement may fail. Use emergency withdrawal procedure.
@@ -2035,122 +2129,119 @@ function openChannelWithDeposit(
  * Off-chain payment flow between Alice and Bob
  */
 class PaymentChannelOffChain {
-    private channelState: ChannelState;
-    private signer: ethers.Signer;
+  private channelState: ChannelState;
+  private signer: ethers.Signer;
 
-    /**
-     * Alice sends payment to Bob off-chain
-     */
-    async sendPayment(amount: bigint, recipient: string): Promise<SignedBalanceProof> {
-        // Update local state
-        this.channelState.nonce++;
-        this.channelState.myTransferred += amount;
+  /**
+   * Alice sends payment to Bob off-chain
+   */
+  async sendPayment(amount: bigint, recipient: string): Promise<SignedBalanceProof> {
+    // Update local state
+    this.channelState.nonce++;
+    this.channelState.myTransferred += amount;
 
-        // Create balance proof
-        const balanceProof: BalanceProof = {
-            channelId: this.channelState.channelId,
-            nonce: this.channelState.nonce,
-            transferredAmount: this.channelState.myTransferred,
-            lockedAmount: this.channelState.myLocked
-        };
+    // Create balance proof
+    const balanceProof: BalanceProof = {
+      channelId: this.channelState.channelId,
+      nonce: this.channelState.nonce,
+      transferredAmount: this.channelState.myTransferred,
+      lockedAmount: this.channelState.myLocked,
+    };
 
-        // Sign using EIP-712
-        const signature = await this.signBalanceProof(balanceProof);
+    // Sign using EIP-712
+    const signature = await this.signBalanceProof(balanceProof);
 
-        // Send to counterparty off-chain (WebSocket, HTTP, etc.)
-        await this.sendToCounterparty({
-            balanceProof,
-            signature
-        });
+    // Send to counterparty off-chain (WebSocket, HTTP, etc.)
+    await this.sendToCounterparty({
+      balanceProof,
+      signature,
+    });
 
-        return { balanceProof, signature };
+    return { balanceProof, signature };
+  }
+
+  /**
+   * Bob receives and validates payment from Alice
+   */
+  async receivePayment(signedProof: SignedBalanceProof, sender: string): Promise<boolean> {
+    // Verify signature
+    const isValid = await this.verifyBalanceProof(
+      signedProof.balanceProof,
+      signedProof.signature,
+      sender
+    );
+
+    if (!isValid) {
+      throw new Error('Invalid signature');
     }
 
-    /**
-     * Bob receives and validates payment from Alice
-     */
-    async receivePayment(
-        signedProof: SignedBalanceProof,
-        sender: string
-    ): Promise<boolean> {
-        // Verify signature
-        const isValid = await this.verifyBalanceProof(
-            signedProof.balanceProof,
-            signedProof.signature,
-            sender
-        );
-
-        if (!isValid) {
-            throw new Error('Invalid signature');
-        }
-
-        // Verify nonce is increasing
-        if (signedProof.balanceProof.nonce <= this.channelState.partnerNonce) {
-            throw new Error('Nonce not increasing');
-        }
-
-        // Verify transferred amount is increasing
-        const previousTransferred = this.channelState.partnerTransferred;
-        const newTransferred = signedProof.balanceProof.transferredAmount;
-
-        if (newTransferred < previousTransferred) {
-            throw new Error('Transferred amount decreased');
-        }
-
-        // Calculate actual payment
-        const paymentAmount = newTransferred - previousTransferred;
-
-        // Update local state
-        this.channelState.partnerNonce = signedProof.balanceProof.nonce;
-        this.channelState.partnerTransferred = newTransferred;
-        this.channelState.myBalance += paymentAmount;
-
-        // Store proof for potential on-chain submission
-        this.storeLatestProof(signedProof);
-
-        console.log(`Received payment of ${paymentAmount} tokens`);
-        return true;
+    // Verify nonce is increasing
+    if (signedProof.balanceProof.nonce <= this.channelState.partnerNonce) {
+      throw new Error('Nonce not increasing');
     }
 
-    /**
-     * Sign balance proof using EIP-712
-     */
-    private async signBalanceProof(proof: BalanceProof): Promise<string> {
-        const domain = {
-            name: 'PaymentChannel',
-            version: '1',
-            chainId: await this.signer.getChainId(),
-            verifyingContract: this.tokenNetworkAddress
-        };
+    // Verify transferred amount is increasing
+    const previousTransferred = this.channelState.partnerTransferred;
+    const newTransferred = signedProof.balanceProof.transferredAmount;
 
-        const types = {
-            BalanceProof: [
-                { name: 'channelId', type: 'bytes32' },
-                { name: 'nonce', type: 'uint256' },
-                { name: 'transferredAmount', type: 'uint256' },
-                { name: 'lockedAmount', type: 'uint256' }
-            ]
-        };
-
-        return await this.signer._signTypedData(domain, types, proof);
+    if (newTransferred < previousTransferred) {
+      throw new Error('Transferred amount decreased');
     }
+
+    // Calculate actual payment
+    const paymentAmount = newTransferred - previousTransferred;
+
+    // Update local state
+    this.channelState.partnerNonce = signedProof.balanceProof.nonce;
+    this.channelState.partnerTransferred = newTransferred;
+    this.channelState.myBalance += paymentAmount;
+
+    // Store proof for potential on-chain submission
+    this.storeLatestProof(signedProof);
+
+    console.log(`Received payment of ${paymentAmount} tokens`);
+    return true;
+  }
+
+  /**
+   * Sign balance proof using EIP-712
+   */
+  private async signBalanceProof(proof: BalanceProof): Promise<string> {
+    const domain = {
+      name: 'PaymentChannel',
+      version: '1',
+      chainId: await this.signer.getChainId(),
+      verifyingContract: this.tokenNetworkAddress,
+    };
+
+    const types = {
+      BalanceProof: [
+        { name: 'channelId', type: 'bytes32' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'transferredAmount', type: 'uint256' },
+        { name: 'lockedAmount', type: 'uint256' },
+      ],
+    };
+
+    return await this.signer._signTypedData(domain, types, proof);
+  }
 }
 
 /**
  * Example usage: Alice sends 10 tokens to Bob
  */
 async function examplePaymentFlow() {
-    const alice = new PaymentChannelOffChain(aliceSigner, channelId);
-    const bob = new PaymentChannelOffChain(bobSigner, channelId);
+  const alice = new PaymentChannelOffChain(aliceSigner, channelId);
+  const bob = new PaymentChannelOffChain(bobSigner, channelId);
 
-    // Alice sends 10 tokens to Bob
-    const signedProof = await alice.sendPayment(ethers.utils.parseEther('10'), bobAddress);
+  // Alice sends 10 tokens to Bob
+  const signedProof = await alice.sendPayment(ethers.utils.parseEther('10'), bobAddress);
 
-    // Bob receives and validates
-    await bob.receivePayment(signedProof, aliceAddress);
+  // Bob receives and validates
+  await bob.receivePayment(signedProof, aliceAddress);
 
-    // Bob can now send back or continue receiving
-    // All off-chain, no gas costs!
+  // Bob can now send back or continue receiving
+  // All off-chain, no gas costs!
 }
 ```
 
@@ -2382,116 +2473,108 @@ function settleChannel(
  * Off-chain client monitors for channel closure and disputes
  */
 class DisputeMonitor {
-    private tokenNetwork: ethers.Contract;
-    private channelState: ChannelState;
+  private tokenNetwork: ethers.Contract;
+  private channelState: ChannelState;
 
-    /**
-     * Monitor for ChannelClosed events
-     */
-    async startMonitoring(channelId: string) {
-        this.tokenNetwork.on(
-            'ChannelClosed',
-            async (id: string, closer: string, nonce: number) => {
-                if (id === channelId) {
-                    await this.handleChannelClosed(id, closer, nonce);
-                }
-            }
-        );
+  /**
+   * Monitor for ChannelClosed events
+   */
+  async startMonitoring(channelId: string) {
+    this.tokenNetwork.on('ChannelClosed', async (id: string, closer: string, nonce: number) => {
+      if (id === channelId) {
+        await this.handleChannelClosed(id, closer, nonce);
+      }
+    });
+  }
+
+  /**
+   * Handle channel closure by counterparty
+   */
+  private async handleChannelClosed(channelId: string, closer: string, closingNonce: number) {
+    console.log(`Channel ${channelId} closed by ${closer} with nonce ${closingNonce}`);
+
+    // Get our latest state
+    const ourLatestProof = this.getLatestBalanceProof(channelId);
+
+    // Check if we have a more recent state
+    if (ourLatestProof.nonce > closingNonce) {
+      console.warn(
+        `Detected stale state closure! Our nonce: ${ourLatestProof.nonce}, closing nonce: ${closingNonce}`
+      );
+
+      // Submit our more recent state
+      await this.challengeClose(channelId, ourLatestProof);
+    } else {
+      console.log('Closure state is current, waiting for settlement period');
+    }
+  }
+
+  /**
+   * Challenge closure with more recent state
+   */
+  private async challengeClose(channelId: string, newerProof: SignedBalanceProof) {
+    console.log('Challenging channel closure with newer state...');
+
+    const tx = await this.tokenNetwork.updateNonClosingBalanceProof(
+      channelId,
+      newerProof.balanceProof.nonce,
+      newerProof.balanceProof.transferredAmount,
+      newerProof.balanceProof.lockedAmount,
+      newerProof.signature,
+      this.partnerAddress
+    );
+
+    await tx.wait();
+    console.log('Successfully challenged closure!');
+  }
+
+  /**
+   * Automatically settle after challenge period
+   */
+  async autoSettle(channelId: string) {
+    const channel = await this.tokenNetwork.channels(channelId);
+    const settlementTime = channel.closedAt.add(channel.settlementTimeout);
+
+    // Wait for settlement period
+    const now = Math.floor(Date.now() / 1000);
+    const waitTime = settlementTime.toNumber() - now;
+
+    if (waitTime > 0) {
+      console.log(`Waiting ${waitTime} seconds for settlement period...`);
+      await new Promise((resolve) => setTimeout(resolve, waitTime * 1000));
     }
 
-    /**
-     * Handle channel closure by counterparty
-     */
-    private async handleChannelClosed(
-        channelId: string,
-        closer: string,
-        closingNonce: number
-    ) {
-        console.log(`Channel ${channelId} closed by ${closer} with nonce ${closingNonce}`);
+    // Settle channel
+    const ourState = this.channelState;
+    const partnerState = this.partnerChannelState;
 
-        // Get our latest state
-        const ourLatestProof = this.getLatestBalanceProof(channelId);
+    const tx = await this.tokenNetwork.settleChannel(
+      channelId,
+      this.myAddress,
+      ourState.transferred,
+      ourState.locked,
+      this.partnerAddress,
+      partnerState.transferred,
+      partnerState.locked
+    );
 
-        // Check if we have a more recent state
-        if (ourLatestProof.nonce > closingNonce) {
-            console.warn(`Detected stale state closure! Our nonce: ${ourLatestProof.nonce}, closing nonce: ${closingNonce}`);
-
-            // Submit our more recent state
-            await this.challengeClose(channelId, ourLatestProof);
-        } else {
-            console.log('Closure state is current, waiting for settlement period');
-        }
-    }
-
-    /**
-     * Challenge closure with more recent state
-     */
-    private async challengeClose(
-        channelId: string,
-        newerProof: SignedBalanceProof
-    ) {
-        console.log('Challenging channel closure with newer state...');
-
-        const tx = await this.tokenNetwork.updateNonClosingBalanceProof(
-            channelId,
-            newerProof.balanceProof.nonce,
-            newerProof.balanceProof.transferredAmount,
-            newerProof.balanceProof.lockedAmount,
-            newerProof.signature,
-            this.partnerAddress
-        );
-
-        await tx.wait();
-        console.log('Successfully challenged closure!');
-    }
-
-    /**
-     * Automatically settle after challenge period
-     */
-    async autoSettle(channelId: string) {
-        const channel = await this.tokenNetwork.channels(channelId);
-        const settlementTime = channel.closedAt.add(channel.settlementTimeout);
-
-        // Wait for settlement period
-        const now = Math.floor(Date.now() / 1000);
-        const waitTime = settlementTime.toNumber() - now;
-
-        if (waitTime > 0) {
-            console.log(`Waiting ${waitTime} seconds for settlement period...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
-        }
-
-        // Settle channel
-        const ourState = this.channelState;
-        const partnerState = this.partnerChannelState;
-
-        const tx = await this.tokenNetwork.settleChannel(
-            channelId,
-            this.myAddress,
-            ourState.transferred,
-            ourState.locked,
-            this.partnerAddress,
-            partnerState.transferred,
-            partnerState.locked
-        );
-
-        await tx.wait();
-        console.log('Channel settled successfully!');
-    }
+    await tx.wait();
+    console.log('Channel settled successfully!');
+  }
 }
 
 /**
  * Example: Complete dispute resolution flow
  */
 async function exampleDisputeFlow() {
-    const monitor = new DisputeMonitor(tokenNetworkContract, channelId);
+  const monitor = new DisputeMonitor(tokenNetworkContract, channelId);
 
-    // Start monitoring for closure events
-    await monitor.startMonitoring(channelId);
+  // Start monitoring for closure events
+  await monitor.startMonitoring(channelId);
 
-    // If counterparty closes with old state, challenge is automatic
-    // After challenge period, settle automatically
-    await monitor.autoSettle(channelId);
+  // If counterparty closes with old state, challenge is automatic
+  // After challenge period, settle automatically
+  await monitor.autoSettle(channelId);
 }
 ```
 
@@ -2696,6 +2779,7 @@ async function exampleMultiTokenFlow() {
 ### Primary Resources
 
 #### XRP Payment Channels
+
 1. **Official Documentation:** https://xrpl.org/docs/concepts/payment-types/payment-channels
    - Complete specification of XRP payment channels
    - Claim-based settlement model
@@ -3012,4 +3096,4 @@ With proper implementation following the patterns and security measures outlined
 
 **End of Research Report**
 
-*For questions or clarifications about this research, please refer to the source documentation links provided throughout this document.*
+_For questions or clarifications about this research, please refer to the source documentation links provided throughout this document._

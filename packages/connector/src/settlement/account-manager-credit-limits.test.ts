@@ -107,7 +107,7 @@ describe('AccountManager Credit Limit Enforcement', () => {
       mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
         new Map([
           [expect.any(BigInt), { debits: 700n, credits: 0n, balance: 700n }], // debitBalance
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // creditBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
         ])
       );
 
@@ -163,9 +163,7 @@ describe('AccountManager Credit Limit Enforcement', () => {
       // Arrange: Default limit = 1000n, per-peer limit for 'peer-a' = 2000n
       const creditLimits: CreditLimitConfig = {
         defaultLimit: 1000n,
-        perPeerLimits: new Map([
-          ['peer-a', 2000n],
-        ]),
+        perPeerLimits: new Map([['peer-a', 2000n]]),
       };
       const config: AccountManagerConfig = {
         nodeId: 'test-node',
@@ -176,8 +174,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
       // Mock getAccountsBatch to return current balance
       mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
         new Map([
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // debitBalance
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // creditBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
         ])
       );
 
@@ -192,9 +190,7 @@ describe('AccountManager Credit Limit Enforcement', () => {
       // Arrange: Default limit = 1000n, per-peer limit for 'peer-a' = 2000n
       const creditLimits: CreditLimitConfig = {
         defaultLimit: 1000n,
-        perPeerLimits: new Map([
-          ['peer-a', 2000n],
-        ]),
+        perPeerLimits: new Map([['peer-a', 2000n]]),
       };
       const config: AccountManagerConfig = {
         nodeId: 'test-node',
@@ -205,8 +201,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
       // Mock getAccountsBatch to return current balance
       mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
         new Map([
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // debitBalance
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // creditBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
         ])
       );
 
@@ -224,14 +220,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
     it('should use token-specific limit instead of per-peer limit', async () => {
       // Arrange: Per-peer limit = 1000n, token-specific limit for 'peer-a' + 'USDC' = 500n
       const creditLimits: CreditLimitConfig = {
-        perPeerLimits: new Map([
-          ['peer-a', 1000n],
-        ]),
-        perTokenLimits: new Map([
-          ['peer-a', new Map([
-            ['USDC', 500n],
-          ])],
-        ]),
+        perPeerLimits: new Map([['peer-a', 1000n]]),
+        perTokenLimits: new Map([['peer-a', new Map([['USDC', 500n]])]]),
       };
       const config: AccountManagerConfig = {
         nodeId: 'test-node',
@@ -242,8 +232,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
       // Mock getAccountsBatch to return current balance
       mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
         new Map([
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // debitBalance
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // creditBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
         ])
       );
 
@@ -259,14 +249,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
     it('should use per-peer limit for token without token-specific override', async () => {
       // Arrange: Per-peer limit = 1000n, token-specific limit for 'peer-a' + 'USDC' = 500n
       const creditLimits: CreditLimitConfig = {
-        perPeerLimits: new Map([
-          ['peer-a', 1000n],
-        ]),
-        perTokenLimits: new Map([
-          ['peer-a', new Map([
-            ['USDC', 500n],
-          ])],
-        ]),
+        perPeerLimits: new Map([['peer-a', 1000n]]),
+        perTokenLimits: new Map([['peer-a', new Map([['USDC', 500n]])]]),
       };
       const config: AccountManagerConfig = {
         nodeId: 'test-node',
@@ -277,8 +261,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
       // Mock getAccountsBatch to return current balance
       mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
         new Map([
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // debitBalance
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // creditBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
         ])
       );
 
@@ -294,9 +278,7 @@ describe('AccountManager Credit Limit Enforcement', () => {
     it('should apply global ceiling to reduce configured limit', async () => {
       // Arrange: Per-peer limit = 10000n, global ceiling = 5000n → effective = 5000n
       const creditLimits: CreditLimitConfig = {
-        perPeerLimits: new Map([
-          ['peer-a', 10000n],
-        ]),
+        perPeerLimits: new Map([['peer-a', 10000n]]),
         globalCeiling: 5000n,
       };
       const config: AccountManagerConfig = {
@@ -308,8 +290,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
       // Mock getAccountsBatch to return current balance
       mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
         new Map([
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // debitBalance
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // creditBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
         ])
       );
 
@@ -325,9 +307,7 @@ describe('AccountManager Credit Limit Enforcement', () => {
     it('should not reduce limit when ceiling is higher than configured limit', async () => {
       // Arrange: Per-peer limit = 2000n, global ceiling = 5000n → effective = 2000n
       const creditLimits: CreditLimitConfig = {
-        perPeerLimits: new Map([
-          ['peer-a', 2000n],
-        ]),
+        perPeerLimits: new Map([['peer-a', 2000n]]),
         globalCeiling: 5000n,
       };
       const config: AccountManagerConfig = {
@@ -339,8 +319,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
       // Mock getAccountsBatch to return current balance
       mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
         new Map([
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // debitBalance
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // creditBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
         ])
       );
 
@@ -372,8 +352,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
       // Mock getAccountsBatch to return balance
       mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
         new Map([
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // debitBalance
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],   // creditBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // debitBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
         ])
       );
 
@@ -463,8 +443,8 @@ describe('AccountManager Credit Limit Enforcement', () => {
       // Mock getAccountsBatch to return balance below limit
       mockTigerBeetleClient.getAccountsBatch.mockResolvedValue(
         new Map([
-          [expect.any(BigInt), { debits: 500n, credits: 0n, balance: 500n }],  // debitBalance
-          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }],    // creditBalance
+          [expect.any(BigInt), { debits: 500n, credits: 0n, balance: 500n }], // debitBalance
+          [expect.any(BigInt), { debits: 0n, credits: 0n, balance: 0n }], // creditBalance
         ])
       );
 

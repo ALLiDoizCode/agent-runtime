@@ -41,11 +41,14 @@ TypeScript wrapper for the official `tigerbeetle-node` client library, providing
 import { TigerBeetleClient } from './settlement/tigerbeetle-client';
 
 // Initialize client
-const client = new TigerBeetleClient({
-  clusterId: 0,
-  replicaAddresses: ['tigerbeetle:3000'],
-  operationTimeout: 5000
-}, logger);
+const client = new TigerBeetleClient(
+  {
+    clusterId: 0,
+    replicaAddresses: ['tigerbeetle:3000'],
+    operationTimeout: 5000,
+  },
+  logger
+);
 
 await client.initialize();
 

@@ -5,13 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -202,15 +196,9 @@ export function SettlementStatusPanel({ events, connected }: SettlementStatusPan
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {loading && (
-          <div className="text-sm text-muted-foreground">Loading balances...</div>
-        )}
+        {loading && <div className="text-sm text-muted-foreground">Loading balances...</div>}
 
-        {error && (
-          <div className="text-sm text-destructive">
-            Error: {error}
-          </div>
-        )}
+        {error && <div className="text-sm text-destructive">Error: {error}</div>}
 
         {!loading && !error && balanceArray.length === 0 && (
           <div className="text-sm text-muted-foreground">

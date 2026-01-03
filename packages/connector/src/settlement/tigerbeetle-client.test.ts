@@ -114,15 +114,11 @@ describe('TigerBeetleClient', () => {
     });
 
     it('should throw error when calling operations before initialization', async () => {
-      await expect(client.createAccount(123n, 1, 100)).rejects.toThrow(
-        TigerBeetleConnectionError
-      );
+      await expect(client.createAccount(123n, 1, 100)).rejects.toThrow(TigerBeetleConnectionError);
       await expect(client.createTransfer(456n, 123n, 789n, 1000n, 1, 100)).rejects.toThrow(
         TigerBeetleConnectionError
       );
-      await expect(client.getAccountBalance(123n)).rejects.toThrow(
-        TigerBeetleConnectionError
-      );
+      await expect(client.getAccountBalance(123n)).rejects.toThrow(TigerBeetleConnectionError);
     });
   });
 
@@ -167,9 +163,7 @@ describe('TigerBeetleClient', () => {
     });
 
     it('should validate account ID is non-zero', async () => {
-      await expect(client.createAccount(0n, 1, 100)).rejects.toThrow(
-        TigerBeetleAccountError
-      );
+      await expect(client.createAccount(0n, 1, 100)).rejects.toThrow(TigerBeetleAccountError);
       expect(mockClient.createAccounts).not.toHaveBeenCalled();
     });
 
@@ -181,9 +175,7 @@ describe('TigerBeetleClient', () => {
         },
       ]);
 
-      await expect(client.createAccount(123n, 1, 100)).rejects.toThrow(
-        TigerBeetleAccountError
-      );
+      await expect(client.createAccount(123n, 1, 100)).rejects.toThrow(TigerBeetleAccountError);
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.objectContaining({
           accountId: 123n,
@@ -290,9 +282,9 @@ describe('TigerBeetleClient', () => {
         },
       ]);
 
-      await expect(
-        client.createTransfer(456n, 123n, 789n, 1000n, 1, 100)
-      ).rejects.toThrow(TigerBeetleTransferError);
+      await expect(client.createTransfer(456n, 123n, 789n, 1000n, 1, 100)).rejects.toThrow(
+        TigerBeetleTransferError
+      );
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.objectContaining({
           transferId: 456n,
@@ -310,9 +302,9 @@ describe('TigerBeetleClient', () => {
         },
       ]);
 
-      await expect(
-        client.createTransfer(456n, 123n, 789n, 1000n, 1, 100)
-      ).rejects.toThrow(TigerBeetleTransferError);
+      await expect(client.createTransfer(456n, 123n, 789n, 1000n, 1, 100)).rejects.toThrow(
+        TigerBeetleTransferError
+      );
     });
   });
 
@@ -381,9 +373,7 @@ describe('TigerBeetleClient', () => {
     it('should handle account not found', async () => {
       mockClient.lookupAccounts.mockResolvedValue([]);
 
-      await expect(client.getAccountBalance(999n)).rejects.toThrow(
-        TigerBeetleAccountError
-      );
+      await expect(client.getAccountBalance(999n)).rejects.toThrow(TigerBeetleAccountError);
       await expect(client.getAccountBalance(999n)).rejects.toThrow('Account not found');
     });
 
@@ -482,9 +472,9 @@ describe('TigerBeetleClient', () => {
           })
       );
 
-      await expect(
-        client.createTransfer(456n, 123n, 789n, 1000n, 1, 100)
-      ).rejects.toThrow(TigerBeetleTimeoutError);
+      await expect(client.createTransfer(456n, 123n, 789n, 1000n, 1, 100)).rejects.toThrow(
+        TigerBeetleTimeoutError
+      );
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -542,10 +532,7 @@ describe('TigerBeetleClient', () => {
       );
 
       await client.getAccountBalance(123n);
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        expect.anything(),
-        'Account balance retrieved'
-      );
+      expect(mockLogger.debug).toHaveBeenCalledWith(expect.anything(), 'Account balance retrieved');
     });
 
     it('should log errors with context', async () => {
@@ -574,14 +561,10 @@ describe('TigerBeetleClient', () => {
       await client.close();
 
       // Should not be able to use client after closing
-      await expect(client.createAccount(123n, 1, 100)).rejects.toThrow(
-        TigerBeetleConnectionError
-      );
+      await expect(client.createAccount(123n, 1, 100)).rejects.toThrow(TigerBeetleConnectionError);
 
       expect(mockLogger.info).toHaveBeenCalledWith('Closing TigerBeetle client connection');
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        'TigerBeetle client connection closed'
-      );
+      expect(mockLogger.info).toHaveBeenCalledWith('TigerBeetle client connection closed');
     });
 
     it('should handle close when not initialized', async () => {

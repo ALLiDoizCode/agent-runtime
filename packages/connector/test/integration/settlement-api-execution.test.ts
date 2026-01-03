@@ -207,7 +207,7 @@ describe('Settlement API Execution Integration Test', () => {
       transferId1,
       transferId2,
       1, // Ledger
-      0  // Code (packet transfer)
+      0 // Code (packet transfer)
     );
 
     const transferId3 = transferId2 + 1n;
