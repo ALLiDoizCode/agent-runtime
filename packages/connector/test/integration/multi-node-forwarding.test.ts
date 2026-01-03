@@ -39,7 +39,7 @@ const waitForConnections = async (
   while (Date.now() - startTime < options.timeout) {
     const allReady = connectors.every((connector) => {
       const health = connector.getHealthStatus();
-      return health.status === 'ready';
+      return health.status === 'healthy';
     });
 
     if (allReady) {
@@ -305,14 +305,14 @@ describe('Multi-Node Packet Forwarding', () => {
       const healthC = connectorC.getHealthStatus();
 
       // Assert
-      expect(healthA.status).toBe('ready');
-      expect(healthA.connectedPeers).toBe(1); // A connects to B
+      expect(healthA.status).toBe('healthy');
+      expect(healthA.peersConnected).toBe(1); // A connects to B
 
-      expect(healthB.status).toBe('ready');
-      expect(healthB.connectedPeers).toBe(1); // B connects to C
+      expect(healthB.status).toBe('healthy');
+      expect(healthB.peersConnected).toBe(1); // B connects to C
 
-      expect(healthC.status).toBe('ready');
-      expect(healthC.connectedPeers).toBe(0); // C has no outgoing connections
+      expect(healthC.status).toBe('healthy');
+      expect(healthC.peersConnected).toBe(0); // C has no outgoing connections
     });
   });
 });
