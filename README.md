@@ -1152,14 +1152,14 @@ docker-compose logs -f tigerbeetle
 
 #### Service Configuration
 
-| Property         | Value                                       | Description                                    |
-| ---------------- | ------------------------------------------- | ---------------------------------------------- |
-| **Container Name** | `tigerbeetle`                             | Docker container identifier                    |
-| **Image**        | `ghcr.io/tigerbeetle/tigerbeetle:latest`    | Official TigerBeetle image from GitHub         |
-| **Port (Internal)** | `3000`                                   | Client connection port (Docker network only)   |
-| **Data Volume**  | `tigerbeetle-data`                          | Named volume for persistent cluster data       |
-| **Cluster ID**   | `0` (default)                               | Unique cluster identifier (immutable)          |
-| **Replica Count**| `1` (development)                           | Single-node for development                    |
+| Property            | Value                                    | Description                                  |
+| ------------------- | ---------------------------------------- | -------------------------------------------- |
+| **Container Name**  | `tigerbeetle`                            | Docker container identifier                  |
+| **Image**           | `ghcr.io/tigerbeetle/tigerbeetle:latest` | Official TigerBeetle image from GitHub       |
+| **Port (Internal)** | `3000`                                   | Client connection port (Docker network only) |
+| **Data Volume**     | `tigerbeetle-data`                       | Named volume for persistent cluster data     |
+| **Cluster ID**      | `0` (default)                            | Unique cluster identifier (immutable)        |
+| **Replica Count**   | `1` (development)                        | Single-node for development                  |
 
 **Important:** TigerBeetle port 3000 is **internal-only** (not exposed to host) for security. Connectors access TigerBeetle via Docker network hostname: `tigerbeetle:3000`
 
@@ -1240,12 +1240,12 @@ docker run --rm \
 
 TigerBeetle is configured via environment variables in `.env.production.example`:
 
-| Variable                    | Default | Description                                    |
-| --------------------------- | ------- | ---------------------------------------------- |
-| `TIGERBEETLE_CLUSTER_ID`    | `0`     | Unique cluster identifier (immutable)          |
-| `TIGERBEETLE_REPLICA_COUNT` | `1`     | Number of replicas (1 for dev, 3-5 for prod)  |
-| `TIGERBEETLE_PORT`          | `3000`  | Internal port (do NOT expose to host)          |
-| `TIGERBEETLE_DATA_DIR`      | `/data` | Data directory inside container                |
+| Variable                    | Default | Description                                  |
+| --------------------------- | ------- | -------------------------------------------- |
+| `TIGERBEETLE_CLUSTER_ID`    | `0`     | Unique cluster identifier (immutable)        |
+| `TIGERBEETLE_REPLICA_COUNT` | `1`     | Number of replicas (1 for dev, 3-5 for prod) |
+| `TIGERBEETLE_PORT`          | `3000`  | Internal port (do NOT expose to host)        |
+| `TIGERBEETLE_DATA_DIR`      | `/data` | Data directory inside container              |
 
 **Example `.env` file:**
 
@@ -1332,6 +1332,7 @@ For comprehensive TigerBeetle deployment guide, see:
 **📖 [TigerBeetle Deployment Guide](docs/guides/tigerbeetle-deployment.md)**
 
 Topics covered:
+
 - Single-node vs multi-replica deployment
 - Cluster configuration and initialization
 - Backup and restore procedures
@@ -1463,15 +1464,15 @@ The production deployment configuration (`docker-compose-production.yml`) is opt
 
 ### Production vs Development
 
-| Aspect | Development (docker-compose.yml) | Production (docker-compose-production.yml) |
-|--------|----------------------------------|-------------------------------------------|
-| **Nodes** | Multi-node (3-5-8 nodes) | Single node |
-| **Logging** | DEBUG level, pretty-printed | INFO level, JSON structured |
-| **Secrets** | Hardcoded in YAML (acceptable for dev) | Environment variables (.env file) |
-| **Ports** | All exposed to host | Minimal (BTP only, health internal) |
-| **Restart** | No restart policy | `restart: unless-stopped` |
-| **User** | Root (default) | Non-root (node user) |
-| **Dashboard** | Always deployed | Optional (disabled by default) |
+| Aspect        | Development (docker-compose.yml)       | Production (docker-compose-production.yml) |
+| ------------- | -------------------------------------- | ------------------------------------------ |
+| **Nodes**     | Multi-node (3-5-8 nodes)               | Single node                                |
+| **Logging**   | DEBUG level, pretty-printed            | INFO level, JSON structured                |
+| **Secrets**   | Hardcoded in YAML (acceptable for dev) | Environment variables (.env file)          |
+| **Ports**     | All exposed to host                    | Minimal (BTP only, health internal)        |
+| **Restart**   | No restart policy                      | `restart: unless-stopped`                  |
+| **User**      | Root (default)                         | Non-root (node user)                       |
+| **Dashboard** | Always deployed                        | Optional (disabled by default)             |
 
 ### Prerequisites
 
@@ -1523,6 +1524,7 @@ openssl rand -base64 32
 ```
 
 **Example output:**
+
 ```
 h3xK9mP2vQ7wL5nR8tY1uI4oA6sD3fG0jH2kL9mN5bV8cX1zW4qE7rT0yU3iO6pA
 ```
@@ -1642,11 +1644,11 @@ BTP peer secrets follow the naming pattern: `BTP_PEER_<PEER_ID_UPPERCASE>_SECRET
 
 **Examples:**
 
-| Peer ID in YAML | Environment Variable |
-|----------------|---------------------|
+| Peer ID in YAML    | Environment Variable               |
+| ------------------ | ---------------------------------- |
 | `remote-connector` | `BTP_PEER_REMOTE_CONNECTOR_SECRET` |
-| `peer-1` | `BTP_PEER_PEER_1_SECRET` |
-| `backup-node` | `BTP_PEER_BACKUP_NODE_SECRET` |
+| `peer-1`           | `BTP_PEER_PEER_1_SECRET`           |
+| `backup-node`      | `BTP_PEER_BACKUP_NODE_SECRET`      |
 
 The peer ID is converted to uppercase and hyphens/underscores are preserved.
 

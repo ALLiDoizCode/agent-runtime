@@ -81,9 +81,7 @@ export interface EncodedAccountMetadata {
  * //   user_data_32: 0
  * // }
  */
-export function encodeAccountMetadata(
-  metadata: PeerAccountMetadata
-): EncodedAccountMetadata {
+export function encodeAccountMetadata(metadata: PeerAccountMetadata): EncodedAccountMetadata {
   // Hash nodeId to 64-bit integer (upper half of user_data_128)
   const nodeIdHash = hashStringTo64Bit(metadata.nodeId);
 

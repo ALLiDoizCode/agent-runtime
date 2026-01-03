@@ -5,13 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { TelemetryEvent } from '@/hooks/useTelemetry';
 
@@ -200,11 +194,7 @@ export function SettlementTimeline({ events, connected }: SettlementTimelineProp
           <div className="text-sm text-muted-foreground">Loading settlement events...</div>
         )}
 
-        {error && (
-          <div className="text-sm text-destructive">
-            Error: {error}
-          </div>
-        )}
+        {error && <div className="text-sm text-destructive">Error: {error}</div>}
 
         {!loading && !error && settlementEvents.length === 0 && (
           <div className="text-sm text-muted-foreground">
@@ -228,14 +218,10 @@ export function SettlementTimeline({ events, connected }: SettlementTimelineProp
                       ) : event.type === 'SETTLEMENT_COMPLETED' ? (
                         <Badge
                           variant={
-                            (event as SettlementCompletedEvent).success
-                              ? 'default'
-                              : 'destructive'
+                            (event as SettlementCompletedEvent).success ? 'default' : 'destructive'
                           }
                         >
-                          {(event as SettlementCompletedEvent).success
-                            ? 'Completed'
-                            : 'Failed'}
+                          {(event as SettlementCompletedEvent).success ? 'Completed' : 'Failed'}
                         </Badge>
                       ) : null}
                       <span className="text-xs text-muted-foreground">
@@ -253,16 +239,9 @@ export function SettlementTimeline({ events, connected }: SettlementTimelineProp
                     {event.type === 'SETTLEMENT_TRIGGERED' && (
                       <div className="text-sm text-muted-foreground">
                         Balance exceeded threshold:{' '}
-                        <span className="font-mono">
-                          {formatBalance(event.currentBalance)}
-                        </span>{' '}
-                        &gt;{' '}
-                        <span className="font-mono">
-                          {formatBalance(event.threshold)}
-                        </span>
-                        <span className="text-xs ml-2">
-                          (+{formatBalance(event.exceedsBy)})
-                        </span>
+                        <span className="font-mono">{formatBalance(event.currentBalance)}</span>{' '}
+                        &gt; <span className="font-mono">{formatBalance(event.threshold)}</span>
+                        <span className="text-xs ml-2">(+{formatBalance(event.exceedsBy)})</span>
                       </div>
                     )}
 
@@ -271,29 +250,21 @@ export function SettlementTimeline({ events, connected }: SettlementTimelineProp
                         {event.success ? (
                           <>
                             Settled{' '}
-                            <span className="font-mono">
-                              {formatBalance(event.settledAmount)}
-                            </span>
+                            <span className="font-mono">{formatBalance(event.settledAmount)}</span>
                             {' · '}
                             Balance:{' '}
                             <span className="font-mono">
                               {formatBalance(event.previousBalance)}
                             </span>
                             {' → '}
-                            <span className="font-mono">
-                              {formatBalance(event.newBalance)}
-                            </span>
-                            <span className="text-xs ml-2">
-                              ({event.settlementType})
-                            </span>
+                            <span className="font-mono">{formatBalance(event.newBalance)}</span>
+                            <span className="text-xs ml-2">({event.settlementType})</span>
                           </>
                         ) : (
                           <>
                             Settlement failed
                             {event.errorMessage && (
-                              <span className="text-destructive">
-                                : {event.errorMessage}
-                              </span>
+                              <span className="text-destructive">: {event.errorMessage}</span>
                             )}
                           </>
                         )}
@@ -301,9 +272,7 @@ export function SettlementTimeline({ events, connected }: SettlementTimelineProp
                     )}
 
                     {/* Node ID */}
-                    <div className="text-xs text-muted-foreground">
-                      Node: {event.nodeId}
-                    </div>
+                    <div className="text-xs text-muted-foreground">Node: {event.nodeId}</div>
                   </div>
                 </div>
               </div>

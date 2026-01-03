@@ -51,6 +51,7 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
       createPeerAccounts: jest.fn(),
       getAccountBalance: jest.fn(),
       recordPacketTransfers: jest.fn().mockResolvedValue(undefined),
+      checkCreditLimit: jest.fn().mockResolvedValue(null),
     };
     return mockAccountManager as unknown as jest.Mocked<AccountManager>;
   };

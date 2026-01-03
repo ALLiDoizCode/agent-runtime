@@ -97,10 +97,7 @@ function cleanupDockerCompose(): void {
 /**
  * Wait for a specific container to be healthy
  */
-async function waitForHealthy(
-  containerName: string,
-  timeoutMs: number = 60000
-): Promise<void> {
+async function waitForHealthy(containerName: string, timeoutMs: number = 60000): Promise<void> {
   const startTime = Date.now();
 
   while (Date.now() - startTime < timeoutMs) {
@@ -138,10 +135,7 @@ async function waitForHealthy(
 /**
  * Wait for a specific container to be running
  */
-async function waitForRunning(
-  containerName: string,
-  timeoutMs: number = 30000
-): Promise<void> {
+async function waitForRunning(containerName: string, timeoutMs: number = 30000): Promise<void> {
   const startTime = Date.now();
 
   while (Date.now() - startTime < timeoutMs) {

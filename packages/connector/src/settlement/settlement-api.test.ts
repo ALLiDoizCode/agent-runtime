@@ -67,10 +67,7 @@ describe('Settlement API', () => {
     });
 
     test('should return 400 if peerId missing', async () => {
-      const response = await request(app)
-        .post('/settlement/execute')
-        .send({})
-        .expect(400);
+      const response = await request(app).post('/settlement/execute').send({}).expect(400);
 
       expect(response.body.error).toContain('Invalid peerId');
     });
@@ -122,11 +119,7 @@ describe('Settlement API', () => {
         .expect(200);
 
       expect(response.body.tokenId).toBe('ILP');
-      expect(mockAccountManager.recordSettlement).toHaveBeenCalledWith(
-        'peer-a',
-        'ILP',
-        1000n
-      );
+      expect(mockAccountManager.recordSettlement).toHaveBeenCalledWith('peer-a', 'ILP', 1000n);
     });
 
     test('should return 200 with valid response on success', async () => {
@@ -229,25 +222,17 @@ describe('Settlement API', () => {
     });
 
     test('should return 404 if account not found', async () => {
-      mockAccountManager.getAccountBalance.mockRejectedValueOnce(
-        new Error('Account not found')
-      );
+      mockAccountManager.getAccountBalance.mockRejectedValueOnce(new Error('Account not found'));
 
-      const response = await request(app)
-        .get('/settlement/status/peer-unknown')
-        .expect(404);
+      const response = await request(app).get('/settlement/status/peer-unknown').expect(404);
 
       expect(response.body.error).toContain('Account not found');
     });
 
     test('should return 500 on balance query failure', async () => {
-      mockAccountManager.getAccountBalance.mockRejectedValueOnce(
-        new Error('Database error')
-      );
+      mockAccountManager.getAccountBalance.mockRejectedValueOnce(new Error('Database error'));
 
-      const response = await request(app)
-        .get('/settlement/status/peer-a')
-        .expect(500);
+      const response = await request(app).get('/settlement/status/peer-a').expect(500);
 
       expect(response.body.error).toContain('Database error');
     });
@@ -430,11 +415,7 @@ describe('Settlement API', () => {
         .send({ peerId: 'peer-a', tokenId: 'ILP' })
         .expect(200);
 
-      expect(mockAccountManager.recordSettlement).toHaveBeenCalledWith(
-        'peer-a',
-        'ILP',
-        1200n
-      );
+      expect(mockAccountManager.recordSettlement).toHaveBeenCalledWith('peer-a', 'ILP', 1200n);
       expect(response.body.previousBalance).toBe('1200');
       expect(response.body.newBalance).toBe('0');
       expect(response.body.settledAmount).toBe('1200');
@@ -459,14 +440,8 @@ describe('Settlement API', () => {
         .expect(200);
 
       // Verify state transitions
-      expect(mockSettlementMonitor.markSettlementInProgress).toHaveBeenCalledWith(
-        'peer-a',
-        'ILP'
-      );
-      expect(mockSettlementMonitor.markSettlementCompleted).toHaveBeenCalledWith(
-        'peer-a',
-        'ILP'
-      );
+      expect(mockSettlementMonitor.markSettlementInProgress).toHaveBeenCalledWith('peer-a', 'ILP');
+      expect(mockSettlementMonitor.markSettlementCompleted).toHaveBeenCalledWith('peer-a', 'ILP');
     });
 
     test('should handle settlement errors gracefully', async () => {

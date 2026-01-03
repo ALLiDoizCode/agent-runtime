@@ -28,13 +28,9 @@
 import { EventEmitter } from 'events';
 import type { Logger } from 'pino';
 import type { AccountManager } from './account-manager';
-import type {
-  SettlementThresholdConfig,
-  SettlementTriggerEvent,
-} from '../config/types';
+import type { SettlementThresholdConfig, SettlementTriggerEvent } from '../config/types';
 import { SettlementState } from '../config/types';
 import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
-
 
 /**
  * Settlement Monitor Configuration
@@ -132,11 +128,7 @@ export class SettlementMonitor extends EventEmitter {
    * @param accountManager - AccountManager instance for balance queries
    * @param logger - Pino logger instance
    */
-  constructor(
-    config: SettlementMonitorConfig,
-    accountManager: AccountManager,
-    logger: Logger
-  ) {
+  constructor(config: SettlementMonitorConfig, accountManager: AccountManager, logger: Logger) {
     super();
 
     this._config = config;
@@ -284,8 +276,7 @@ export class SettlementMonitor extends EventEmitter {
 
           // Get current settlement state
           const stateKey = `${peerId}:${tokenId}`;
-          const currentState =
-            this._settlementStates.get(stateKey) ?? SettlementState.IDLE;
+          const currentState = this._settlementStates.get(stateKey) ?? SettlementState.IDLE;
 
           // Check if creditBalance exceeds threshold
           if (balance.creditBalance > threshold) {
@@ -424,10 +415,7 @@ export class SettlementMonitor extends EventEmitter {
     const stateKey = `${peerId}:${tokenId}`;
     this._settlementStates.set(stateKey, SettlementState.SETTLEMENT_IN_PROGRESS);
 
-    this._logger.info(
-      { peerId, tokenId },
-      'Settlement marked in progress'
-    );
+    this._logger.info({ peerId, tokenId }, 'Settlement marked in progress');
   }
 
   /**
@@ -444,10 +432,7 @@ export class SettlementMonitor extends EventEmitter {
     const stateKey = `${peerId}:${tokenId}`;
     this._settlementStates.set(stateKey, SettlementState.IDLE);
 
-    this._logger.info(
-      { peerId, tokenId },
-      'Settlement completed, state reset to IDLE'
-    );
+    this._logger.info({ peerId, tokenId }, 'Settlement completed, state reset to IDLE');
   }
 
   /**

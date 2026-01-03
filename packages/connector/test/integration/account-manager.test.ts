@@ -68,9 +68,7 @@ describe('AccountManager Integration Tests', () => {
       // Initialize with timeout
       await Promise.race([
         tigerBeetleClient.initialize(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Connection timeout')), 5000)
-        ),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000)),
       ]);
 
       // Initialize AccountManager with timestamp-based node ID for uniqueness across test runs
@@ -79,9 +77,7 @@ describe('AccountManager Integration Tests', () => {
 
       console.log('TigerBeetle client and AccountManager initialized successfully');
     } catch (error) {
-      console.log(
-        'TigerBeetle container not accessible. Integration tests will be skipped.'
-      );
+      console.log('TigerBeetle container not accessible. Integration tests will be skipped.');
       console.log(
         'To run integration tests, ensure TigerBeetle container is running with port 3000 exposed.'
       );

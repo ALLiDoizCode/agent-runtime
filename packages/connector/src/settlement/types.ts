@@ -41,7 +41,7 @@ export enum AccountType {
    * Balance increases when we send packets to peer.
    * Represents amount we owe peer (accounts payable).
    */
-  CREDIT = 'credit'
+  CREDIT = 'credit',
 }
 
 /**
@@ -155,7 +155,7 @@ export const AccountLedgerCodes = {
    * Account code for peer credit accounts (accounts payable).
    * All credit accounts use code 200 for consistent categorization.
    */
-  ACCOUNT_CODE_PEER_CREDIT: 200
+  ACCOUNT_CODE_PEER_CREDIT: 200,
 } as const;
 
 /**
