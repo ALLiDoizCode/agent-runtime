@@ -53,6 +53,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build shared package (required for tests)
+        run: npm run build --workspace=packages/shared
+
       - name: Run tests with coverage
         run: npm test -- --coverage --ci
 
