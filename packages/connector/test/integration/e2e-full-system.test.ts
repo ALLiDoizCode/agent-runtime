@@ -255,7 +255,9 @@ async function createTestBTPClient(): Promise<BTPClient> {
 // Skip all tests if Docker or Docker Compose are not available
 const dockerAvailable = isDockerAvailable();
 const composeAvailable = isDockerComposeAvailable();
-const describeIfDockerCompose = dockerAvailable && composeAvailable ? describe : describe.skip;
+const e2eEnabled = process.env.E2E_TESTS === 'true';
+const describeIfDockerCompose =
+  dockerAvailable && composeAvailable && e2eEnabled ? describe : describe.skip;
 
 describeIfDockerCompose('E2E Full System Integration', () => {
   let containerLogs: { [key: string]: string } = {};
