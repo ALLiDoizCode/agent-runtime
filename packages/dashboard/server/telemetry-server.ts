@@ -8,7 +8,6 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Logger } from 'pino';
 import { TelemetryMessage, isTelemetryMessage } from './types.js';
 import {
-  TelemetryEvent,
   AccountBalanceEvent,
   SettlementTriggeredEvent,
   SettlementCompletedEvent,
