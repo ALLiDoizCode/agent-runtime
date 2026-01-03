@@ -247,7 +247,7 @@ async function createTestBTPClient(): Promise<BTPClient> {
   };
 
   const logger = createLogger('testClient', 'error');
-  const client = new BTPClient(testPeer, logger);
+  const client = new BTPClient(testPeer, 'test-client', logger);
   await client.connect();
   return client;
 }
