@@ -98,7 +98,7 @@ export const PaymentChannelsPanel: React.FC<PaymentChannelsPanelProps> = ({
   };
 
   // Toggle channel expansion
-  const toggleExpanded = (channelId: string) => {
+  const toggleExpanded = (channelId: string): void => {
     setExpandedChannel(expandedChannel === channelId ? null : channelId);
   };
 

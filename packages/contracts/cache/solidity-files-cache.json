@@ -679,8 +679,8 @@
       "seenByCompiler": true
     },
     "script/Deploy.s.sol": {
-      "lastModificationDate": 1767621101942,
-      "contentHash": "8c01bc9576e8469a",
+      "lastModificationDate": 1767704716041,
+      "contentHash": "37fdfe7b381a6d10",
       "interfaceReprHash": null,
       "sourceName": "script/Deploy.s.sol",
       "imports": [
@@ -722,15 +722,15 @@
       "artifacts": {
         "DeployScript": {
           "0.8.20": {
-            "default": { "path": "Deploy.s.sol/DeployScript.json", "build_id": "81b4e3fa7868ea59" }
+            "default": { "path": "Deploy.s.sol/DeployScript.json", "build_id": "1751c970622771d9" }
           }
         }
       },
       "seenByCompiler": true
     },
     "src/MockERC20.sol": {
-      "lastModificationDate": 1767561183954,
-      "contentHash": "ae4e32a1c2f70358",
+      "lastModificationDate": 1767704716036,
+      "contentHash": "7ee001c4f0b2317d",
       "interfaceReprHash": null,
       "sourceName": "src/MockERC20.sol",
       "imports": [
@@ -744,14 +744,14 @@
       "artifacts": {
         "MockERC20": {
           "0.8.20": {
-            "default": { "path": "MockERC20.sol/MockERC20.json", "build_id": "f492cff77d7636b0" }
+            "default": { "path": "MockERC20.sol/MockERC20.json", "build_id": "1751c970622771d9" }
           }
         }
       },
       "seenByCompiler": true
     },
     "src/MockFeeOnTransferERC20.sol": {
-      "lastModificationDate": 1767567023332,
+      "lastModificationDate": 1767663726979,
       "contentHash": "75decebf3bcadcba",
       "interfaceReprHash": null,
       "sourceName": "src/MockFeeOnTransferERC20.sol",
@@ -769,7 +769,7 @@
           "0.8.20": {
             "default": {
               "path": "MockFeeOnTransferERC20.sol/MockFeeOnTransferERC20.json",
-              "build_id": "a665592f6d8fab94"
+              "build_id": "1751c970622771d9"
             }
           }
         }
@@ -777,8 +777,8 @@
       "seenByCompiler": true
     },
     "src/TokenNetwork.sol": {
-      "lastModificationDate": 1767572728804,
-      "contentHash": "95638c4722fb4e19",
+      "lastModificationDate": 1767704716039,
+      "contentHash": "b32e993514386c4a",
       "interfaceReprHash": null,
       "sourceName": "src/TokenNetwork.sol",
       "imports": [
@@ -801,7 +801,7 @@
           "0.8.20": {
             "default": {
               "path": "TokenNetwork.sol/TokenNetwork.json",
-              "build_id": "ae1181ad6c842397"
+              "build_id": "1751c970622771d9"
             }
           }
         }
@@ -809,8 +809,8 @@
       "seenByCompiler": true
     },
     "src/TokenNetworkRegistry.sol": {
-      "lastModificationDate": 1767566705799,
-      "contentHash": "31780864ecd09570",
+      "lastModificationDate": 1767704716038,
+      "contentHash": "6ccb02fc5f1e0928",
       "interfaceReprHash": null,
       "sourceName": "src/TokenNetworkRegistry.sol",
       "imports": [
@@ -834,7 +834,7 @@
           "0.8.20": {
             "default": {
               "path": "TokenNetworkRegistry.sol/TokenNetworkRegistry.json",
-              "build_id": "ae1181ad6c842397"
+              "build_id": "1751c970622771d9"
             }
           }
         }
@@ -842,8 +842,8 @@
       "seenByCompiler": true
     },
     "test/Deploy.t.sol": {
-      "lastModificationDate": 1767551049110,
-      "contentHash": "20f1fda11980125f",
+      "lastModificationDate": 1767704716036,
+      "contentHash": "04d33ab5d18dbdbc",
       "interfaceReprHash": null,
       "sourceName": "test/Deploy.t.sol",
       "imports": [
@@ -877,15 +877,15 @@
       "artifacts": {
         "DeployTest": {
           "0.8.20": {
-            "default": { "path": "Deploy.t.sol/DeployTest.json", "build_id": "2783d554366b0224" }
+            "default": { "path": "Deploy.t.sol/DeployTest.json", "build_id": "1751c970622771d9" }
           }
         }
       },
       "seenByCompiler": true
     },
     "test/Fuzz.t.sol": {
-      "lastModificationDate": 1767618153996,
-      "contentHash": "670817f56c5d2dec",
+      "lastModificationDate": 1767704716040,
+      "contentHash": "de510310e6f2b4b3",
       "interfaceReprHash": null,
       "sourceName": "test/Fuzz.t.sol",
       "imports": [
@@ -931,15 +931,15 @@
       "artifacts": {
         "FuzzTest": {
           "0.8.20": {
-            "default": { "path": "Fuzz.t.sol/FuzzTest.json", "build_id": "072bd3bdec4eb8e6" }
+            "default": { "path": "Fuzz.t.sol/FuzzTest.json", "build_id": "1751c970622771d9" }
           }
         }
       },
       "seenByCompiler": true
     },
     "test/GasBenchmark.t.sol": {
-      "lastModificationDate": 1767616444954,
-      "contentHash": "ccb0f7860af1f5c4",
+      "lastModificationDate": 1767704716040,
+      "contentHash": "7eb6be277e973b7e",
       "interfaceReprHash": null,
       "sourceName": "test/GasBenchmark.t.sol",
       "imports": [
@@ -987,7 +987,7 @@
           "0.8.20": {
             "default": {
               "path": "GasBenchmark.t.sol/GasBenchmarkTest.json",
-              "build_id": "3a4cc5f0b24d3575"
+              "build_id": "1751c970622771d9"
             }
           }
         }
@@ -995,8 +995,8 @@
       "seenByCompiler": true
     },
     "test/Integration.t.sol": {
-      "lastModificationDate": 1767551373791,
-      "contentHash": "2df3c9dffeee84f2",
+      "lastModificationDate": 1767704716038,
+      "contentHash": "cdd41a2fab5ea837",
       "interfaceReprHash": null,
       "sourceName": "test/Integration.t.sol",
       "imports": [
@@ -1032,7 +1032,7 @@
           "0.8.20": {
             "default": {
               "path": "Integration.t.sol/IntegrationTest.json",
-              "build_id": "2783d554366b0224"
+              "build_id": "1751c970622771d9"
             }
           }
         }
@@ -1040,8 +1040,8 @@
       "seenByCompiler": true
     },
     "test/IntegrationMultiChannel.t.sol": {
-      "lastModificationDate": 1767616935163,
-      "contentHash": "e9c305fc305132fa",
+      "lastModificationDate": 1767704716038,
+      "contentHash": "9c83bd03b2a770ab",
       "interfaceReprHash": null,
       "sourceName": "test/IntegrationMultiChannel.t.sol",
       "imports": [
@@ -1089,7 +1089,7 @@
           "0.8.20": {
             "default": {
               "path": "IntegrationMultiChannel.t.sol/IntegrationMultiChannelTest.json",
-              "build_id": "8a19d39ff159a9f3"
+              "build_id": "1751c970622771d9"
             }
           }
         }
@@ -1097,8 +1097,8 @@
       "seenByCompiler": true
     },
     "test/TokenNetwork.t.sol": {
-      "lastModificationDate": 1767572767922,
-      "contentHash": "70b473b3fdcd079c",
+      "lastModificationDate": 1767704737519,
+      "contentHash": "d6a2b9bfa91f8174",
       "interfaceReprHash": null,
       "sourceName": "test/TokenNetwork.t.sol",
       "imports": [
@@ -1147,7 +1147,7 @@
           "0.8.20": {
             "default": {
               "path": "TokenNetwork.t.sol/TokenNetworkTest.json",
-              "build_id": "ae1181ad6c842397"
+              "build_id": "1751c970622771d9"
             }
           }
         }
@@ -1155,8 +1155,8 @@
       "seenByCompiler": true
     },
     "test/TokenNetworkRegistry.t.sol": {
-      "lastModificationDate": 1767566868982,
-      "contentHash": "94fe5c342b885f4a",
+      "lastModificationDate": 1767704716038,
+      "contentHash": "f42fcb0bc87b6af1",
       "interfaceReprHash": null,
       "sourceName": "test/TokenNetworkRegistry.t.sol",
       "imports": [
@@ -1204,7 +1204,7 @@
           "0.8.20": {
             "default": {
               "path": "TokenNetworkRegistry.t.sol/TokenNetworkRegistryTest.json",
-              "build_id": "5f860363184da0c7"
+              "build_id": "1751c970622771d9"
             }
           }
         }
@@ -1212,18 +1212,7 @@
       "seenByCompiler": true
     }
   },
-  "builds": [
-    "0168033f071d456f",
-    "072bd3bdec4eb8e6",
-    "2783d554366b0224",
-    "3a4cc5f0b24d3575",
-    "5f860363184da0c7",
-    "81b4e3fa7868ea59",
-    "8a19d39ff159a9f3",
-    "a665592f6d8fab94",
-    "ae1181ad6c842397",
-    "f492cff77d7636b0"
-  ],
+  "builds": ["0168033f071d456f", "1751c970622771d9", "2783d554366b0224", "f492cff77d7636b0"],
   "profiles": {
     "default": {
       "solc": {
