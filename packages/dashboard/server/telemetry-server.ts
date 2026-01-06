@@ -180,32 +180,34 @@ export class TelemetryServer {
       return;
     }
 
+    // Type assertion: At this point, message has passed validation and has a type field
+    const typedMessage = message as { type: string; nodeId?: string } & Record<string, unknown>;
+
     // Handle telemetry events from connectors
-    if (this.isTelemetryEvent(message.type)) {
+    if (this.isTelemetryEvent(typedMessage.type)) {
       // Register connector if not already registered
-      if (!ws.nodeId && message.nodeId) {
-        this.registerConnector(ws, message.nodeId);
+      if (!ws.nodeId && typedMessage.nodeId) {
+        this.registerConnector(ws, typedMessage.nodeId);
       }
 
       // Cache NODE_STATUS messages for replay to new clients
-      if (message.type === 'NODE_STATUS' && message.nodeId) {
-        this.lastNodeStatus.set(message.nodeId, message);
+      if (typedMessage.type === 'NODE_STATUS' && typedMessage.nodeId) {
+        this.lastNodeStatus.set(typedMessage.nodeId, typedMessage as unknown as TelemetryMessage);
       }
 
       // Handle settlement telemetry events (Story 6.8)
-      this.handleSettlementTelemetry(message);
+      this.handleSettlementTelemetry(typedMessage);
 
       // Handle payment channel telemetry events (Story 8.10)
-      this.handleChannelTelemetry(message);
+      this.handleChannelTelemetry(typedMessage);
 
       // Broadcast to all clients (for non-channel events, channels broadcast themselves)
-      const messageType = (message as { type: string }).type;
       if (
-        messageType !== 'PAYMENT_CHANNEL_OPENED' &&
-        messageType !== 'PAYMENT_CHANNEL_BALANCE_UPDATE' &&
-        messageType !== 'PAYMENT_CHANNEL_SETTLED'
+        typedMessage.type !== 'PAYMENT_CHANNEL_OPENED' &&
+        typedMessage.type !== 'PAYMENT_CHANNEL_BALANCE_UPDATE' &&
+        typedMessage.type !== 'PAYMENT_CHANNEL_SETTLED'
       ) {
-        this.broadcast(message as BroadcastMessage);
+        this.broadcast(typedMessage as BroadcastMessage);
       }
     }
   }
@@ -413,7 +415,7 @@ export class TelemetryServer {
 
     this.logger.debug('Broadcasting telemetry event', {
       type: message.type,
-      nodeId: message.nodeId,
+      nodeId: 'nodeId' in message ? message.nodeId : undefined,
     });
   }
 

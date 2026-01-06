@@ -22,6 +22,7 @@
 import WebSocket from 'ws';
 import { TelemetryServer } from '../../server/telemetry-server.js';
 import { logger } from '../../server/logger.js';
+import type { ChannelState } from '../../server/channel-state-manager.js';
 import type {
   PaymentChannelOpenedEvent,
   PaymentChannelBalanceUpdateEvent,
@@ -184,7 +185,7 @@ describe('Payment Channel Visualization Integration Tests', () => {
     connectorWs.send(JSON.stringify(channelOpenedEvent));
 
     // Assert: Verify client received channel opened event
-    const receivedEvent = await clientEventPromise;
+    const receivedEvent = (await clientEventPromise) as PaymentChannelOpenedEvent;
     expect(receivedEvent.type).toBe('PAYMENT_CHANNEL_OPENED');
     expect(receivedEvent.channelId).toBe(channelOpenedEvent.channelId);
     expect(receivedEvent.nodeId).toBe('test-connector-a');
@@ -250,7 +251,7 @@ describe('Payment Channel Visualization Integration Tests', () => {
     connectorWs.send(JSON.stringify(balanceUpdateEvent));
 
     // Assert: Verify client received balance update
-    const receivedUpdate = await balanceUpdatePromise;
+    const receivedUpdate = (await balanceUpdatePromise) as PaymentChannelBalanceUpdateEvent;
     expect(receivedUpdate.type).toBe('PAYMENT_CHANNEL_BALANCE_UPDATE');
     expect(receivedUpdate.channelId).toBe(channelId);
     expect(receivedUpdate.myNonce).toBe(42);
@@ -317,7 +318,7 @@ describe('Payment Channel Visualization Integration Tests', () => {
     connectorWs.send(JSON.stringify(channelSettledEvent));
 
     // Assert: Verify client received settlement event
-    const receivedSettlement = await settledPromise;
+    const receivedSettlement = (await settledPromise) as PaymentChannelSettledEvent;
     expect(receivedSettlement.type).toBe('PAYMENT_CHANNEL_SETTLED');
     expect(receivedSettlement.channelId).toBe(channelId);
     expect(receivedSettlement.settlementType).toBe('cooperative');
@@ -463,10 +464,13 @@ describe('Payment Channel Visualization Integration Tests', () => {
     clientWs.send(JSON.stringify({ type: 'CLIENT_CONNECT' }));
 
     // Assert: Verify initial state includes existing channel
-    const initialState = await initialStatePromise;
+    const initialState = (await initialStatePromise) as {
+      type: 'INITIAL_CHANNEL_STATE';
+      channels: ChannelState[];
+    };
     expect(initialState.type).toBe('INITIAL_CHANNEL_STATE');
     expect(initialState.channels).toHaveLength(1);
-    expect(initialState.channels[0].channelId).toBe(channelOpenedEvent.channelId);
-    expect(initialState.channels[0].status).toBe('active');
+    expect(initialState.channels[0]?.channelId).toBe(channelOpenedEvent.channelId);
+    expect(initialState.channels[0]?.status).toBe('active');
   });
 });
