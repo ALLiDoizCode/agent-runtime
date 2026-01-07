@@ -7,3 +7,6 @@ package-lock.json
 .bmad-infrastructure-devops
 .claude
 rfc-skills-packages
+**/lib/**
+packages/contracts/out
+packages/contracts/cache
