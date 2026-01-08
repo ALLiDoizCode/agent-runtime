@@ -31,6 +31,14 @@ export enum TelemetryEventType {
   SETTLEMENT_COMPLETED = 'SETTLEMENT_COMPLETED',
   /** Agent balance changed event - emitted when agent wallet balance changes (Story 11.3) */
   AGENT_BALANCE_CHANGED = 'AGENT_BALANCE_CHANGED',
+  /** Agent wallet funded event - emitted when agent wallet receives initial funding (Story 11.4) */
+  AGENT_WALLET_FUNDED = 'AGENT_WALLET_FUNDED',
+  /** Funding rate limit exceeded event - emitted when rate limit hit (Story 11.4) */
+  FUNDING_RATE_LIMIT_EXCEEDED = 'FUNDING_RATE_LIMIT_EXCEEDED',
+  /** Funding transaction confirmed event - emitted when funding tx confirmed on-chain (Story 11.4) */
+  FUNDING_TRANSACTION_CONFIRMED = 'FUNDING_TRANSACTION_CONFIRMED',
+  /** Funding transaction failed event - emitted when funding tx fails (Story 11.4) */
+  FUNDING_TRANSACTION_FAILED = 'FUNDING_TRANSACTION_FAILED',
 }
 
 /**
@@ -281,6 +289,160 @@ export interface AgentBalanceChangedEvent {
 }
 
 /**
+ * Funding Transaction Interface
+ *
+ * Represents a single funding transaction (ETH, ERC20, or XRP).
+ * Used by AgentWalletFundedEvent (Story 11.4).
+ */
+export interface FundingTransaction {
+  /** Blockchain ('evm' or 'xrp') */
+  chain: 'evm' | 'xrp';
+  /** Token identifier ('ETH', ERC20 address, or 'XRP') */
+  token: string;
+  /** Recipient address */
+  to: string;
+  /** Amount as string (bigint serialized) */
+  amount: string;
+  /** Transaction hash for on-chain lookup */
+  txHash: string;
+  /** Transaction status */
+  status: 'pending' | 'confirmed' | 'failed';
+}
+
+/**
+ * Agent Wallet Funded Telemetry Event
+ *
+ * Emitted when AgentWalletFunder (Story 11.4) successfully funds a new agent wallet.
+ * Indicates agent received initial ETH, ERC20 tokens, and XRP funding.
+ *
+ * **BigInt Serialization:** All amount fields in transactions are strings (bigint serialized for JSON).
+ *
+ * **Dashboard Usage:**
+ * - Story 11.7 dashboard displays funding events in real-time
+ * - Funding history panel shows transaction details
+ *
+ * @example
+ * ```typescript
+ * const event: AgentWalletFundedEvent = {
+ *   type: 'AGENT_WALLET_FUNDED',
+ *   agentId: 'agent-001',
+ *   evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+ *   xrpAddress: 'rN7n7otQDd6FczFgLdlqtyMVrn3WnFBrJT',
+ *   transactions: [
+ *     { chain: 'evm', token: 'ETH', to: '0x742d35Cc...', amount: '10000000000000000', txHash: '0xabc...', status: 'pending' },
+ *     { chain: 'xrp', token: 'XRP', to: 'rN7n7otQDd...', amount: '15000000', txHash: 'ABC123...', status: 'pending' }
+ *   ],
+ *   timestamp: '2026-01-08T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface AgentWalletFundedEvent {
+  /** Event type discriminator */
+  type: 'AGENT_WALLET_FUNDED';
+  /** Agent identifier */
+  agentId: string;
+  /** Agent EVM address */
+  evmAddress: string;
+  /** Agent XRP address */
+  xrpAddress: string;
+  /** List of funding transactions */
+  transactions: FundingTransaction[];
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Funding Rate Limit Exceeded Telemetry Event
+ *
+ * Emitted when AgentWalletFunder (Story 11.4) denies funding due to rate limit.
+ * Indicates potential abuse or misconfiguration.
+ *
+ * @example
+ * ```typescript
+ * const event: FundingRateLimitExceededEvent = {
+ *   type: 'FUNDING_RATE_LIMIT_EXCEEDED',
+ *   agentId: 'agent-001',
+ *   violatedLimit: 'per_agent',
+ *   timestamp: '2026-01-08T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface FundingRateLimitExceededEvent {
+  /** Event type discriminator */
+  type: 'FUNDING_RATE_LIMIT_EXCEEDED';
+  /** Agent identifier */
+  agentId: string;
+  /** Which rate limit was violated */
+  violatedLimit: 'per_agent' | 'per_hour';
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Funding Transaction Confirmed Telemetry Event
+ *
+ * Emitted when AgentWalletFunder (Story 11.4) confirms funding transaction on-chain.
+ *
+ * @example
+ * ```typescript
+ * const event: FundingTransactionConfirmedEvent = {
+ *   type: 'FUNDING_TRANSACTION_CONFIRMED',
+ *   agentId: 'agent-001',
+ *   txHash: '0xabc123...',
+ *   chain: 'evm',
+ *   status: 'confirmed',
+ *   timestamp: '2026-01-08T12:01:00.000Z'
+ * };
+ * ```
+ */
+export interface FundingTransactionConfirmedEvent {
+  /** Event type discriminator */
+  type: 'FUNDING_TRANSACTION_CONFIRMED';
+  /** Agent identifier */
+  agentId: string;
+  /** Transaction hash */
+  txHash: string;
+  /** Blockchain ('evm' or 'xrp') */
+  chain: string;
+  /** Transaction status */
+  status: 'confirmed';
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Funding Transaction Failed Telemetry Event
+ *
+ * Emitted when AgentWalletFunder (Story 11.4) detects funding transaction failure.
+ *
+ * @example
+ * ```typescript
+ * const event: FundingTransactionFailedEvent = {
+ *   type: 'FUNDING_TRANSACTION_FAILED',
+ *   agentId: 'agent-001',
+ *   txHash: '0xabc123...',
+ *   chain: 'evm',
+ *   error: 'Transaction reverted',
+ *   timestamp: '2026-01-08T12:01:00.000Z'
+ * };
+ * ```
+ */
+export interface FundingTransactionFailedEvent {
+  /** Event type discriminator */
+  type: 'FUNDING_TRANSACTION_FAILED';
+  /** Agent identifier */
+  agentId: string;
+  /** Transaction hash */
+  txHash: string;
+  /** Blockchain ('evm' or 'xrp') */
+  chain: string;
+  /** Error message */
+  error: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
  * Telemetry Event Union Type
  *
  * Discriminated union of all telemetry event types.
@@ -302,6 +464,9 @@ export interface AgentBalanceChangedEvent {
  *     case 'AGENT_BALANCE_CHANGED':
  *       console.log(`Agent balance changed: ${event.agentId} ${event.token} = ${event.newBalance}`);
  *       break;
+ *     case 'AGENT_WALLET_FUNDED':
+ *       console.log(`Agent wallet funded: ${event.agentId} with ${event.transactions.length} transactions`);
+ *       break;
  *     default:
  *       console.log(`Unknown event type: ${event.type}`);
  *   }
@@ -312,4 +477,8 @@ export type TelemetryEvent =
   | AccountBalanceEvent
   | SettlementTriggeredEvent
   | SettlementCompletedEvent
-  | AgentBalanceChangedEvent;
+  | AgentBalanceChangedEvent
+  | AgentWalletFundedEvent
+  | FundingRateLimitExceededEvent
+  | FundingTransactionConfirmedEvent
+  | FundingTransactionFailedEvent;

@@ -53,12 +53,18 @@ export {
 // Routing Types
 export { RoutingTableEntry } from './types/routing';
 
-// Telemetry Types (Story 6.8)
+// Telemetry Types (Story 6.8, Story 11.3, Story 11.4)
 export {
   TelemetryEventType,
   SettlementState,
   AccountBalanceEvent,
   SettlementTriggeredEvent,
   SettlementCompletedEvent,
+  AgentBalanceChangedEvent,
+  FundingTransaction,
+  AgentWalletFundedEvent,
+  FundingRateLimitExceededEvent,
+  FundingTransactionConfirmedEvent,
+  FundingTransactionFailedEvent,
   TelemetryEvent,
 } from './types/telemetry';
