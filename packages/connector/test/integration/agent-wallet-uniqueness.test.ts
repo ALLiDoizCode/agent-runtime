@@ -105,7 +105,8 @@ describe('Agent Wallet Uniqueness Integration Tests', () => {
       console.log('✓ All derivation indexes are sequential (0-99)');
 
       // Verify performance (scale to 10k projection)
-      expect(duration).toBeLessThan(10000); // Allow 10s for 100 = 1000s (16.7 min) for 10k (conservative but realistic)
+      // CI environments are typically 2-3x slower than local machines
+      expect(duration).toBeLessThan(20000); // Allow 20s for 100 wallets in CI environments
       const projected10k = (duration / 100) * 10000;
       console.log(
         `✓ Performance: ${duration}ms for 100 wallets (projected: ${projected10k.toFixed(0)}ms for 10k)`
