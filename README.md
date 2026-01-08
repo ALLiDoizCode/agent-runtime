@@ -3,7 +3,7 @@
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](CHANGELOG.md)
 [![CI](https://github.com/yourusername/m2m/workflows/CI/badge.svg)](https://github.com/yourusername/m2m/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-20.11.0-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-22.11.0-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **v0.1.0 MVP Release** - Complete ILPv4 connector with bidirectional BTP, real-time telemetry, and network visualization. See [CHANGELOG.md](CHANGELOG.md) for release notes.
@@ -16,6 +16,8 @@ Educational implementation of an Interledger Protocol (ILP) connector with Bilat
 - [Monorepo Structure](#monorepo-structure)
 - [Prerequisites](#prerequisites)
 - [Setup Instructions](#setup-instructions)
+- [Development Environment](#development-environment)
+- [Smart Contract Development](#smart-contract-development)
 - [Quick Start](#quick-start)
 - [Testing Packet Routing with send-packet Tool](#testing-packet-routing-with-send-packet-tool)
 - [Docker Compose Deployment](#docker-compose-deployment)
@@ -108,7 +110,7 @@ m2m/
 
 ## Prerequisites
 
-- **Node.js**: v20.11.0 or higher (LTS recommended)
+- **Node.js**: v22.11.0 or higher
 - **npm**: v10.x or higher
 - **Docker**: For running multi-node topologies (optional for development)
 
@@ -439,6 +441,64 @@ Choose the right development command for your workflow:
 
 - **Local Blockchain Development Guide**: [docs/guides/local-blockchain-development.md](docs/guides/local-blockchain-development.md) - Detailed setup and usage instructions
 - **Epic 7 Documentation**: [docs/stories/7.\*.story.md](docs/stories/) - Architecture and implementation details for local blockchain infrastructure
+
+## Smart Contract Development
+
+M2M uses **Foundry** for smart contract development, testing, and deployment. Smart contracts are deployed to **Base L2** (an Ethereum Layer 2 scaling solution) for low-cost payment channel operations.
+
+### Quick Start
+
+1. **Initialize Foundry project** (already done in packages/contracts/):
+
+   ```bash
+   cd packages/contracts
+   forge build
+   ```
+
+2. **Run tests**:
+
+   ```bash
+   forge test
+   ```
+
+3. **Deploy to local Anvil** (requires Anvil running via docker-compose-dev.yml):
+   ```bash
+   npm run deploy:local
+   ```
+
+### Deployment Progression: Local → Testnet → Mainnet
+
+**1. Local Development (Anvil)**
+
+- Deploy to local Anvil fork of Base Sepolia
+- Instant feedback, free gas, offline development
+- Command: `npm run deploy:local`
+
+**2. Testnet Deployment (Base Sepolia)**
+
+- Deploy to public Base Sepolia testnet
+- Test with real blockchain but $0 gas costs
+- Requires `BASE_SEPOLIA_RPC_URL` and `ETHERSCAN_API_KEY` in .env.dev
+- Command: `npm run deploy:sepolia`
+
+**3. Mainnet Deployment (Base L2 Production)**
+
+- **CRITICAL: Security audit required before mainnet deployment**
+- Deploy to Base L2 mainnet with real cryptocurrency
+- Requires secure `PRIVATE_KEY` from hardware wallet or KMS
+- Command: `npm run deploy:mainnet`
+
+### Documentation
+
+- **Smart Contract Development Guide**: [docs/guides/smart-contract-development.md](docs/guides/smart-contract-development.md)
+- **Local Blockchain Development**: [docs/guides/local-blockchain-development.md](docs/guides/local-blockchain-development.md)
+- **Environment Configuration**: [docs/guides/local-vs-production-config.md](docs/guides/local-vs-production-config.md)
+
+### Security Warning
+
+⚠️ **NEVER use development private keys for testnet or mainnet deployment**
+
+The default `PRIVATE_KEY` in `.env.dev` is Anvil Account #0 - a publicly known development key. This key should ONLY be used for local Anvil deployment. For testnet and mainnet, use a secure private key from a hardware wallet or key management service.
 
 ## Quick Start
 
@@ -2323,6 +2383,28 @@ The current dashboard displays a placeholder welcome message. Future stories wil
 - **Coding Standards**: [docs/architecture/coding-standards.md](docs/architecture/coding-standards.md)
 - **Tech Stack**: [docs/architecture/tech-stack.md](docs/architecture/tech-stack.md)
 - **Interledger RFCs**: [docs/rfcs/](docs/rfcs/)
+
+## Developer Documentation
+
+Essential guides for contributing to the M2M project:
+
+### Getting Started
+
+- **[Developer Documentation Index](docs/development/README.md)** - Central hub for all developer documentation
+- **[Developer Guide](docs/development/developer-guide.md)** - Epic branch workflow, pre-push checklist, git hooks
+- **[Git Hooks](docs/development/git-hooks.md)** - Automated quality gates (pre-commit, pre-push hooks)
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute, code review process
+
+### Quality Standards
+
+- **[Test Strategy and Standards](docs/architecture/test-strategy-and-standards.md)** - Test anti-patterns, stability testing best practices
+- **[Coding Standards](docs/architecture/coding-standards.md)** - TypeScript and Solidity coding standards
+- **[CI Troubleshooting Guide](docs/development/ci-troubleshooting.md)** - Debugging CI failures, investigation runbook
+
+### Workflows
+
+- **Epic Branch Workflow**: See [Developer Guide - Epic Branch Workflow](docs/development/developer-guide.md#epic-branch-workflow)
+- **Pre-Push Checklist**: See [Developer Guide - Pre-Push Quality Checklist](docs/development/developer-guide.md#pre-push-quality-checklist)
 
 ## Technology Stack
 
