@@ -126,7 +126,7 @@ describe('Agent Balance Tracking Integration', () => {
 
     mockXrplClient.request.mockImplementation(async (req) => {
       // Generate deterministic balance based on account
-      if ('account' in req) {
+      if ('account' in req && typeof req.account === 'string') {
         const hash = req.account.substring(1, 9);
         const drops =
           (BigInt(`0x${hash.charCodeAt(0)}${hash.charCodeAt(1)}`) % 100000000n) + 10000000n; // 10-110 XRP
