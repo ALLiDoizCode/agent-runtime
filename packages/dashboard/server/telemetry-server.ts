@@ -16,6 +16,7 @@ import {
   PaymentChannelBalanceUpdateEvent,
   PaymentChannelSettledEvent,
   DashboardChannelState,
+  TelemetryEvent,
 } from '@m2m/shared';
 
 interface WebSocketWithMetadata extends WebSocket {
