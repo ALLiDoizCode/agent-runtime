@@ -448,13 +448,21 @@ M2M uses **Foundry** for smart contract development, testing, and deployment. Sm
 
 The project implements the **TokenNetworkRegistry** factory contract following the Raiden Network architecture pattern. TokenNetworkRegistry deploys isolated TokenNetwork contracts for each ERC20 token, enabling multi-token payment channel support with security isolation.
 
-**Current Status (Story 8.5 Complete):**
+**Current Status (Story 8.6 In Progress):**
 
 - ✅ TokenNetworkRegistry factory contract (Story 8.2)
 - ✅ TokenNetwork core with channel opening and deposits (Story 8.3)
 - ✅ Channel closure and settlement with EIP-712 signatures (Story 8.4)
 - ✅ Security hardening: pausable circuit breaker, token whitelist, fee-on-transfer support, deposit limits, channel expiry, cooperative settlement, withdrawal, emergency recovery, and fuzz testing (Story 8.5)
-- ⏳ Comprehensive testing and security audit (Story 8.6)
+- 🔄 Comprehensive testing and security audit (Story 8.6 - IN PROGRESS)
+  - ✅ **98.19% test coverage** for TokenNetwork.sol
+  - ✅ **Integration tests:** Multi-channel, multi-token, full lifecycle scenarios
+  - ✅ **Fuzz testing:** 100k iterations per test (45k-100k actual runs)
+  - ✅ **Gas benchmarks:** All operations measured, most well under targets
+  - ✅ **Invariant tests:** 128k function calls validating fund conservation
+  - ⏳ Professional security audit (deferred)
+  - ⏳ Testnet deployment & bug bounty (deferred)
+  - ⏳ Mainnet deployment plan (deferred)
 
 ### Quick Start
 

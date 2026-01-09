@@ -566,7 +566,9 @@ contract TokenNetwork is ReentrancyGuard, EIP712, Pausable, Ownable {
 
         // Calculate final balances based on who signed what
         uint256 participant1Deposit = participants[channelId][channel.participant1].deposit;
+        uint256 participant1Withdrawn = participants[channelId][channel.participant1].withdrawnAmount;
         uint256 participant2Deposit = participants[channelId][channel.participant2].deposit;
+        uint256 participant2Withdrawn = participants[channelId][channel.participant2].withdrawnAmount;
 
         // Determine which proof is from which participant
         uint256 participant1Sent;
@@ -582,10 +584,10 @@ contract TokenNetwork is ReentrancyGuard, EIP712, Pausable, Ownable {
             participant2Sent = proof1.transferredAmount;
         }
 
-        // Participant1 final = deposit - sent + received
-        uint256 participant1Final = participant1Deposit - participant1Sent + participant2Sent;
-        // Participant2 final = deposit - sent + received
-        uint256 participant2Final = participant2Deposit - participant2Sent + participant1Sent;
+        // Participant1 final = deposit - withdrawn - sent + received
+        uint256 participant1Final = participant1Deposit - participant1Withdrawn - participant1Sent + participant2Sent;
+        // Participant2 final = deposit - withdrawn - sent + received
+        uint256 participant2Final = participant2Deposit - participant2Withdrawn - participant2Sent + participant1Sent;
 
         // Update channel state to Settled (skip Closed state)
         channel.state = ChannelState.Settled;

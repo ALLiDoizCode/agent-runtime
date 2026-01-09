@@ -194,6 +194,29 @@ contract TokenNetworkRegistryTest is Test {
         registry.disableWhitelist();
     }
 
+    // Test: pause prevents token network creation
+    function testPausePreventsTokenNetworkCreation() public {
+        // Pause the registry
+        registry.pause();
+
+        // Try to create token network (should revert)
+        vm.expectRevert();
+        registry.createTokenNetwork(address(token));
+    }
+
+    // Test: unpause restores token network creation
+    function testUnpauseRestoresTokenNetworkCreation() public {
+        // Pause the registry
+        registry.pause();
+
+        // Unpause the registry
+        registry.unpause();
+
+        // Create token network (should succeed)
+        address tokenNetworkAddress = registry.createTokenNetwork(address(token));
+        assertTrue(tokenNetworkAddress != address(0));
+    }
+
     // Event declarations for testing
     event WhitelistEnabled();
     event WhitelistDisabled();

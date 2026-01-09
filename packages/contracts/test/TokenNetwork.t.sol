@@ -1343,4 +1343,190 @@ contract TokenNetworkTest is Test {
         assertEq(token.balanceOf(owner), ownerBalanceBefore + contractBalance);
         assertEq(token.balanceOf(address(tokenNetwork)), 0);
     }
+
+    // Test: withdraw with non-increasing withdrawn amount
+    function testWithdrawRevertsOnNonIncreasingAmount() public {
+        // Open channel
+        vm.prank(alice);
+        bytes32 channelId = tokenNetwork.openChannel(bob, 1 hours);
+
+        // Deposit tokens
+        vm.startPrank(alice);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
+        vm.stopPrank();
+
+        // Calculate domain separator
+        bytes32 TYPE_HASH =
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+        bytes32 nameHash = keccak256("TokenNetwork");
+        bytes32 versionHash = keccak256("1");
+        bytes32 domainSeparator =
+            keccak256(abi.encode(TYPE_HASH, nameHash, versionHash, block.chainid, address(tokenNetwork)));
+        bytes32 withdrawalProofTypeHash = keccak256(
+            "WithdrawalProof(bytes32 channelId,address participant,uint256 withdrawnAmount,uint256 nonce)"
+        );
+
+        // First withdrawal: 100 tokens
+        uint256 withdrawnAmount1 = 100 * 10 ** 18;
+        bytes32 structHash1 = keccak256(
+            abi.encode(withdrawalProofTypeHash, channelId, alice, withdrawnAmount1, uint256(1))
+        );
+        bytes32 digest1 = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash1));
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(bobPrivateKey, digest1);
+        bytes memory counterpartySignature1 = abi.encodePacked(r1, s1, v1);
+
+        vm.prank(alice);
+        tokenNetwork.withdraw(channelId, withdrawnAmount1, 1, counterpartySignature1);
+
+        // Second withdrawal attempt: same amount (should revert)
+        bytes32 structHash2 = keccak256(
+            abi.encode(withdrawalProofTypeHash, channelId, alice, withdrawnAmount1, uint256(2))
+        );
+        bytes32 digest2 = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash2));
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(bobPrivateKey, digest2);
+        bytes memory counterpartySignature2 = abi.encodePacked(r2, s2, v2);
+
+        vm.prank(alice);
+        vm.expectRevert(TokenNetwork.WithdrawalNotIncreasing.selector);
+        tokenNetwork.withdraw(channelId, withdrawnAmount1, 2, counterpartySignature2);
+    }
+
+    // Test: updateNonClosingBalanceProof reverts when caller is closer
+    function testUpdateNonClosingBalanceProofRevertsOnCallerIsCloser() public {
+        // Create and fund channel
+        bytes32 channelId = createAndFundChannel(alice, bob, 1000 * 10 ** 18, 1000 * 10 ** 18);
+
+        // Bob closes channel with Alice's proof
+        uint256 nonce = 5;
+        uint256 transferredAmount = 100 * 10 ** 18;
+        bytes memory aliceSignature = signBalanceProof(alicePrivateKey, channelId, nonce, transferredAmount, 0, bytes32(0));
+
+        vm.prank(bob);
+        tokenNetwork.closeChannel(
+            channelId,
+            TokenNetwork.BalanceProof({
+                channelId: channelId,
+                nonce: nonce,
+                transferredAmount: transferredAmount,
+                lockedAmount: 0,
+                locksRoot: bytes32(0)
+            }),
+            aliceSignature
+        );
+
+        // Bob (the closer) tries to update balance proof (should revert)
+        uint256 newNonce = 6;
+        bytes memory bobSignature = signBalanceProof(bobPrivateKey, channelId, newNonce, transferredAmount, 0, bytes32(0));
+
+        vm.prank(bob);
+        vm.expectRevert(TokenNetwork.CallerIsCloser.selector);
+        tokenNetwork.updateNonClosingBalanceProof(
+            channelId,
+            TokenNetwork.BalanceProof({
+                channelId: channelId,
+                nonce: newNonce,
+                transferredAmount: transferredAmount,
+                lockedAmount: 0,
+                locksRoot: bytes32(0)
+            }),
+            bobSignature
+        );
+    }
+
+    // Test: updateNonClosingBalanceProof reverts when caller is not a participant
+    function testUpdateNonClosingBalanceProofRevertsOnInvalidParticipant() public {
+        // Create and fund channel
+        bytes32 channelId = createAndFundChannel(alice, bob, 1000 * 10 ** 18, 1000 * 10 ** 18);
+
+        // Bob closes channel with Alice's proof
+        uint256 nonce = 5;
+        uint256 transferredAmount = 100 * 10 ** 18;
+        bytes memory aliceSignature = signBalanceProof(alicePrivateKey, channelId, nonce, transferredAmount, 0, bytes32(0));
+
+        vm.prank(bob);
+        tokenNetwork.closeChannel(
+            channelId,
+            TokenNetwork.BalanceProof({
+                channelId: channelId,
+                nonce: nonce,
+                transferredAmount: transferredAmount,
+                lockedAmount: 0,
+                locksRoot: bytes32(0)
+            }),
+            aliceSignature
+        );
+
+        // Charlie (not a participant) tries to update balance proof (should revert)
+        uint256 newNonce = 6;
+        bytes memory charlieSignature = signBalanceProof(charliePrivateKey, channelId, newNonce, transferredAmount, 0, bytes32(0));
+
+        vm.prank(charlie);
+        vm.expectRevert(TokenNetwork.InvalidParticipant.selector);
+        tokenNetwork.updateNonClosingBalanceProof(
+            channelId,
+            TokenNetwork.BalanceProof({
+                channelId: channelId,
+                nonce: newNonce,
+                transferredAmount: transferredAmount,
+                lockedAmount: 0,
+                locksRoot: bytes32(0)
+            }),
+            charlieSignature
+        );
+    }
+
+    // Test: cooperativeSettle with reversed participant order (covers line 575-578)
+    function testCooperativeSettleReversedParticipants() public {
+        // Open channel
+        vm.prank(bob);
+        bytes32 channelId = tokenNetwork.openChannel(alice, 1 hours);
+
+        // Deposit tokens
+        vm.startPrank(alice);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
+        tokenNetwork.setTotalDeposit(channelId, alice, 1000 * 10 ** 18);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        token.approve(address(tokenNetwork), 1000 * 10 ** 18);
+        tokenNetwork.setTotalDeposit(channelId, bob, 1000 * 10 ** 18);
+        vm.stopPrank();
+
+        // Create balance proofs - Alice sent 100 to Bob, Bob sent 50 to Alice
+        uint256 aliceTransferred = 100 * 10 ** 18;
+        uint256 bobTransferred = 50 * 10 ** 18;
+
+        // Sign balance proofs
+        bytes memory bobSignature = signBalanceProof(bobPrivateKey, channelId, 5, bobTransferred, 0, bytes32(0));
+        bytes memory aliceSignature = signBalanceProof(alicePrivateKey, channelId, 5, aliceTransferred, 0, bytes32(0));
+
+        uint256 aliceBalanceBefore = token.balanceOf(alice);
+        uint256 bobBalanceBefore = token.balanceOf(bob);
+
+        // Cooperative settle with Bob's proof first (reversed order)
+        tokenNetwork.cooperativeSettle(
+            channelId,
+            TokenNetwork.BalanceProof({
+                channelId: channelId,
+                nonce: 5,
+                transferredAmount: bobTransferred,
+                lockedAmount: 0,
+                locksRoot: bytes32(0)
+            }),
+            bobSignature,
+            TokenNetwork.BalanceProof({
+                channelId: channelId,
+                nonce: 5,
+                transferredAmount: aliceTransferred,
+                lockedAmount: 0,
+                locksRoot: bytes32(0)
+            }),
+            aliceSignature
+        );
+
+        // Verify final balances: Alice gets 1000 - 100 + 50 = 950, Bob gets 1000 - 50 + 100 = 1050
+        assertEq(token.balanceOf(alice), aliceBalanceBefore + 950 * 10 ** 18);
+        assertEq(token.balanceOf(bob), bobBalanceBefore + 1050 * 10 ** 18);
+    }
 }

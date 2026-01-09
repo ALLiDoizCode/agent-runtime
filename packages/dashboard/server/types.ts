@@ -53,8 +53,29 @@ export interface RouteLookupMessage extends TelemetryMessage {
 
 /**
  * Type guard to validate if a message is a valid TelemetryMessage
+ * Note: Payment channel telemetry events (PAYMENT_CHANNEL_*) and settlement events
+ * (ACCOUNT_BALANCE, SETTLEMENT_*) don't have a data field - they have fields directly on the event
  */
-export function isTelemetryMessage(msg: any): msg is TelemetryMessage {
+export function isTelemetryMessage(msg: unknown): msg is TelemetryMessage {
+  // Payment channel and settlement events don't have a data field
+  const isPaymentChannelOrSettlementEvent =
+    msg.type === 'PAYMENT_CHANNEL_OPENED' ||
+    msg.type === 'PAYMENT_CHANNEL_BALANCE_UPDATE' ||
+    msg.type === 'PAYMENT_CHANNEL_SETTLED' ||
+    msg.type === 'ACCOUNT_BALANCE' ||
+    msg.type === 'SETTLEMENT_TRIGGERED' ||
+    msg.type === 'SETTLEMENT_COMPLETED';
+
+  if (isPaymentChannelOrSettlementEvent) {
+    return (
+      typeof msg === 'object' &&
+      msg !== null &&
+      typeof msg.type === 'string' &&
+      typeof msg.nodeId === 'string' &&
+      typeof msg.timestamp === 'string'
+    );
+  }
+
   return (
     typeof msg === 'object' &&
     msg !== null &&
@@ -69,12 +90,12 @@ export function isTelemetryMessage(msg: any): msg is TelemetryMessage {
 /**
  * Type guard for NODE_STATUS messages
  */
-export function isNodeStatusMessage(msg: any): msg is NodeStatusMessage {
+export function isNodeStatusMessage(msg: unknown): msg is NodeStatusMessage {
   if (!isTelemetryMessage(msg) || msg.type !== 'NODE_STATUS') {
     return false;
   }
 
-  const data = msg.data as any;
+  const data = msg.data as unknown;
   return (
     Array.isArray(data.routes) &&
     Array.isArray(data.peers) &&
@@ -89,12 +110,12 @@ export function isNodeStatusMessage(msg: any): msg is NodeStatusMessage {
 /**
  * Type guard for PACKET_SENT messages
  */
-export function isPacketSentMessage(msg: any): msg is PacketSentMessage {
+export function isPacketSentMessage(msg: unknown): msg is PacketSentMessage {
   if (!isTelemetryMessage(msg) || msg.type !== 'PACKET_SENT') {
     return false;
   }
 
-  const data = msg.data as any;
+  const data = msg.data as unknown;
   return (
     typeof data.packetId === 'string' &&
     typeof data.nextHop === 'string' &&
@@ -105,12 +126,12 @@ export function isPacketSentMessage(msg: any): msg is PacketSentMessage {
 /**
  * Type guard for PACKET_RECEIVED messages
  */
-export function isPacketReceivedMessage(msg: any): msg is PacketReceivedMessage {
+export function isPacketReceivedMessage(msg: unknown): msg is PacketReceivedMessage {
   if (!isTelemetryMessage(msg) || msg.type !== 'PACKET_RECEIVED') {
     return false;
   }
 
-  const data = msg.data as any;
+  const data = msg.data as unknown;
   return (
     typeof data.packetId === 'string' &&
     typeof data.packetType === 'string' &&
@@ -124,12 +145,12 @@ export function isPacketReceivedMessage(msg: any): msg is PacketReceivedMessage 
 /**
  * Type guard for ROUTE_LOOKUP messages
  */
-export function isRouteLookupMessage(msg: any): msg is RouteLookupMessage {
+export function isRouteLookupMessage(msg: unknown): msg is RouteLookupMessage {
   if (!isTelemetryMessage(msg) || msg.type !== 'ROUTE_LOOKUP') {
     return false;
   }
 
-  const data = msg.data as any;
+  const data = msg.data as unknown;
   return (
     typeof data.destination === 'string' &&
     typeof data.selectedPeer === 'string' &&

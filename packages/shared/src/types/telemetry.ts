@@ -4,11 +4,17 @@
  * This module provides TypeScript type definitions for telemetry events emitted
  * by the connector to the dashboard for real-time visualization.
  *
- * Event types support settlement monitoring, account balance tracking, and
- * network activity visualization.
+ * Event types support settlement monitoring, account balance tracking, payment
+ * channel lifecycle tracking, and network activity visualization.
  *
  * @packageDocumentation
  */
+
+import {
+  PaymentChannelOpenedEvent,
+  PaymentChannelBalanceUpdateEvent,
+  PaymentChannelSettledEvent,
+} from './payment-channel-telemetry';
 
 /**
  * Telemetry Event Type Discriminator
@@ -41,6 +47,12 @@ export enum TelemetryEventType {
   FUNDING_TRANSACTION_FAILED = 'FUNDING_TRANSACTION_FAILED',
   /** Agent wallet state changed event - emitted on wallet lifecycle state transitions (Story 11.5) */
   AGENT_WALLET_STATE_CHANGED = 'AGENT_WALLET_STATE_CHANGED',
+  /** Payment channel opened event - emitted when payment channel created on-chain (Story 8.10) */
+  PAYMENT_CHANNEL_OPENED = 'PAYMENT_CHANNEL_OPENED',
+  /** Payment channel balance update event - emitted when off-chain balance proofs updated (Story 8.10) */
+  PAYMENT_CHANNEL_BALANCE_UPDATE = 'PAYMENT_CHANNEL_BALANCE_UPDATE',
+  /** Payment channel settled event - emitted when channel settlement completes on-chain (Story 8.10) */
+  PAYMENT_CHANNEL_SETTLED = 'PAYMENT_CHANNEL_SETTLED',
 }
 
 /**
@@ -506,6 +518,15 @@ export interface AgentWalletStateChangedEvent {
  *     case 'AGENT_WALLET_STATE_CHANGED':
  *       console.log(`Agent wallet state changed: ${event.agentId} ${event.oldState} → ${event.newState}`);
  *       break;
+ *     case 'PAYMENT_CHANNEL_OPENED':
+ *       console.log(`Payment channel opened: ${event.channelId} for peer ${event.peerId}`);
+ *       break;
+ *     case 'PAYMENT_CHANNEL_BALANCE_UPDATE':
+ *       console.log(`Payment channel balance updated: ${event.channelId}`);
+ *       break;
+ *     case 'PAYMENT_CHANNEL_SETTLED':
+ *       console.log(`Payment channel settled: ${event.channelId} via ${event.settlementType}`);
+ *       break;
  *     default:
  *       console.log(`Unknown event type: ${event.type}`);
  *   }
@@ -521,4 +542,7 @@ export type TelemetryEvent =
   | FundingRateLimitExceededEvent
   | FundingTransactionConfirmedEvent
   | FundingTransactionFailedEvent
-  | AgentWalletStateChangedEvent;
+  | AgentWalletStateChangedEvent
+  | PaymentChannelOpenedEvent
+  | PaymentChannelBalanceUpdateEvent
+  | PaymentChannelSettledEvent;
