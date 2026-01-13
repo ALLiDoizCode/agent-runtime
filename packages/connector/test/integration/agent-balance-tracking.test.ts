@@ -124,7 +124,7 @@ describe('Agent Balance Tracking Integration', () => {
       return balance;
     });
 
-    mockXrplClient.request.mockImplementation(async (req) => {
+    (mockXrplClient.request as jest.Mock).mockImplementation(async (req) => {
       // Generate deterministic balance based on account
       if ('account' in req && typeof req.account === 'string') {
         const hash = req.account.substring(1, 9);
@@ -136,7 +136,7 @@ describe('Agent Balance Tracking Integration', () => {
               Balance: drops.toString(),
             },
           },
-        } as { result: { account_data: { Balance: string } } };
+        };
       }
       throw new Error('Unexpected request type');
     });
@@ -197,9 +197,9 @@ describe('Agent Balance Tracking Integration', () => {
       return callCount === 1 ? 1000000000000000000n : 2000000000000000000n;
     });
 
-    mockXrplClient.request.mockResolvedValue({
+    (mockXrplClient.request as jest.Mock).mockResolvedValue({
       result: { account_data: { Balance: '10000000' } },
-    } as { result: { account_data: { Balance: string } } });
+    });
 
     balanceTracker = new AgentBalanceTracker(
       walletDerivation,
@@ -281,9 +281,9 @@ describe('Agent Balance Tracking Integration', () => {
     }
 
     mockEvmProvider.getBalance.mockResolvedValue(1000n);
-    mockXrplClient.request.mockResolvedValue({
+    (mockXrplClient.request as jest.Mock).mockResolvedValue({
       result: { account_data: { Balance: '10000000' } },
-    } as { result: { account_data: { Balance: string } } });
+    });
 
     balanceTracker = new AgentBalanceTracker(
       walletDerivation,
