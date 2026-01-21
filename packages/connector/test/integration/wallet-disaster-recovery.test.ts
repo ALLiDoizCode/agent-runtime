@@ -437,6 +437,26 @@ describe('Wallet Disaster Recovery Integration Test', () => {
         tempDbPath
       );
 
+      const fundingConfig: FundingConfig = {
+        evm: {
+          initialETH: BigInt('100000000000000000'),
+          initialTokens: {},
+        },
+        xrp: {
+          initialXRP: BigInt('100000'),
+        },
+        rateLimits: {
+          maxFundingsPerHour: 100,
+          maxFundingsPerAgent: 5,
+        },
+        strategy: 'fixed',
+      };
+
+      const mockTreasuryWallet = {
+        fundAgentEVM: jest.fn().mockResolvedValue(undefined),
+        fundAgentXRP: jest.fn().mockResolvedValue(undefined),
+      } as unknown as TreasuryWallet;
+
       const walletFunder = new AgentWalletFunder(
         fundingConfig,
         walletDerivation,
@@ -456,7 +476,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       );
 
       for (let i = 0; i < 5; i++) {
-        await lifecycleManager.createWallet(`agent-${i}`);
+        await lifecycleManager.createAgentWallet(`agent-${i}`);
       }
 
       const backupConfig: BackupConfig = {
@@ -483,8 +503,8 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await walletDerivation.deriveAgentWallet('agent-5');
       await walletDerivation.deriveAgentWallet('agent-6');
-      await lifecycleManager.createWallet('agent-5');
-      await lifecycleManager.createWallet('agent-6');
+      await lifecycleManager.createAgentWallet('agent-5');
+      await lifecycleManager.createAgentWallet('agent-6');
 
       // Create incremental backup (only 2 new wallets)
       const incrementalBackup = await backupManager.createIncrementalBackup(backupPassword);
@@ -592,6 +612,26 @@ describe('Wallet Disaster Recovery Integration Test', () => {
         tempDbPath
       );
 
+      const fundingConfig: FundingConfig = {
+        evm: {
+          initialETH: BigInt('100000000000000000'),
+          initialTokens: {},
+        },
+        xrp: {
+          initialXRP: BigInt('100000'),
+        },
+        rateLimits: {
+          maxFundingsPerHour: 100,
+          maxFundingsPerAgent: 5,
+        },
+        strategy: 'fixed',
+      };
+
+      const mockTreasuryWallet = {
+        fundAgentEVM: jest.fn().mockResolvedValue(undefined),
+        fundAgentXRP: jest.fn().mockResolvedValue(undefined),
+      } as unknown as TreasuryWallet;
+
       const walletFunder = new AgentWalletFunder(
         fundingConfig,
         walletDerivation,
@@ -609,7 +649,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
         { inactivityDays: 90, autoArchive: true },
         tempDbPath
       );
-      await lifecycleManager.createWallet('test-agent');
+      await lifecycleManager.createAgentWallet('test-agent');
 
       const backupConfig: BackupConfig = {
         backupPath: tempBackupPath,
