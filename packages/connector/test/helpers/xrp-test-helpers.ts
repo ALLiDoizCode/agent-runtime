@@ -160,7 +160,8 @@ export async function waitForLedgerConfirmation(
 export async function queryChannelOnLedger(
   client: Client,
   channelId: string
-): Promise<Record<string, unknown>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
   try {
     const ledgerEntry = await client.request({
       command: 'ledger_entry',

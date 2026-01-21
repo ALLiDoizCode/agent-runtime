@@ -7,6 +7,8 @@
  * @module settlement/xrp-channel-sdk.test
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+
 import type { Logger } from 'pino';
 import { XRPChannelSDK } from './xrp-channel-sdk';
 import type { PaymentChannelManager } from './xrp-channel-manager';
@@ -15,7 +17,7 @@ import type { IXRPLClient } from './xrpl-client';
 
 describe('XRPChannelSDK', () => {
   let sdk: XRPChannelSDK;
-  let mockXRPLClient: jest.Mocked<Pick<IXRPLClient, 'address' | 'request' | 'submitAndWait'>>;
+  let mockXRPLClient: any;
   let mockChannelManager: jest.Mocked<PaymentChannelManager>;
   let mockClaimSigner: {
     signClaim: jest.Mock;
@@ -125,7 +127,11 @@ describe('XRPChannelSDK', () => {
       const channelId = 'A'.repeat(64);
       const additionalAmount = '5000000000'; // 5000 XRP
 
-      mockXRPLClient.submitAndWait.mockResolvedValue({});
+      mockXRPLClient.submitAndWait.mockResolvedValue({
+        hash: '0xTEST',
+        ledgerIndex: 1,
+        result: {},
+      } as any);
       mockXRPLClient.request.mockResolvedValue({
         result: {
           node: {
@@ -162,7 +168,11 @@ describe('XRPChannelSDK', () => {
       const channelId = 'A'.repeat(64);
       const additionalAmount = '5000000000';
 
-      mockXRPLClient.submitAndWait.mockResolvedValue({});
+      mockXRPLClient.submitAndWait.mockResolvedValue({
+        hash: '0xTEST',
+        ledgerIndex: 1,
+        result: {},
+      } as any);
       mockXRPLClient.request.mockResolvedValue({
         result: {
           node: {

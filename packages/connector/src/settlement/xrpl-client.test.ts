@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { XRPLClient, XRPLClientConfig, XRPLError, XRPLErrorCode } from './xrpl-client';
 import { Client, Wallet } from 'xrpl';
 import { Logger } from 'pino';
@@ -213,14 +215,16 @@ describe('XRPLClient', () => {
       };
 
       const preparedTx = { ...mockTransaction, Sequence: 1, Fee: '12' };
-      mockXrplClient.autofill.mockResolvedValueOnce(preparedTx);
+      mockXrplClient.autofill.mockResolvedValueOnce(preparedTx as any);
       mockWallet.sign.mockReturnValueOnce({ tx_blob: 'signedTxBlob', hash: '0xABC123' });
       mockXrplClient.submitAndWait.mockResolvedValueOnce({
         result: {
           hash: '0xABC123',
           ledger_index: 12345,
-        },
-      });
+          TransactionType: 'Payment',
+          Account: 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEEW',
+        } as any,
+      } as any);
 
       const result = await client.submitAndWait(mockTransaction);
 
@@ -249,11 +253,16 @@ describe('XRPLClient', () => {
 
     it('should log transaction submission and confirmation', async () => {
       const mockTransaction = { TransactionType: 'Payment' };
-      mockXrplClient.autofill.mockResolvedValueOnce(mockTransaction);
+      mockXrplClient.autofill.mockResolvedValueOnce(mockTransaction as any);
       mockWallet.sign.mockReturnValueOnce({ tx_blob: 'blob', hash: '0xABC' });
       mockXrplClient.submitAndWait.mockResolvedValueOnce({
-        result: { hash: '0xABC', ledger_index: 100 },
-      });
+        result: {
+          hash: '0xABC',
+          ledger_index: 100,
+          TransactionType: 'Payment',
+          Account: 'rTest',
+        } as any,
+      } as any);
 
       await client.submitAndWait(mockTransaction);
 
@@ -412,7 +421,9 @@ describe('XRPLClient', () => {
 
       mockXrplClient.autofill.mockResolvedValue({
         TransactionType: 'PaymentChannelClaim',
-      });
+        Channel: 'channelId',
+        Account: 'rTest',
+      } as any);
 
       mockWallet.sign.mockReturnValue({
         tx_blob: 'SIGNED_TX_BLOB',
@@ -424,7 +435,7 @@ describe('XRPLClient', () => {
           hash: '0xABC123',
           ledger_index: 12345,
           validated: true,
-          meta: { TransactionResult: 'tesSUCCESS' },
+          meta: 'tesSUCCESS' as any,
         },
       });
     });
@@ -535,7 +546,9 @@ describe('XRPLClient', () => {
     beforeEach(() => {
       mockXrplClient.autofill.mockResolvedValue({
         TransactionType: 'PaymentChannelClaim',
-      });
+        Channel: 'channelId',
+        Account: 'rTest',
+      } as any);
 
       mockWallet.sign.mockReturnValue({
         tx_blob: 'SIGNED_TX_BLOB',
@@ -547,7 +560,7 @@ describe('XRPLClient', () => {
           hash: '0xDEF456',
           ledger_index: 12346,
           validated: true,
-          meta: { TransactionResult: 'tesSUCCESS' },
+          meta: 'tesSUCCESS' as any,
         },
       });
     });
@@ -592,7 +605,9 @@ describe('XRPLClient', () => {
     beforeEach(() => {
       mockXrplClient.autofill.mockResolvedValue({
         TransactionType: 'PaymentChannelClaim',
-      });
+        Channel: 'channelId',
+        Account: 'rTest',
+      } as any);
 
       mockWallet.sign.mockReturnValue({
         tx_blob: 'SIGNED_TX_BLOB',
@@ -604,7 +619,7 @@ describe('XRPLClient', () => {
           hash: '0xGHI789',
           ledger_index: 12347,
           validated: true,
-          meta: { TransactionResult: 'tesSUCCESS' },
+          meta: 'tesSUCCESS' as any,
         },
       });
     });

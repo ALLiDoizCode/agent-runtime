@@ -6,6 +6,8 @@
  * and periodic polling across EVM and XRP blockchains.
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import Database from 'better-sqlite3';
 import { AgentBalanceTracker } from './agent-balance-tracker';
 import { AgentWalletDerivation, AgentWallet } from './agent-wallet-derivation';
@@ -215,12 +217,14 @@ describe('AgentBalanceTracker', () => {
       jest.spyOn(ethers, 'Contract').mockReturnValue(mockContract as unknown as ethers.Contract);
 
       mockXrplClient.request.mockResolvedValue({
+        id: 1,
+        type: 'response',
         result: {
           account_data: {
             Balance: '10000000', // 10 XRP
           },
         },
-      } as { result: { account_data: { Balance: string } } });
+      } as any);
 
       tracker = new AgentBalanceTracker(
         mockWalletDerivation,
@@ -376,8 +380,10 @@ describe('AgentBalanceTracker', () => {
 
       mockEvmProvider.getBalance.mockResolvedValue(1000n);
       mockXrplClient.request.mockResolvedValue({
+        id: 1,
+        type: 'response',
         result: { account_data: { Balance: '10000000' } },
-      } as { result: { account_data: { Balance: string } } });
+      } as any);
 
       tracker = new AgentBalanceTracker(
         mockWalletDerivation,
@@ -420,8 +426,10 @@ describe('AgentBalanceTracker', () => {
 
       mockEvmProvider.getBalance.mockResolvedValue(1000n);
       mockXrplClient.request.mockResolvedValue({
+        id: 1,
+        type: 'response',
         result: { account_data: { Balance: '10000000' } },
-      } as { result: { account_data: { Balance: string } } });
+      } as any);
 
       tracker = new AgentBalanceTracker(
         mockWalletDerivation,
