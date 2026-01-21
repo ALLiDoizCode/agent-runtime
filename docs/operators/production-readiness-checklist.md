@@ -37,14 +37,17 @@ This checklist ensures all security, infrastructure, monitoring, and operational
   - Password access restricted to authorized personnel only
 
 - [ ] **Master seed file permissions set correctly**
+
   ```bash
   chmod 600 data/wallet/master-seed.enc
   chown connector:connector data/wallet/master-seed.enc
   ```
+
   - Permissions: `-rw-------` (600)
   - Owner: Application user only
 
 **Verification:**
+
 ```bash
 # Check file permissions
 ls -la data/wallet/master-seed.enc
@@ -78,6 +81,7 @@ file data/wallet/master-seed.enc
   - Backup strategy configured
 
 **Verification:**
+
 ```bash
 # Check TigerBeetle status
 tigerbeetle-cli status
@@ -112,6 +116,7 @@ ls -la data/wallet/*.db
   - Failover alerts configured
 
 **Configuration:**
+
 ```bash
 # .env.production
 EVM_RPC_ENDPOINT=https://base-mainnet.infura.io/v3/YOUR-API-KEY
@@ -121,6 +126,7 @@ XRP_RPC_FALLBACK=https://s2.ripple.com:51234
 ```
 
 **Verification:**
+
 ```bash
 # Test EVM RPC
 curl -X POST $EVM_RPC_ENDPOINT \
@@ -155,6 +161,7 @@ curl -X POST $XRP_RPC_ENDPOINT \
   - Backup password stored in secrets manager
 
 **Backup Cron Schedule:**
+
 ```cron
 # Daily incremental backup (2 AM)
 0 2 * * * /usr/local/bin/wallet-backup daily >> /var/log/wallet-backup.log 2>&1
@@ -167,6 +174,7 @@ curl -X POST $XRP_RPC_ENDPOINT \
 ```
 
 **Verification:**
+
 ```bash
 # Test backup creation
 /usr/local/bin/wallet-backup test
@@ -210,6 +218,7 @@ ls -lh /secure/backups/ | tail -20
   - Access reviews scheduled (quarterly)
 
 **Verification:**
+
 ```typescript
 // Test authentication
 import { AgentWalletAuthentication } from '@m2m/connector/wallet/wallet-authentication';
@@ -218,7 +227,7 @@ const auth = new AgentWalletAuthentication();
 
 await auth.authenticate({
   method: 'password',
-  password: 'test-password-123'
+  password: 'test-password-123',
 });
 // Should throw error if password incorrect
 ```
@@ -244,6 +253,7 @@ await auth.authenticate({
   - Per-agent and global limits
 
 **Configuration:**
+
 ```bash
 # Environment variables
 WALLET_CREATION_RATE_LIMIT=100
@@ -253,6 +263,7 @@ PAYMENT_RATE_LIMIT=1000
 ```
 
 **Verification:**
+
 ```bash
 # Test rate limiting
 for i in {1..101}; do
@@ -284,18 +295,19 @@ done
   - Investigation procedure documented
 
 **Configuration:**
+
 ```yaml
 # data/spending-limits-config.yaml
 spendingLimits:
   default:
-    maxTransactionSize: "1000000000"    # 1000 USDC
-    dailyLimit: "5000000000"            # 5000 USDC
-    monthlyLimit: "50000000000"         # 50000 USDC
+    maxTransactionSize: '1000000000' # 1000 USDC
+    dailyLimit: '5000000000' # 5000 USDC
+    monthlyLimit: '50000000000' # 50000 USDC
   perAgent:
     agent-vip-001:
-      maxTransactionSize: "5000000000"  # 5000 USDC
-      dailyLimit: "25000000000"         # 25000 USDC
-      monthlyLimit: "250000000000"      # 250000 USDC
+      maxTransactionSize: '5000000000' # 5000 USDC
+      dailyLimit: '25000000000' # 25000 USDC
+      monthlyLimit: '250000000000' # 250000 USDC
 ```
 
 ---
@@ -321,6 +333,7 @@ spendingLimits:
   - 24/7 on-call rotation
 
 **Verification:**
+
 ```bash
 # Test fraud detection
 npm test -- --testPathPattern=suspicious-activity-detector
@@ -349,6 +362,7 @@ npm test -- --testPathPattern=suspicious-activity-detector
   - Backup retention: 7 years (regulatory)
 
 **Verification:**
+
 ```bash
 # Check audit log entries
 sqlite3 data/wallet/audit-log.db \
@@ -379,6 +393,7 @@ tail -100 logs/connector.log | grep '"audit":true'
   - Test report reviewed and approved
 
 **Verification:**
+
 ```bash
 # Run security penetration tests
 npm test -- --testPathPattern=wallet-security-penetration
@@ -425,11 +440,12 @@ grep -r "privateKey" logs/
   - Fraud pattern reports (daily)
 
 **Alert Configuration:**
+
 ```yaml
 # alerts.yaml
 alerts:
   low_eth_balance:
-    threshold: "10000000000000000"  # 0.01 ETH
+    threshold: '10000000000000000' # 0.01 ETH
     severity: warning
     channels: [email, slack]
 
@@ -469,12 +485,13 @@ alerts:
   - Query performance monitoring
 
 **Health Check Example:**
+
 ```typescript
 app.get('/health', async (req, res) => {
   const health = {
     status: 'ok',
     timestamp: Date.now(),
-    checks: {}
+    checks: {},
   };
 
   // Check database
@@ -521,6 +538,7 @@ app.get('/health', async (req, res) => {
   - Alert on error rate spike (>5%)
 
 **Metrics to Track:**
+
 ```
 - wallet_creation_duration_seconds
 - balance_query_duration_seconds
@@ -572,6 +590,7 @@ app.get('/health', async (req, res) => {
   - Balances match on-chain data
 
 **Load Test Script:**
+
 ```bash
 #!/bin/bash
 # Load test: Create 1000 agent wallets
@@ -618,6 +637,7 @@ echo "Load test complete: 1000 wallets created"
   - Performance benchmarks met
 
 **Verification:**
+
 ```bash
 # Run full integration test suite in staging
 npm test -- --testPathPattern=integration
@@ -804,30 +824,35 @@ Complete within 24 hours of production deployment:
 Schedule these regular verification tasks:
 
 ### Daily
+
 - Check for failed backups
 - Review security alerts
 - Monitor error rates
 - Check disk space
 
 ### Weekly
+
 - Review audit logs for anomalies
 - Test RPC endpoint failover
 - Review spending limit violations
 - Check for software updates
 
 ### Monthly
+
 - Test backup restore
 - Review and update spending limits
 - Security log review
 - Performance benchmarking
 
 ### Quarterly
+
 - Full disaster recovery drill
 - Access permission review
 - Security posture review
 - Update documentation
 
 ### Annually
+
 - External security audit
 - Password rotation
 - Review and update procedures
@@ -839,12 +864,12 @@ Schedule these regular verification tasks:
 
 **Required Approvals:**
 
-| Role | Name | Signature | Date |
-|------|------|-----------|------|
-| Tech Lead | _____________ | _____________ | ______ |
-| Security Lead | _____________ | _____________ | ______ |
-| DevOps Lead | _____________ | _____________ | ______ |
-| Product Owner | _____________ | _____________ | ______ |
+| Role          | Name               | Signature          | Date     |
+| ------------- | ------------------ | ------------------ | -------- |
+| Tech Lead     | **\*\***\_**\*\*** | **\*\***\_**\*\*** | **\_\_** |
+| Security Lead | **\*\***\_**\*\*** | **\*\***\_**\*\*** | **\_\_** |
+| DevOps Lead   | **\*\***\_**\*\*** | **\*\***\_**\*\*** | **\_\_** |
+| Product Owner | **\*\***\_**\*\*** | **\*\***\_**\*\*** | **\_\_** |
 
 **Deployment Authorization:**
 
@@ -854,9 +879,9 @@ Schedule these regular verification tasks:
 - [ ] Rollback plan ready
 - [ ] **AUTHORIZED TO DEPLOY TO PRODUCTION**
 
-**Deployment Date:** ___________________
-**Deployed By:** ___________________
-**Deployment Time:** ___________________
+**Deployment Date:** **\*\*\*\***\_\_\_**\*\*\*\***
+**Deployed By:** **\*\*\*\***\_\_\_**\*\*\*\***
+**Deployment Time:** **\*\*\*\***\_\_\_**\*\*\*\***
 
 ---
 
@@ -869,6 +894,7 @@ Schedule these regular verification tasks:
 - **FAQ**: [Frequently Asked Questions](../guides/agent-wallet-faq.md)
 
 **Emergency Contacts:**
+
 - **On-Call Engineer**: [PagerDuty]
 - **Security Team**: security@interledger.org
 - **DevOps Team**: devops@interledger.org
