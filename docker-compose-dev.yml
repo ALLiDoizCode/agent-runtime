@@ -89,7 +89,7 @@ services:
       interval: 10s  # Check every 10 seconds
       timeout: 5s  # RPC call should respond within 5 seconds
       retries: 5  # 5 attempts before marking unhealthy
-      start_period: 10s  # Allow time for fork download before health checks start (fork download ~30-60s)
+      start_period: 60s  # Allow time for fork download before health checks start (fork download ~30-60s)
     restart: unless-stopped
 
   # rippled - Local XRP Ledger node in standalone mode for payment channel development

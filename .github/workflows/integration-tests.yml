@@ -32,13 +32,13 @@ jobs:
           docker compose -f docker-compose-dev.yml up -d anvil rippled tigerbeetle
 
           echo "Waiting for services to become healthy..."
-          # Wait up to 60 seconds for all services to be healthy
-          for i in {1..60}; do
+          # Wait up to 120 seconds for all services to be healthy (Anvil fork download can take 60s)
+          for i in {1..120}; do
             if docker compose -f docker-compose-dev.yml ps | grep -q "healthy"; then
               echo "Services are healthy!"
               break
             fi
-            echo "Waiting for services... ($i/60)"
+            echo "Waiting for services... ($i/120)"
             sleep 1
           done
 
