@@ -206,6 +206,9 @@ export class AgentChannelManager {
 
     // Get peer wallet address
     const peerWallet = await this.getPeerWallet(params.peerId);
+    if (!peerWallet) {
+      throw new Error(`Peer wallet not found: ${params.peerId}`);
+    }
 
     let channelId: string;
 
@@ -217,7 +220,7 @@ export class AgentChannelManager {
       // Open EVM channel via PaymentChannelSDK
       // Settlement timeout: 3600 seconds (1 hour) per Epic 8 standards
       channelId = await this.evmChannelSDK.openChannel(
-        peerWallet!.evmAddress,
+        peerWallet.evmAddress,
         params.token,
         3600,
         params.amount
@@ -229,7 +232,7 @@ export class AgentChannelManager {
       // Open XRP channel via XRPChannelSDK
       // Settlement delay: 3600 seconds (1 hour) per Epic 9 standards
       channelId = await this.xrpChannelSDK.openChannel(
-        peerWallet!.xrpAddress,
+        peerWallet.xrpAddress,
         params.amount.toString(),
         3600,
         params.peerId

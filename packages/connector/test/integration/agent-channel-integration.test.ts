@@ -232,8 +232,14 @@ describeIfEnabled('Agent Channel Integration Test', () => {
     // contracts is complex and beyond the scope of this story
     evmChannelSDK = {
       openChannel: async () => {
-        // Return mock channel ID (in real test, this would be on-chain transaction)
-        return '0x' + 'a'.repeat(64);
+        // Return unique mock channel ID (in real test, this would be on-chain transaction)
+        // Use timestamp + random to ensure uniqueness across concurrent tests
+        const randomBytes = Array.from({ length: 32 }, () =>
+          Math.floor(Math.random() * 256)
+            .toString(16)
+            .padStart(2, '0')
+        ).join('');
+        return '0x' + randomBytes;
       },
       getChannelState: async (channelId: string, tokenAddress: string) => {
         return {
