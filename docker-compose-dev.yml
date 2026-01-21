@@ -143,6 +143,8 @@ services:
     container_name: rippled_standalone
     command:
       - "-a"  # Standalone mode flag: enables offline mode with manual ledger advancement
+      - "--conf"  # Specify custom configuration file
+      - "/config/rippled.cfg"  # Path to configuration file inside container
     ports:
       - "5005:5005"  # JSON-RPC endpoint (http://localhost:5005 from host, http://rippled:5005 from containers)
       - "6006:6006"  # WebSocket endpoint (ws://localhost:6006 from host, ws://rippled:6006 from containers)
@@ -150,6 +152,7 @@ services:
       - m2m_dev_network
     volumes:
       - rippled_data:/var/lib/rippled  # Persist ledger state across container restarts
+      - ./config/rippled.cfg:/config/rippled.cfg:ro  # Mount custom config with 0.0.0.0 binding
     healthcheck:
       # Call server_info RPC method to verify rippled is serving requests
       test: ["CMD-SHELL", "curl -f http://localhost:5005 -X POST -H 'Content-Type: application/json' --data '{\"method\":\"server_info\",\"params\":[]}' || exit 1"]
