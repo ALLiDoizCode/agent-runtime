@@ -61,7 +61,7 @@ function getValidLogLevel(envLevel?: string): LogLevel {
  * Removes: privateKey, mnemonic, seed, encryptionKey, secret
  * CRITICAL: Prevents private key leakage in logs
  */
-export function sanitizeWalletForLogs(wallet: any): any {
+export function sanitizeWalletForLogs(wallet: Record<string, unknown>): Record<string, unknown> {
   if (!wallet || typeof wallet !== 'object') {
     return wallet;
   }

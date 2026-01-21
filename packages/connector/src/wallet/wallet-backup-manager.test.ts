@@ -10,6 +10,7 @@ import { AgentWalletLifecycle, WalletLifecycleRecord, WalletState } from './agen
 import { AgentBalanceTracker, AgentBalance } from './agent-balance-tracker';
 import { S3Client } from '@aws-sdk/client-s3';
 import * as fs from 'fs/promises';
+import * as nodeCron from 'node-cron';
 
 // Mock dependencies
 jest.mock('./wallet-seed-manager');
@@ -413,15 +414,19 @@ describe('WalletBackupManager', () => {
       testBackup.checksum = backupManager['calculateChecksum'](testBackup);
 
       // Should not throw - just log warnings
-      await expect(backupManager.restoreFromBackup(testBackup, 'password')).resolves.toBeUndefined();
+      await expect(
+        backupManager.restoreFromBackup(testBackup, 'password')
+      ).resolves.toBeUndefined();
     });
   });
 
   describe('automated scheduling', () => {
     it('should schedule full and incremental backups', () => {
-      const nodeCron = require('node-cron');
       expect(nodeCron.schedule).toHaveBeenCalledTimes(2);
-      expect(nodeCron.schedule).toHaveBeenCalledWith(config.fullBackupSchedule, expect.any(Function));
+      expect(nodeCron.schedule).toHaveBeenCalledWith(
+        config.fullBackupSchedule,
+        expect.any(Function)
+      );
       expect(nodeCron.schedule).toHaveBeenCalledWith(
         config.incrementalBackupSchedule,
         expect.any(Function)

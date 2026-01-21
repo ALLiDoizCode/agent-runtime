@@ -7,6 +7,7 @@
  */
 
 import type { Logger } from 'pino';
+import Database from 'better-sqlite3';
 
 /**
  * Spending limits configuration per agent
@@ -67,7 +68,7 @@ export interface FraudDetector {
  * Audit logger interface for wallet operations
  */
 export interface AuditLogger {
-  auditLog(operation: string, agentId: string, details: Record<string, any>): Promise<void>;
+  auditLog(operation: string, agentId: string, details: Record<string, unknown>): Promise<void>;
 }
 
 /**
@@ -88,9 +89,14 @@ export class WalletSecurityManager {
   private config: SecurityConfig;
   private fraudDetector: FraudDetector;
   private logger: Logger;
-  private db?: any; // SQLite database for transaction history (optional for MVP)
+  private db?: Database.Database; // SQLite database for transaction history (optional for MVP)
 
-  constructor(config: SecurityConfig, fraudDetector: FraudDetector, logger: Logger, db?: any) {
+  constructor(
+    config: SecurityConfig,
+    fraudDetector: FraudDetector,
+    logger: Logger,
+    db?: Database.Database
+  ) {
     this.config = config;
     this.fraudDetector = fraudDetector;
     this.logger = logger;
@@ -105,7 +111,7 @@ export class WalletSecurityManager {
    * Removes: privateKey, mnemonic, seed, encryptionKey, secret
    * CRITICAL: Use this method before logging, emitting telemetry, or returning API responses
    */
-  sanitizeWalletData(wallet: any): any {
+  sanitizeWalletData(wallet: Record<string, unknown>): Record<string, unknown> {
     if (!wallet || typeof wallet !== 'object') {
       return wallet;
     }
@@ -302,7 +308,10 @@ export class WalletSecurityManager {
       // All checks passed
       return true;
     } catch (error) {
-      this.logger.error({ error, agentId, amount: amount.toString(), token }, 'Error validating transaction');
+      this.logger.error(
+        { error, agentId, amount: amount.toString(), token },
+        'Error validating transaction'
+      );
       return false; // Fail closed on error
     }
   }

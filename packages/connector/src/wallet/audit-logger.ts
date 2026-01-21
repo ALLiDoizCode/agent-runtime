@@ -16,7 +16,7 @@ export interface AuditLogEntry {
   timestamp: number; // Unix timestamp
   operation: string; // Operation type (wallet_created, wallet_funded, payment_sent, etc.)
   agentId: string; // Agent ID affected by operation
-  details: Record<string, any>; // Operation-specific details
+  details: Record<string, unknown>; // Operation-specific details
   ip?: string; // IP address of request (if applicable)
   userAgent?: string; // User agent of request (if applicable)
   result: 'success' | 'failure'; // Operation result
@@ -80,7 +80,7 @@ export class AuditLogger {
   async auditLog(
     operation: string,
     agentId: string,
-    details: Record<string, any>,
+    details: Record<string, unknown>,
     result: 'success' | 'failure' = 'success',
     ip?: string,
     userAgent?: string
@@ -138,7 +138,7 @@ export class AuditLogger {
 
     try {
       const conditions: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (agentId) {
         conditions.push('agentId = ?');
@@ -171,7 +171,7 @@ export class AuditLogger {
 
       const rows = stmt.all(...params);
 
-      return rows.map((row: any) => ({
+      return rows.map((row: Record<string, unknown>) => ({
         id: row.id,
         timestamp: row.timestamp,
         operation: row.operation,

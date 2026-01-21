@@ -3,14 +3,20 @@
  * Story 11.9: Security Hardening for Agent Wallets
  */
 
-import { WalletSecurityManager, SpendingLimits, SecurityConfig, FraudDetector } from './wallet-security';
+import {
+  WalletSecurityManager,
+  SpendingLimits,
+  SecurityConfig,
+  FraudDetector,
+} from './wallet-security';
 import pino from 'pino';
+import Database from 'better-sqlite3';
 
 describe('WalletSecurityManager', () => {
   let securityManager: WalletSecurityManager;
   let mockFraudDetector: jest.Mocked<FraudDetector>;
   let mockLogger: pino.Logger;
-  let mockDb: any;
+  let mockDb: Database.Database;
 
   const defaultConfig: SecurityConfig = {
     authentication: {
@@ -53,7 +59,12 @@ describe('WalletSecurityManager', () => {
     };
 
     // Initialize security manager
-    securityManager = new WalletSecurityManager(defaultConfig, mockFraudDetector, mockLogger, mockDb);
+    securityManager = new WalletSecurityManager(
+      defaultConfig,
+      mockFraudDetector,
+      mockLogger,
+      mockDb
+    );
   });
 
   describe('sanitizeWalletData', () => {
@@ -74,7 +85,8 @@ describe('WalletSecurityManager', () => {
     it('should remove mnemonic from wallet object', () => {
       const wallet = {
         agentId: 'agent-001',
-        mnemonic: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+        mnemonic:
+          'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
       };
 
       const sanitized = securityManager.sanitizeWalletData(wallet);
@@ -188,7 +200,12 @@ describe('WalletSecurityManager', () => {
         },
       };
 
-      const customSecurityManager = new WalletSecurityManager(customConfig, mockFraudDetector, mockLogger, mockDb);
+      const customSecurityManager = new WalletSecurityManager(
+        customConfig,
+        mockFraudDetector,
+        mockLogger,
+        mockDb
+      );
 
       const limits = await customSecurityManager.getSpendingLimits('agent-vip');
       expect(limits).toEqual(customLimits);
@@ -238,7 +255,10 @@ describe('WalletSecurityManager', () => {
         // No database provided
       );
 
-      const monthlySpending = await noDatabaseSecurityManager.getMonthlySpending('agent-001', 'USDC');
+      const monthlySpending = await noDatabaseSecurityManager.getMonthlySpending(
+        'agent-001',
+        'USDC'
+      );
       expect(monthlySpending).toBe(0n);
     });
 
@@ -265,7 +285,11 @@ describe('WalletSecurityManager', () => {
 
   describe('validateTransaction', () => {
     it('should return true for valid transaction within all limits', async () => {
-      const valid = await securityManager.validateTransaction('agent-001', BigInt(100_000000), 'USDC'); // 100 USDC
+      const valid = await securityManager.validateTransaction(
+        'agent-001',
+        BigInt(100_000000),
+        'USDC'
+      ); // 100 USDC
 
       expect(valid).toBe(true);
       expect(mockFraudDetector.analyzeTransaction).toHaveBeenCalledWith({
@@ -277,7 +301,11 @@ describe('WalletSecurityManager', () => {
     });
 
     it('should return false for transaction exceeding max transaction size', async () => {
-      const valid = await securityManager.validateTransaction('agent-001', BigInt(2000_000000), 'USDC'); // 2000 USDC (exceeds 1000 limit)
+      const valid = await securityManager.validateTransaction(
+        'agent-001',
+        BigInt(2000_000000),
+        'USDC'
+      ); // 2000 USDC (exceeds 1000 limit)
 
       expect(valid).toBe(false);
     });
@@ -288,7 +316,11 @@ describe('WalletSecurityManager', () => {
       mockDb.prepare.mockReturnValue({ get: mockGet });
 
       // Attempt transaction for 200 USDC (total 5100, exceeds 5000 limit)
-      const valid = await securityManager.validateTransaction('agent-001', BigInt(200_000000), 'USDC');
+      const valid = await securityManager.validateTransaction(
+        'agent-001',
+        BigInt(200_000000),
+        'USDC'
+      );
 
       expect(valid).toBe(false);
     });
@@ -299,7 +331,11 @@ describe('WalletSecurityManager', () => {
       mockDb.prepare.mockReturnValue({ get: mockGet });
 
       // Attempt transaction for 300 USDC (total 50100, exceeds 50000 limit)
-      const valid = await securityManager.validateTransaction('agent-001', BigInt(300_000000), 'USDC');
+      const valid = await securityManager.validateTransaction(
+        'agent-001',
+        BigInt(300_000000),
+        'USDC'
+      );
 
       expect(valid).toBe(false);
     });
@@ -311,7 +347,11 @@ describe('WalletSecurityManager', () => {
         score: 85,
       });
 
-      const valid = await securityManager.validateTransaction('agent-001', BigInt(100_000000), 'USDC');
+      const valid = await securityManager.validateTransaction(
+        'agent-001',
+        BigInt(100_000000),
+        'USDC'
+      );
 
       expect(valid).toBe(false);
       expect(mockFraudDetector.analyzeTransaction).toHaveBeenCalled();
@@ -320,7 +360,11 @@ describe('WalletSecurityManager', () => {
     it('should return false on validation error', async () => {
       mockFraudDetector.analyzeTransaction.mockRejectedValue(new Error('Fraud detector error'));
 
-      const valid = await securityManager.validateTransaction('agent-001', BigInt(100_000000), 'USDC');
+      const valid = await securityManager.validateTransaction(
+        'agent-001',
+        BigInt(100_000000),
+        'USDC'
+      );
 
       expect(valid).toBe(false); // Fail closed on error
     });

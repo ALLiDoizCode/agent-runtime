@@ -942,7 +942,7 @@ export interface SuspiciousActivityDetectedEvent {
   /** Activity type: rapid funding or unusual transaction */
   activityType: 'rapid_funding' | 'unusual_transaction';
   /** Activity-specific details */
-  details: Record<string, any>;
+  details: Record<string, unknown>;
 }
 
 /**
