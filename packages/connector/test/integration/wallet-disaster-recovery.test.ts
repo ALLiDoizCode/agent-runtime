@@ -19,8 +19,10 @@ import { AgentBalanceTracker } from '../../src/wallet/agent-balance-tracker';
 import { AgentWalletFunder } from '../../src/wallet/agent-wallet-funder';
 import { WalletBackupManager, BackupConfig } from '../../src/wallet/wallet-backup-manager';
 import { TelemetryEmitter } from '../../src/telemetry/telemetry-emitter';
+import { TreasuryWallet } from '../../src/wallet/treasury-wallet';
+import { FundingConfig } from '../../src/wallet/agent-wallet-funder';
 import { ethers } from 'ethers';
-import { Client as XRPLClient, Wallet as XRPLWallet } from 'xrpl';
+import { Client as XRPLClient } from 'xrpl';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -137,23 +139,35 @@ describe('Wallet Disaster Recovery Integration Test', () => {
         tempDbPath
       );
 
-      // Initialize wallet funder (mock funding)
-      const mockTreasuryWallet = {
-        evmSigner: ethers.Wallet.createRandom(),
-        xrpWallet: { classicAddress: 'rTreasuryAddress', seed: 'test' },
+      // Initialize wallet funder with proper config
+      const fundingConfig: FundingConfig = {
+        evm: {
+          initialETH: BigInt('100000000000000000'),
+          initialTokens: {},
+        },
+        xrp: {
+          initialXRP: BigInt('100000'),
+        },
+        rateLimits: {
+          maxFundingsPerHour: 100,
+          maxFundingsPerAgent: 5,
+        },
+        strategy: 'fixed',
       };
 
-      const walletFunder = new AgentWalletFunder(
-        walletDerivation,
-        balanceTracker,
-        mockTelemetryEmitter,
-        mockTreasuryWallet.evmSigner,
-        mockTreasuryWallet.xrpWallet as XRPLWallet,
-        { minimumEVMBalance: BigInt('100000000000000000'), minimumXRPBalance: BigInt('100000') }
-      );
+      const mockTreasuryWallet = {
+        fundAgentEVM: jest.fn().mockResolvedValue(undefined),
+        fundAgentXRP: jest.fn().mockResolvedValue(undefined),
+      } as unknown as TreasuryWallet;
 
-      // Mock funding completion
-      walletFunder['fundAgent'] = jest.fn().mockResolvedValue(undefined);
+      const walletFunder = new AgentWalletFunder(
+        fundingConfig,
+        walletDerivation,
+        mockTreasuryWallet,
+        mockTelemetryEmitter,
+        mockEvmProvider,
+        mockXrplClient
+      );
 
       // Initialize lifecycle manager
       lifecycleManager = new AgentWalletLifecycle(
@@ -167,7 +181,7 @@ describe('Wallet Disaster Recovery Integration Test', () => {
 
       // Activate all wallets
       for (const agentId of testAgentIds) {
-        await lifecycleManager.createWallet(agentId);
+        await lifecycleManager.createAgentWallet(agentId);
         const record = await lifecycleManager.getLifecycleRecord(agentId);
         originalLifecycleRecords.set(agentId, {
           agentId: record!.agentId,
@@ -178,21 +192,6 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       }
 
       expect(originalLifecycleRecords.size).toBe(5);
-
-      // Track activity for some agents
-      await lifecycleManager.recordActivity(
-        'agent-001',
-        'evm',
-        'ETH',
-        BigInt('100000000000000000')
-      );
-      await lifecycleManager.recordActivity('agent-002', 'xrp', 'XRP', BigInt('50000'));
-      await lifecycleManager.recordActivity(
-        'agent-003',
-        'evm',
-        'ETH',
-        BigInt('200000000000000000')
-      );
 
       /**
        * PHASE 2: Backup - Create full backup of all wallet state
@@ -297,12 +296,12 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       );
 
       const newWalletFunder = new AgentWalletFunder(
+        fundingConfig,
         newWalletDerivation,
-        newBalanceTracker,
+        mockTreasuryWallet,
         mockTelemetryEmitter,
-        mockTreasuryWallet.evmSigner,
-        mockTreasuryWallet.xrpWallet as XRPLWallet,
-        { minimumEVMBalance: BigInt('100000000000000000'), minimumXRPBalance: BigInt('100000') }
+        mockEvmProvider,
+        mockXrplClient
       );
 
       const newLifecycleManager = new AgentWalletLifecycle(
@@ -420,12 +419,12 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       );
 
       const walletFunder = new AgentWalletFunder(
+        fundingConfig,
         walletDerivation,
-        balanceTracker,
+        mockTreasuryWallet,
         mockTelemetryEmitter,
-        ethers.Wallet.createRandom(),
-        { classicAddress: 'rTest', seed: 'test' } as XRPLWallet,
-        {}
+        mockEvmProvider,
+        mockXrplClient
       );
 
       const lifecycleManager = new AgentWalletLifecycle(
@@ -506,12 +505,12 @@ describe('Wallet Disaster Recovery Integration Test', () => {
         tempDbPath
       );
       const newWalletFunder = new AgentWalletFunder(
+        fundingConfig,
         newWalletDerivation,
-        newBalanceTracker,
+        mockTreasuryWallet,
         mockTelemetryEmitter,
-        ethers.Wallet.createRandom(),
-        { classicAddress: 'rTest', seed: 'test' } as XRPLWallet,
-        {}
+        mockEvmProvider,
+        mockXrplClient
       );
       const newLifecycleManager = new AgentWalletLifecycle(
         newWalletDerivation,
@@ -575,12 +574,12 @@ describe('Wallet Disaster Recovery Integration Test', () => {
       );
 
       const walletFunder = new AgentWalletFunder(
+        fundingConfig,
         walletDerivation,
-        balanceTracker,
+        mockTreasuryWallet,
         mockTelemetryEmitter,
-        ethers.Wallet.createRandom(),
-        { classicAddress: 'rTest', seed: 'test' } as XRPLWallet,
-        {}
+        mockEvmProvider,
+        mockXrplClient
       );
 
       const lifecycleManager = new AgentWalletLifecycle(
