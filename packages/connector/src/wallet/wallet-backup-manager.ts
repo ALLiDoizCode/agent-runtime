@@ -307,7 +307,14 @@ export class WalletBackupManager {
 
       // Save to local filesystem
       const localPath = `${this.config.backupPath}/${filename}`;
-      await fs.writeFile(localPath, JSON.stringify(backup, null, 2));
+      await fs.writeFile(
+        localPath,
+        JSON.stringify(
+          backup,
+          (_key, value) => (typeof value === 'bigint' ? value.toString() : value),
+          2
+        )
+      );
 
       // Upload to S3 if configured
       if (this.config.s3Bucket) {
@@ -315,7 +322,9 @@ export class WalletBackupManager {
       }
 
       // Record backup metadata
-      const backupSize = JSON.stringify(backup).length;
+      const backupSize = JSON.stringify(backup, (_key, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      ).length;
       this.backupHistory.push({
         backupId: filename,
         timestamp: backup.timestamp,
@@ -355,7 +364,9 @@ export class WalletBackupManager {
         new PutObjectCommand({
           Bucket: this.config.s3Bucket,
           Key: filename,
-          Body: JSON.stringify(backup),
+          Body: JSON.stringify(backup, (_key, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+          ),
           ContentType: 'application/json',
         })
       );

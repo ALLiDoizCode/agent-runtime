@@ -149,16 +149,19 @@ describe('WalletBackupManager', () => {
     (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
     (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
     (fs.readFile as jest.Mock).mockResolvedValue(
-      JSON.stringify({
-        version: '1.0',
-        timestamp: Date.now(),
-        type: 'full',
-        encryptedMasterSeed: 'encrypted-seed-data',
-        wallets: testWallets,
-        lifecycleRecords: testLifecycleRecords,
-        balanceSnapshots: testBalances,
-        checksum: 'valid-checksum',
-      })
+      JSON.stringify(
+        {
+          version: '1.0',
+          timestamp: Date.now(),
+          type: 'full',
+          encryptedMasterSeed: 'encrypted-seed-data',
+          wallets: testWallets,
+          lifecycleRecords: testLifecycleRecords,
+          balanceSnapshots: testBalances,
+          checksum: 'valid-checksum',
+        },
+        (_key, value) => (typeof value === 'bigint' ? value.toString() : value)
+      )
     );
 
     // Configuration
