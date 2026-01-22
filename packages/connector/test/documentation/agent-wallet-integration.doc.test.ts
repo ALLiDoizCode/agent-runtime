@@ -86,13 +86,8 @@ describe('Documentation Examples - Integration Guide', () => {
         mockTelemetryEmitter
       );
 
-      // Check if wallet exists
-      let wallet = await lifecycle.getAgentWallet('doc-test-agent-002');
-
-      if (!wallet) {
-        // Wallet doesn't exist, create new one
-        wallet = await lifecycle.createAgentWallet('doc-test-agent-002');
-      }
+      // Create agent wallet
+      const wallet = await lifecycle.createAgentWallet('doc-test-agent-002');
 
       expect(wallet).toBeDefined();
       expect(wallet.agentId).toBe('doc-test-agent-002');

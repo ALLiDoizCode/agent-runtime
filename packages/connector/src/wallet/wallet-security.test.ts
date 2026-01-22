@@ -56,7 +56,7 @@ describe('WalletSecurityManager', () => {
       prepare: jest.fn().mockReturnValue({
         get: jest.fn().mockReturnValue({ total: 0 }),
       }),
-    };
+    } as unknown as Database.Database;
 
     // Initialize security manager
     securityManager = new WalletSecurityManager(
@@ -143,8 +143,10 @@ describe('WalletSecurityManager', () => {
       const sanitized = securityManager.sanitizeWalletData(wallet);
 
       expect(sanitized.agentId).toBe('agent-001');
-      expect(sanitized.signer.address).toBe('0x1234567890123456789012345678901234567890');
-      expect(sanitized.signer.privateKey).toBeUndefined();
+      expect((sanitized.signer as Record<string, unknown>).address).toBe(
+        '0x1234567890123456789012345678901234567890'
+      );
+      expect((sanitized.signer as Record<string, unknown>).privateKey).toBeUndefined();
     });
 
     it('should handle null wallet gracefully', () => {

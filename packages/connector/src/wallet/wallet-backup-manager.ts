@@ -108,7 +108,10 @@ export class WalletBackupManager {
   private calculateChecksum(backup: WalletBackup): string {
     // Create copy without checksum field to avoid circular dependency
     const backupCopy = { ...backup, checksum: '' };
-    const data = JSON.stringify(backupCopy);
+    // Custom replacer to handle BigInt values
+    const data = JSON.stringify(backupCopy, (_key, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    );
     return createHash('sha256').update(data).digest('hex');
   }
 

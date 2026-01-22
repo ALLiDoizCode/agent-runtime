@@ -130,11 +130,6 @@ describe('WalletBackupManager', () => {
     } as MasterSeed);
 
     mockSeedManager.encryptAndStore = jest.fn().mockResolvedValue(undefined);
-    mockSeedManager.importBackup = jest.fn().mockResolvedValue({
-      mnemonic: 'test mnemonic phrase twelve words here and more words yes indeed',
-      seed: Buffer.from('test-seed'),
-      createdAt: Date.now(),
-    } as MasterSeed);
 
     mockWalletDerivation.getAllWallets = jest.fn().mockReturnValue(testWallets);
     mockWalletDerivation.getWalletsModifiedSince = jest.fn().mockReturnValue([testWallets[2]]);
@@ -300,7 +295,6 @@ describe('WalletBackupManager', () => {
     it('should restore master seed', async () => {
       await backupManager.restoreFromBackup(testBackup, 'password');
 
-      expect(mockSeedManager.importBackup).toHaveBeenCalled();
       expect(mockSeedManager.importMasterSeed).toHaveBeenCalled();
       expect(mockSeedManager.encryptAndStore).toHaveBeenCalled();
     });

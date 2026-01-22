@@ -199,7 +199,7 @@ describe('Wallet Security Penetration Tests (Story 11.9 AC 10)', () => {
         prepare: jest.fn().mockReturnValue({
           get: jest.fn().mockReturnValue({ total: 4900_000000 }),
         }),
-      };
+      } as unknown as Database.Database;
 
       const testSecurityManager = new WalletSecurityManager(
         securityConfig,
@@ -225,7 +225,7 @@ describe('Wallet Security Penetration Tests (Story 11.9 AC 10)', () => {
         prepare: jest.fn().mockReturnValue({
           get: jest.fn().mockReturnValue({ total: 49800_000000 }),
         }),
-      };
+      } as unknown as Database.Database;
 
       const testSecurityManager = new WalletSecurityManager(
         securityConfig,
