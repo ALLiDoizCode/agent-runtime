@@ -9,7 +9,7 @@ import { AgentWalletDerivation, AgentWallet } from './agent-wallet-derivation';
 import { AgentWalletLifecycle, WalletLifecycleRecord, WalletState } from './agent-wallet-lifecycle';
 import { AgentBalanceTracker, AgentBalance } from './agent-balance-tracker';
 import { S3Client } from '@aws-sdk/client-s3';
-import * as fs from 'fs/promises';
+import { promises as fs } from 'fs';
 import * as nodeCron from 'node-cron';
 
 // Mock dependencies
@@ -17,7 +17,18 @@ jest.mock('./wallet-seed-manager');
 jest.mock('./agent-wallet-derivation');
 jest.mock('./agent-wallet-lifecycle');
 jest.mock('./agent-balance-tracker');
-jest.mock('fs/promises');
+jest.mock('fs', () => {
+  const actual = jest.requireActual('fs');
+  return {
+    ...actual,
+    promises: {
+      ...actual.promises,
+      mkdir: jest.fn(),
+      writeFile: jest.fn(),
+      readFile: jest.fn(),
+    },
+  };
+});
 jest.mock('@aws-sdk/client-s3');
 jest.mock('node-cron', () => ({
   schedule: jest.fn(),
@@ -131,6 +142,12 @@ describe('WalletBackupManager', () => {
 
     mockSeedManager.encryptAndStore = jest.fn().mockResolvedValue(undefined);
 
+    mockSeedManager.restoreFromBackup = jest.fn().mockResolvedValue({
+      mnemonic: 'test mnemonic phrase twelve words here and more words yes indeed',
+      seed: Buffer.from('test-seed'),
+      createdAt: Date.now(),
+    } as MasterSeed);
+
     mockWalletDerivation.getAllWallets = jest.fn().mockReturnValue(testWallets);
     mockWalletDerivation.getWalletsModifiedSince = jest.fn().mockReturnValue([testWallets[2]]);
     mockWalletDerivation.importWallet = jest.fn().mockResolvedValue(undefined);
@@ -189,7 +206,8 @@ describe('WalletBackupManager', () => {
       expect(backup.type).toBe('full');
       expect(backup.wallets).toHaveLength(3);
       expect(backup.lifecycleRecords).toHaveLength(2);
-      expect(Object.keys(backup.balanceSnapshots)).toHaveLength(2);
+      // Balance snapshots are fetched for all wallets, even if some return empty arrays
+      expect(Object.keys(backup.balanceSnapshots)).toHaveLength(3);
       expect(backup.checksum).toBeTruthy();
     });
 

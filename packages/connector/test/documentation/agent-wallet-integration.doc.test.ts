@@ -91,7 +91,8 @@ describe('Documentation Examples - Integration Guide', () => {
 
       expect(wallet).toBeDefined();
       expect(wallet.agentId).toBe('doc-test-agent-002');
-      expect(wallet.derivationIndex).toBeGreaterThanOrEqual(0);
+      // WalletLifecycleRecord doesn't have derivationIndex - check state instead
+      expect(wallet.state).toBeDefined();
     });
 
     test('should handle existing wallet error', async () => {
@@ -157,7 +158,8 @@ describe('Documentation Examples - Integration Guide', () => {
         logger.info('Wallet created successfully', { agentId: wallet.agentId });
         expect(wallet).toBeDefined();
       } catch (error) {
-        logger.error('Wallet operation failed', { error: error.message });
+        const err = error as Error;
+        logger.error('Wallet operation failed', { error: err.message });
         throw error;
       }
     });
@@ -178,10 +180,11 @@ describe('Documentation Examples - Integration Guide', () => {
       try {
         await lifecycle.createAgentWallet('doc-test-error-categorize');
       } catch (error) {
-        if (error.message.includes('already exists')) {
+        const err = error as Error;
+        if (err.message.includes('already exists')) {
           logger.warn('Wallet already exists', { agentId: 'doc-test-error-categorize' });
-          // Return existing wallet
-          const existing = await lifecycle.getAgentWallet('doc-test-error-categorize');
+          // Return existing wallet lifecycle record
+          const existing = await lifecycle.getLifecycleRecord('doc-test-error-categorize');
           expect(existing).toBeDefined();
         } else {
           throw error;
@@ -220,10 +223,11 @@ describe('Documentation Examples - Integration Guide', () => {
       try {
         await lifecycle.createAgentWallet('doc-test-error-log');
       } catch (error) {
+        const err = error as Error;
         logger.error('Wallet creation failed', {
           agentId: 'doc-test-error-log',
-          error: error.message,
-          stack: error.stack,
+          error: err.message,
+          stack: err.stack,
         });
         // Don't throw - just verify error was logged
       }
@@ -281,18 +285,17 @@ describe('Documentation Examples - API Reference', () => {
         mockTelemetryEmitter
       );
 
-      const wallet = await lifecycle.createAgentWallet('doc-api-test-001');
+      const record = await lifecycle.createAgentWallet('doc-api-test-001');
 
-      // Verify return type matches documentation
-      expect(wallet).toHaveProperty('agentId');
-      expect(wallet).toHaveProperty('evmAddress');
-      expect(wallet).toHaveProperty('xrpAddress');
-      expect(wallet).toHaveProperty('derivationIndex');
-      expect(wallet).toHaveProperty('createdAt');
-      expect(wallet).toHaveProperty('status');
+      // Verify return type matches WalletLifecycleRecord
+      expect(record).toHaveProperty('agentId');
+      expect(record).toHaveProperty('state');
+      expect(record).toHaveProperty('createdAt');
+      expect(record).toHaveProperty('totalTransactions');
+      expect(record).toHaveProperty('totalVolume');
     });
 
-    test('should match API signature for getAgentWallet', async () => {
+    test('should match API signature for getLifecycleRecord', async () => {
       const lifecycle = new AgentWalletLifecycle(
         mockWalletDerivation,
         mockWalletFunder,
@@ -300,14 +303,12 @@ describe('Documentation Examples - API Reference', () => {
         mockTelemetryEmitter
       );
 
-      const wallet = await lifecycle.getAgentWallet('doc-api-test-001');
+      // First create the wallet
+      await lifecycle.createAgentWallet('doc-api-test-lifecycle');
+      const record = await lifecycle.getLifecycleRecord('doc-api-test-lifecycle');
 
-      if (wallet) {
-        expect(wallet).toHaveProperty('agentId');
-        expect(wallet).toHaveProperty('evmAddress');
-      } else {
-        expect(wallet).toBeNull();
-      }
+      expect(record).toHaveProperty('agentId');
+      expect(record).toHaveProperty('state');
     });
   });
 

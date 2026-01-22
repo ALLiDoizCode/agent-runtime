@@ -463,13 +463,16 @@ export class WalletBackupManager {
     // We can use the restoreFromBackup method from WalletSeedManager
     // which handles decryption and validation internally
 
+    // Calculate checksum for the encrypted seed (required for validation)
+    const checksum = createHash('sha256').update(encryptedSeed).digest('hex');
+
     // Create a BackupData object for restoreFromBackup
     const backupData: BackupData = {
       version: '1.0',
       createdAt: Date.now(),
       encryptedSeed,
       backupDate: Date.now(),
-      checksum: '', // Checksum will be calculated by WalletSeedManager
+      checksum,
     };
 
     const masterSeed = await this.seedManager.restoreFromBackup(backupData, password);
