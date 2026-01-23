@@ -2311,6 +2311,69 @@ Before deploying to production, verify:
 - [ ] Secrets rotation schedule established
 - [ ] Backup and disaster recovery plan documented
 
+## Performance
+
+M2M is optimized for high-throughput payment processing, targeting **10,000+ transactions per second (TPS)** with sub-10ms p99 latency.
+
+### Performance Targets
+
+| Metric            | Target                | Notes                                  |
+| ----------------- | --------------------- | -------------------------------------- |
+| **Throughput**    | 10,000+ TPS sustained | Measured over 1 hour continuous load   |
+| **Latency (p99)** | <10ms                 | 99th percentile packet processing time |
+| **Memory Usage**  | <500MB heap           | Under 10K TPS load                     |
+| **CPU Usage**     | <80%                  | Multi-core utilization under load      |
+
+### Minimum Hardware Requirements
+
+To achieve 10K+ TPS performance:
+
+- **CPU**: 8+ cores (Intel Xeon or AMD EPYC recommended)
+- **RAM**: 8GB minimum, 16GB recommended
+- **Storage**: SSD with 100MB/s+ sequential write (for TigerBeetle)
+- **Network**: 1Gbps network interface
+
+### Performance Optimizations
+
+M2M includes several performance optimizations for high-throughput scenarios:
+
+- **Worker Thread Pool**: Parallel packet processing across CPU cores
+- **Batched TigerBeetle Writes**: 100+ transfers per database batch (10ms flush interval)
+- **Telemetry Buffering**: Batched event logging (1000 events per flush, 100ms interval)
+- **Connection Pooling**: Reusable connections to blockchain RPC endpoints
+- **Zero-Copy Buffers**: Optimized OER parsing minimizes memory allocations
+
+### Performance Tuning
+
+For detailed performance tuning guidance, see:
+
+- **[Performance Tuning Guide](docs/operators/performance-tuning-guide.md)** - Worker thread configuration, batch size tuning, connection pool sizing, memory optimization, troubleshooting
+
+**Quick Configuration Example** (10K TPS):
+
+```yaml
+performance:
+  packetProcessing:
+    workerThreads: 8 # Match CPU core count
+    batchSize: 100
+
+  tigerbeetle:
+    batchSize: 100
+    flushIntervalMs: 10
+
+  telemetry:
+    bufferSize: 1000
+    flushIntervalMs: 100
+
+  connectionPools:
+    evm:
+      poolSize: 10
+    xrp:
+      poolSize: 5
+```
+
+See the [Performance Tuning Guide](docs/operators/performance-tuning-guide.md) for complete configuration recommendations and troubleshooting steps.
+
 ## Documentation
 
 - **Product Requirements**: [docs/prd.md](docs/prd.md)

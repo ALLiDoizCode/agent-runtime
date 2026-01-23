@@ -1,7 +1,7 @@
 import pino from 'pino';
 
 /**
- * Audit log event types for key operations
+ * Audit log event types for key operations and fraud detection
  */
 export type AuditEventType =
   | 'SIGN_REQUEST'
@@ -9,7 +9,10 @@ export type AuditEventType =
   | 'SIGN_FAILURE'
   | 'KEY_ROTATION_START'
   | 'KEY_ROTATION_COMPLETE'
-  | 'KEY_ACCESS_DENIED';
+  | 'KEY_ACCESS_DENIED'
+  | 'FRAUD_DETECTED'
+  | 'PEER_PAUSED'
+  | 'PEER_RESUMED';
 
 /**
  * Audit log entry structure
@@ -114,6 +117,45 @@ export class AuditLogger {
       reason,
     });
     this.logger.warn(entry, 'Key access denied');
+  }
+
+  /**
+   * Log fraud detection event
+   */
+  logFraudDetection(
+    peerId: string,
+    ruleName: string,
+    severity: 'low' | 'medium' | 'high' | 'critical',
+    details?: Record<string, unknown>
+  ): void {
+    const entry = this._createEntry('FRAUD_DETECTED', peerId, {
+      ruleName,
+      severity,
+      ...details,
+    });
+    this.logger.warn(entry, 'Fraud detected');
+  }
+
+  /**
+   * Log peer pause event
+   */
+  logPeerPause(peerId: string, reason: string, ruleViolated: string, severity: string): void {
+    const entry = this._createEntry('PEER_PAUSED', peerId, {
+      reason,
+      ruleViolated,
+      severity,
+    });
+    this.logger.warn(entry, 'Peer paused due to fraud detection');
+  }
+
+  /**
+   * Log peer resume event
+   */
+  logPeerResume(peerId: string, operator?: string): void {
+    const entry = this._createEntry('PEER_RESUMED', peerId, {
+      operator,
+    });
+    this.logger.info(entry, 'Peer resumed after manual review');
   }
 
   /**

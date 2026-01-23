@@ -266,6 +266,20 @@ export interface ConnectorConfig {
    * Supports backends: env (development), AWS KMS, GCP KMS, Azure Key Vault, HSM (PKCS#11)
    */
   security?: SecurityConfig;
+
+  /**
+   * Optional performance configuration for high-throughput optimization
+   * When provided, enables batching, buffering, and connection pooling for 10K+ TPS
+   * Defaults to performance optimizations disabled if not specified
+   *
+   * Epic 12 Story 12.5 (Performance Optimization for 10K+ TPS)
+   * Enables:
+   * - Packet processing parallelization with worker threads
+   * - TigerBeetle transfer batching
+   * - Telemetry event buffering
+   * - Connection pooling for blockchain RPC endpoints
+   */
+  performance?: PerformanceConfig;
 }
 
 /**
@@ -1082,5 +1096,115 @@ export interface SecurityConfig {
     backend: 'env' | 'aws-kms' | 'gcp-kms' | 'azure-kv' | 'hsm';
     nodeId: string;
     [key: string]: unknown; // Allow additional backend-specific fields
+  };
+}
+
+/**
+ * Performance Configuration Interface
+ *
+ * Configures performance optimization settings for high-throughput scenarios.
+ * Enables batching, buffering, and connection pooling to achieve 10K+ TPS.
+ *
+ * Epic 12 Story 12.5 (Performance Optimization for 10K+ TPS)
+ *
+ * @property packetProcessing - Packet processing parallelization settings
+ * @property tigerbeetle - TigerBeetle transfer batching settings
+ * @property telemetry - Telemetry event buffering settings
+ * @property connectionPools - Connection pool configurations for external services
+ *
+ * @example
+ * ```typescript
+ * const performance: PerformanceConfig = {
+ *   packetProcessing: {
+ *     workerThreads: 8,
+ *     batchSize: 100
+ *   },
+ *   tigerbeetle: {
+ *     batchSize: 100,
+ *     flushIntervalMs: 10
+ *   },
+ *   telemetry: {
+ *     bufferSize: 1000,
+ *     flushIntervalMs: 100
+ *   },
+ *   connectionPools: {
+ *     evm: {
+ *       poolSize: 10,
+ *       rpcUrls: ['https://mainnet.base.org', 'https://base.llamarpc.com']
+ *     },
+ *     xrp: {
+ *       poolSize: 5,
+ *       wssUrls: ['wss://xrplcluster.com', 'wss://s1.ripple.com']
+ *     }
+ *   }
+ * };
+ * ```
+ */
+export interface PerformanceConfig {
+  /**
+   * Packet processing parallelization configuration
+   * Uses worker threads to parallelize packet processing across CPU cores
+   *
+   * @property workerThreads - Number of worker threads (default: CPU cores)
+   * @property batchSize - Packets per batch (default: 100)
+   */
+  packetProcessing?: {
+    workerThreads?: number;
+    batchSize?: number;
+  };
+
+  /**
+   * TigerBeetle transfer batching configuration
+   * Batches transfers to reduce TigerBeetle round-trips
+   *
+   * @property batchSize - Transfers per batch (default: 100)
+   * @property flushIntervalMs - Periodic flush interval (default: 10ms)
+   * @property maxPendingTransfers - Maximum queued transfers (default: 1000)
+   */
+  tigerbeetle?: {
+    batchSize?: number;
+    flushIntervalMs?: number;
+    maxPendingTransfers?: number;
+  };
+
+  /**
+   * Telemetry event buffering configuration
+   * Batches telemetry events to reduce logging overhead
+   *
+   * @property bufferSize - Events per batch (default: 1000)
+   * @property flushIntervalMs - Periodic flush interval (default: 100ms)
+   */
+  telemetry?: {
+    bufferSize?: number;
+    flushIntervalMs?: number;
+  };
+
+  /**
+   * Connection pool configurations for external services
+   * Pools connections to blockchain RPC endpoints and WebSocket servers
+   *
+   * @property evm - EVM RPC connection pool configuration
+   * @property xrp - XRP WebSocket connection pool configuration
+   */
+  connectionPools?: {
+    /**
+     * EVM RPC connection pool (for Base L2, Ethereum, etc.)
+     * @property poolSize - Number of RPC connections (default: 10)
+     * @property rpcUrls - List of RPC endpoint URLs
+     */
+    evm?: {
+      poolSize?: number;
+      rpcUrls?: string[];
+    };
+
+    /**
+     * XRP WebSocket connection pool (for XRPL integration)
+     * @property poolSize - Number of WebSocket connections (default: 5)
+     * @property wssUrls - List of WebSocket endpoint URLs
+     */
+    xrp?: {
+      poolSize?: number;
+      wssUrls?: string[];
+    };
   };
 }

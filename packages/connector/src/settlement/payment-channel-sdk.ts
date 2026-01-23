@@ -20,6 +20,7 @@ import { getDomainSeparator, getBalanceProofTypes } from './eip712-helper';
 import type { Logger } from '../utils/logger';
 import type { KeyManager } from '../security/key-manager';
 import { KeyManagerSigner } from '../security/key-manager-signer';
+import type { EVMRPCConnectionPool } from '../utils/evm-rpc-connection-pool';
 
 // TokenNetworkRegistry ABI - only methods we need
 const REGISTRY_ABI = [
@@ -104,6 +105,38 @@ export class PaymentChannelSDK {
     this.channelStateCache = new Map();
     this.logger = logger;
     this.eventListeners = new Map();
+  }
+
+  /**
+   * Create a PaymentChannelSDK instance from a connection pool
+   *
+   * Uses the connection pool for failover and load balancing across multiple RPC endpoints.
+   * For high-throughput scenarios, consider creating multiple SDK instances from the pool.
+   *
+   * @param pool - EVM RPC connection pool
+   * @param keyManager - KeyManager for secure key operations
+   * @param evmKeyId - EVM key identifier for KeyManager
+   * @param registryAddress - TokenNetworkRegistry contract address
+   * @param logger - Pino logger instance
+   * @returns PaymentChannelSDK instance
+   * @throws Error if no healthy connection available in pool
+   *
+   * [Source: Epic 12 Story 12.5 Task 6.4 - Connection pool integration]
+   */
+  static fromConnectionPool(
+    pool: EVMRPCConnectionPool,
+    keyManager: KeyManager,
+    evmKeyId: string,
+    registryAddress: string,
+    logger: Logger
+  ): PaymentChannelSDK {
+    const provider = pool.getProvider();
+    if (!provider) {
+      throw new Error('No healthy EVM RPC connection available in pool');
+    }
+
+    logger.info('Creating PaymentChannelSDK from connection pool');
+    return new PaymentChannelSDK(provider, keyManager, evmKeyId, registryAddress, logger);
   }
 
   /**
