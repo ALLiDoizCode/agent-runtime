@@ -108,11 +108,13 @@ describe('Profiler', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       const duration1 = profiler.endLatencyMeasurement('op1');
-      expect(duration1).toBeGreaterThanOrEqual(10);
+      // Allow slight timing variance due to timer resolution
+      expect(duration1).toBeGreaterThanOrEqual(8);
       expect(profiler.getActiveMeasurementCount()).toBe(1);
 
       const duration2 = profiler.endLatencyMeasurement('op2');
-      expect(duration2).toBeGreaterThanOrEqual(10);
+      // Allow slight timing variance due to timer resolution
+      expect(duration2).toBeGreaterThanOrEqual(8);
       expect(profiler.getActiveMeasurementCount()).toBe(0);
     });
 
