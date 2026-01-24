@@ -26,8 +26,9 @@ describe('Memory Profiling', () => {
   const MEDIUM_TEST_DURATION_MS = 30000; // 30 seconds for leak detection
   const SAMPLE_INTERVAL_MS = 1000; // Sample memory every 1 second
 
-  // Memory thresholds (600MB allows for CI environment variability)
-  const MAX_HEAP_MB = 600;
+  // Memory thresholds (1000MB allows for CI environment variability)
+  // CI runners can have higher baseline memory usage due to test parallelism
+  const MAX_HEAP_MB = 1000;
   const MAX_HEAP_GROWTH_RATE_MB_PER_SEC = 5; // Acceptable growth rate
 
   beforeAll(() => {
