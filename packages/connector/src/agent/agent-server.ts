@@ -102,6 +102,11 @@ export class AgentServer {
   private eventsSent = 0;
   private eventsReceived = 0;
   private isShutdown = false;
+  // Track pending packets for response correlation
+  private pendingPackets: Map<
+    string,
+    { peerId: string; destination: string; amount: string; timestamp: number }
+  > = new Map();
   // EVM Payment Channel state
   private evmProvider: ethers.JsonRpcProvider | null = null;
   private evmWallet: ethers.Wallet | null = null;
@@ -709,6 +714,28 @@ export class AgentServer {
     try {
       const response = this.parseBtpResponse(data);
       this.logger.debug({ peerId, responseType: response.type }, 'Received peer response');
+
+      // Get pending packet info for correlation
+      const pendingPacket = this.pendingPackets.get(peerId);
+      if (pendingPacket) {
+        this.pendingPackets.delete(peerId);
+
+        // Emit response received telemetry
+        const packetType = response.type === PacketType.FULFILL ? 'fulfill' : 'reject';
+        this.telemetryEmitter.emit({
+          type: 'AGENT_CHANNEL_PAYMENT_SENT',
+          timestamp: Date.now(),
+          nodeId: this.config.agentId,
+          agentId: this.config.agentId,
+          packetType: packetType as 'prepare' | 'fulfill' | 'reject',
+          from: peerId, // Response comes FROM the peer
+          to: this.config.agentId, // Response goes TO us
+          peerId: peerId,
+          channelId: `${peerId}-${this.config.agentId}`,
+          amount: pendingPacket.amount,
+          destination: pendingPacket.destination,
+        });
+      }
     } catch (error) {
       this.logger.error({ peerId, err: error }, 'Failed to parse peer response');
     }
@@ -749,6 +776,14 @@ export class AgentServer {
       const btpData = this.serializeBtpPacket(packet);
       peer.ws!.send(btpData);
       this.eventsSent++;
+
+      // Track pending packet for response correlation
+      this.pendingPackets.set(request.targetPeerId, {
+        peerId: request.targetPeerId,
+        destination: packet.destination,
+        amount: packet.amount.toString(),
+        timestamp: Date.now(),
+      });
 
       // Emit PREPARE telemetry event
       this.telemetryEmitter.emit({
