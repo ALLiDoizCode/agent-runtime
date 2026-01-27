@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "npm run build:ui && tsc",
-    "build:ui": "cd explorer-ui && npm install && npm run build",
+    "build:ui": "cd explorer-ui && NODE_ENV=development npm install && npm run build",
     "build:connector-only": "tsc",
     "start": "node dist/index.js",
     "dev:ui": "cd explorer-ui && npm run dev",
