@@ -9,3 +9,6 @@ out/
 
 # Dotenv file
 .env
+
+# Deployer wallet (NEVER commit private keys)
+deployer-wallet.json

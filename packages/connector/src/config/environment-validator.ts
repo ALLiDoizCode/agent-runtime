@@ -186,28 +186,87 @@ function logDevelopmentWarnings(config: ConnectorConfig): void {
 }
 
 /**
- * Log Staging Environment Warnings
+ * Log Staging Environment Warnings and Validate Testnet Configuration
  *
  * Emits warning logs to indicate staging/testnet mode.
- * Similar to development warnings but for public testnets.
+ * Enforces moderate validation rules for public testnet deployments:
+ * - Base chain ID must be testnet (84532 Base Sepolia)
+ * - XRPL network must be 'testnet'
+ * - RPC URLs should use HTTPS for public endpoints
+ * - Rejects known Anvil development keys
+ * - Rejects localhost RPC URLs (staging uses public testnets)
  *
  * @param config - Connector configuration
+ * @throws ConfigurationError if staging validation fails
  * @private
  */
 function logStagingWarnings(config: ConnectorConfig): void {
   logger.warn('⚠️  STAGING MODE - Using public testnets');
+  logger.warn('⚠️  Base Sepolia (84532) + XRPL Testnet');
   logger.warn('⚠️  This is NOT production configuration');
 
-  // Log Base blockchain config if enabled
+  // Validate Base blockchain if enabled
   if (config.blockchain?.base?.enabled) {
-    logger.warn(`⚠️  Base RPC: ${config.blockchain.base.rpcUrl}`);
-    logger.warn(`⚠️  Base Chain ID: ${config.blockchain.base.chainId}`);
+    const base = config.blockchain.base;
+    logger.warn(`⚠️  Base RPC: ${base.rpcUrl}`);
+    logger.warn(`⚠️  Base Chain ID: ${base.chainId}`);
+
+    // Chain ID must be Base Sepolia (84532) for staging
+    if (base.chainId !== 84532) {
+      throw new ConfigurationError(
+        `Staging must use Base Sepolia (chainId 84532), got chainId ${base.chainId}. ` +
+          `Use ENVIRONMENT=production for Base mainnet (8453).`
+      );
+    }
+
+    // RPC URL must not point to localhost (staging uses public testnets)
+    if (base.rpcUrl.includes('localhost') || base.rpcUrl.includes('127.0.0.1')) {
+      logger.warn(
+        '⚠️  Staging Base RPC points to localhost. ' +
+          'Use https://sepolia.base.org for public testnet, or ENVIRONMENT=development for local Anvil.'
+      );
+    }
+
+    // Warn if using HTTP instead of HTTPS for public endpoints
+    if (
+      base.rpcUrl.startsWith('http://') &&
+      !base.rpcUrl.includes('localhost') &&
+      !base.rpcUrl.includes('127.0.0.1') &&
+      !base.rpcUrl.includes('anvil')
+    ) {
+      logger.warn('⚠️  Staging Base RPC uses HTTP - consider HTTPS for public testnet endpoints');
+    }
+
+    // Reject known development keys in staging
+    if (base.privateKey && KNOWN_DEV_PRIVATE_KEYS.includes(base.privateKey)) {
+      throw new ConfigurationError(
+        'Cannot use Anvil development private key in staging. ' +
+          'Generate a dedicated testnet wallet for staging deployment.'
+      );
+    }
   }
 
-  // Log XRPL blockchain config if enabled
+  // Validate XRPL blockchain if enabled
   if (config.blockchain?.xrpl?.enabled) {
-    logger.warn(`⚠️  XRPL RPC: ${config.blockchain.xrpl.rpcUrl}`);
-    logger.warn(`⚠️  XRPL Network: ${config.blockchain.xrpl.network}`);
+    const xrpl = config.blockchain.xrpl;
+    logger.warn(`⚠️  XRPL RPC: ${xrpl.rpcUrl}`);
+    logger.warn(`⚠️  XRPL Network: ${xrpl.network}`);
+
+    // Network must be testnet for staging
+    if (xrpl.network !== 'testnet') {
+      throw new ConfigurationError(
+        `Staging must use XRPL testnet, got network '${xrpl.network}'. ` +
+          `Use ENVIRONMENT=production for mainnet, or ENVIRONMENT=development for standalone.`
+      );
+    }
+
+    // RPC URL must not point to localhost
+    if (xrpl.rpcUrl.includes('localhost') || xrpl.rpcUrl.includes('127.0.0.1')) {
+      logger.warn(
+        '⚠️  Staging XRPL RPC points to localhost. ' +
+          'Use https://s.altnet.rippletest.net:51234 for public testnet.'
+      );
+    }
   }
 }
 

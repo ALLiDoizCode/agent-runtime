@@ -1,0 +1,41 @@
+{
+  "networks": {
+    "base-sepolia": {
+      "name": "Base Sepolia",
+      "chainId": 84532,
+      "environment": "staging",
+      "blockExplorer": "https://sepolia.basescan.org",
+      "contracts": {
+        "TokenNetworkRegistry": {
+          "address": "0xCbf6f43A17034e733744cBCc130FfcCA3CF3252C",
+          "deployer": "0x1BdF7EA7EB7699400a4842277866A5B4Ae90726d",
+          "deployTxHash": "0x708754d17088c7802f676af51032809c0f0b06348860b68749bc56bb28e3b565",
+          "blockNumber": 36892317,
+          "deployedAt": "2026-01-27"
+        }
+      }
+    },
+    "base-mainnet": {
+      "name": "Base Mainnet",
+      "chainId": 8453,
+      "environment": "production",
+      "blockExplorer": "https://basescan.org",
+      "contracts": {
+        "TokenNetworkRegistry": {
+          "address": "0xCbf6f43A17034e733744cBCc130FfcCA3CF3252C",
+          "deployer": "0x1BdF7EA7EB7699400a4842277866A5B4Ae90726d",
+          "deployTxHash": "0xe69394ab9312d10453af481bb266aa94207a745a2d402d4c509a4221c52af7f3",
+          "blockNumber": 41382049,
+          "deployedAt": "2026-01-27"
+        }
+      }
+    },
+    "localhost": {
+      "name": "Local Anvil",
+      "chainId": 31337,
+      "environment": "development",
+      "blockExplorer": null,
+      "contracts": {}
+    }
+  }
+}

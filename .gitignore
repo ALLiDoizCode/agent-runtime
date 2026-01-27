@@ -18,6 +18,9 @@ coverage/
 .env.dev  # Development environment variables (local overrides)
 .env.production  # Production environment variables (NEVER commit)
 
+# Deployer wallet (NEVER commit private keys)
+deployer-wallet.json
+
 # IDE specific files
 .vscode/
 .idea/
