@@ -1,9 +1,10 @@
 import { Wallet, AlertTriangle, Link2, Users } from 'lucide-react';
 import { useAccountBalances } from '@/hooks/useAccountBalances';
 import { usePaymentChannels } from '@/hooks/usePaymentChannels';
+import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { AccountCard } from './AccountCard';
 import { PaymentChannelCard } from './PaymentChannelCard';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { WalletOverview } from './WalletOverview';
 
 /**
  * AccountsView component - displays peer account balances and settlement status
@@ -11,8 +12,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
  */
 export function AccountsView() {
   const { accounts, status, totalAccounts, nearThresholdCount } = useAccountBalances();
-
   const { channels, activeChannelCount } = usePaymentChannels();
+  const {
+    data: walletData,
+    lastUpdated: walletLastUpdated,
+    refresh: refreshWallet,
+  } = useWalletBalances();
 
   // Merge channel info into accounts
   const accountsWithChannels = accounts.map((account) => {
@@ -29,8 +34,8 @@ export function AccountsView() {
     };
   });
 
-  // Empty state
-  if (totalAccounts === 0) {
+  // If no peer accounts and no wallet data, show empty state
+  if (totalAccounts === 0 && !walletData) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <Wallet className="h-12 w-12 mb-4 opacity-50" />
@@ -52,77 +57,97 @@ export function AccountsView() {
 
   return (
     <div className="space-y-6">
+      {/* On-Chain Wallet Panel */}
+      {walletData && (
+        <WalletOverview
+          data={walletData}
+          lastUpdated={walletLastUpdated}
+          onRefresh={refreshWallet}
+        />
+      )}
+
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="py-3">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Total Accounts
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalAccounts}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="py-3">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Near Threshold
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className={`text-2xl font-bold ${nearThresholdCount > 0 ? 'text-yellow-500' : ''}`}
-            >
-              {nearThresholdCount}
+        <div className="rounded-lg border border-border bg-card pl-0 overflow-hidden">
+          <div className="flex items-stretch">
+            <div className="w-1 bg-blue-500 shrink-0" />
+            <div className="flex items-center gap-3 px-4 py-3">
+              <Users className="h-5 w-5 text-blue-500 shrink-0" />
+              <div>
+                <div className="text-2xl font-bold leading-tight">{totalAccounts}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Total Accounts</div>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">&gt;70% of settlement threshold</p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card className="py-3">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Link2 className="h-4 w-4" />
-              Active Channels
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="rounded-lg border border-border bg-card pl-0 overflow-hidden">
+          <div className="flex items-stretch">
             <div
-              className={`text-2xl font-bold ${activeChannelCount > 0 ? 'text-emerald-500' : ''}`}
-            >
-              {activeChannelCount}
+              className={`w-1 shrink-0 ${nearThresholdCount > 0 ? 'bg-yellow-500' : 'bg-yellow-500/50'}`}
+            />
+            <div className="flex items-center gap-3 px-4 py-3">
+              <AlertTriangle
+                className={`h-5 w-5 shrink-0 ${nearThresholdCount > 0 ? 'text-yellow-500' : 'text-yellow-500/50'}`}
+              />
+              <div>
+                <div
+                  className={`text-2xl font-bold leading-tight ${nearThresholdCount > 0 ? 'text-yellow-500' : ''}`}
+                >
+                  {nearThresholdCount}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">Near Threshold</div>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">Payment channels open</p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card pl-0 overflow-hidden">
+          <div className="flex items-stretch">
+            <div
+              className={`w-1 shrink-0 ${activeChannelCount > 0 ? 'bg-emerald-500' : 'bg-emerald-500/50'}`}
+            />
+            <div className="flex items-center gap-3 px-4 py-3">
+              <Link2
+                className={`h-5 w-5 shrink-0 ${activeChannelCount > 0 ? 'text-emerald-500' : 'text-emerald-500/50'}`}
+              />
+              <div>
+                <div
+                  className={`text-2xl font-bold leading-tight ${activeChannelCount > 0 ? 'text-emerald-500' : ''}`}
+                >
+                  {activeChannelCount}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">Active Channels</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Account Cards Grid */}
-      <div>
-        <h3 className="text-sm font-medium text-muted-foreground mb-3">Peer Accounts</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {accountsWithChannels.map((account) => (
-            <AccountCard
-              key={`${account.peerId}:${account.tokenId}`}
-              peerId={account.peerId}
-              tokenId={account.tokenId}
-              debitBalance={account.debitBalance}
-              creditBalance={account.creditBalance}
-              netBalance={account.netBalance}
-              creditLimit={account.creditLimit}
-              settlementThreshold={account.settlementThreshold}
-              settlementState={account.settlementState}
-              balanceHistory={account.balanceHistory}
-              hasActiveChannel={account.hasActiveChannel}
-              channelType={account.channelType}
-            />
-          ))}
+      {accountsWithChannels.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">Peer Accounts</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {accountsWithChannels.map((account) => (
+              <AccountCard
+                key={`${account.peerId}:${account.tokenId}`}
+                peerId={account.peerId}
+                tokenId={account.tokenId}
+                debitBalance={account.debitBalance}
+                creditBalance={account.creditBalance}
+                netBalance={account.netBalance}
+                creditLimit={account.creditLimit}
+                settlementThreshold={account.settlementThreshold}
+                settlementState={account.settlementState}
+                balanceHistory={account.balanceHistory}
+                hasActiveChannel={account.hasActiveChannel}
+                channelType={account.channelType}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Payment Channels Section */}
       {channels.length > 0 && (

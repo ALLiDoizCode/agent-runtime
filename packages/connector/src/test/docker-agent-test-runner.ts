@@ -99,7 +99,7 @@ function httpGet(url: string): Promise<unknown> {
   });
 }
 
-function httpPost(url: string, body: unknown): Promise<unknown> {
+function httpPost(url: string, body: unknown, timeoutMs = 30000): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     const data = JSON.stringify(body);
@@ -129,7 +129,7 @@ function httpPost(url: string, body: unknown): Promise<unknown> {
     );
 
     req.on('error', reject);
-    req.setTimeout(30000, () => {
+    req.setTimeout(timeoutMs, () => {
       req.destroy();
       reject(new Error('Request timeout'));
     });
@@ -375,6 +375,11 @@ class DockerAgentTestRunner {
         });
       }
 
+      // Update peer addresses with EVM/XRP info now that all addresses are known
+      await this.runPhase('Update Peer Addresses', async () => {
+        return await this.updatePeerAddresses();
+      });
+
       // Phase 8: Establish BTP connections
       await this.runPhase('Establish BTP Connections', async () => {
         return await this.establishConnections();
@@ -417,6 +422,39 @@ class DockerAgentTestRunner {
           return await this.verifyXRPChannels();
         });
       }
+
+      // Phase 15: Settle EVM Channels
+      if (this.config.evmEnabled) {
+        await this.runPhase('Settle EVM Channels', async () => {
+          return await this.settleEVMChannels();
+        });
+      }
+
+      // Phase 16: Claim XRP Channels
+      if (this.config.xrpEnabled) {
+        await this.runPhase('Claim XRP Channels', async () => {
+          return await this.claimXRPChannels();
+        });
+      }
+
+      // Phase 17: Verify EVM Settlement On-Chain
+      if (this.config.evmEnabled) {
+        await this.runPhase('Verify EVM Settlement', async () => {
+          return await this.verifyEVMSettlement();
+        });
+      }
+
+      // Phase 18: Verify XRP Settlement On-Chain
+      if (this.config.xrpEnabled) {
+        await this.runPhase('Verify XRP Settlement', async () => {
+          return await this.verifyXRPSettlement();
+        });
+      }
+
+      // Phase 19: Report Agent Balances
+      await this.runPhase('Report Agent Balances', async () => {
+        return await this.reportAgentBalances();
+      });
 
       // Calculate overall success
       this.results.success = this.results.phases.every((p) => p.success);
@@ -532,6 +570,8 @@ class DockerAgentTestRunner {
         await httpPost(`${agent.httpUrl}/follows`, {
           pubkey: followedAgent.pubkey,
           ilpAddress: followedAgent.ilpAddress,
+          evmAddress: followedAgent.evmAddress || undefined,
+          xrpAddress: followedAgent.xrpAddress || undefined,
           petname: followedAgent.agentId,
           btpUrl: btpUrlForDocker,
         });
@@ -772,25 +812,33 @@ class DockerAgentTestRunner {
   private async broadcastEvents(): Promise<string> {
     let totalSent = 0;
     let totalFailed = 0;
+    const rounds = 10;
 
-    for (const agent of this.agents) {
-      try {
-        const result = (await httpPost(`${agent.httpUrl}/broadcast`, {
-          kind: 1,
-          content: `Hello from ${agent.agentId}!`,
-          tags: [],
-        })) as { sent: number; failed: number };
+    for (let round = 0; round < rounds; round++) {
+      for (const agent of this.agents) {
+        try {
+          const result = (await httpPost(`${agent.httpUrl}/broadcast`, {
+            kind: 1,
+            content: `Hello from ${agent.agentId} (round ${round + 1})!`,
+            tags: [],
+          })) as { sent: number; failed: number };
 
-        totalSent += result.sent;
-        totalFailed += result.failed;
-      } catch (error) {
-        console.log(
-          `    Warning: Broadcast failed for ${agent.agentId}: ${(error as Error).message}`
-        );
+          totalSent += result.sent;
+          totalFailed += result.failed;
+        } catch (error) {
+          console.log(
+            `    Warning: Broadcast failed for ${agent.agentId}: ${(error as Error).message}`
+          );
+        }
+      }
+
+      // Wait between rounds for propagation
+      if (round < rounds - 1) {
+        await sleep(500);
       }
     }
 
-    return `Sent ${totalSent} events (${totalFailed} failed)`;
+    return `Sent ${totalSent} events over ${rounds} rounds (${totalFailed} failed)`;
   }
 
   private async verifyResults(): Promise<string> {
@@ -889,9 +937,8 @@ class DockerAgentTestRunner {
     for (const agent of this.agents) {
       try {
         // Generate a wallet for this agent using rippled's wallet_propose
-        const walletResponse = (await this.xrplRpcRequest('wallet_propose', {
-          key_type: 'ed25519',
-        })) as {
+        // Use default key_type (secp256k1) to match xrpl.js Wallet.fromSeed() default
+        const walletResponse = (await this.xrplRpcRequest('wallet_propose', {})) as {
           result: {
             account_id: string;
             master_seed: string;
@@ -1006,9 +1053,57 @@ class DockerAgentTestRunner {
   }
 
   /**
+   * Re-send follow configurations with complete EVM/XRP addresses
+   * so that peer connections have address info for channel balance tracking.
+   */
+  private async updatePeerAddresses(): Promise<string> {
+    const topology =
+      this.config.agentCount <= 5
+        ? SOCIAL_GRAPH_5_PEERS
+        : this.generateSocialGraph(this.config.agentCount);
+
+    let updatedCount = 0;
+
+    for (const [peerIndexStr, followIndices] of Object.entries(topology)) {
+      const peerIndex = parseInt(peerIndexStr, 10);
+      if (peerIndex >= this.config.agentCount) continue;
+
+      const agent = this.agents[peerIndex];
+      if (!agent) continue;
+
+      for (const followIndex of followIndices) {
+        if (followIndex >= this.config.agentCount) continue;
+        const followedAgent = this.agents[followIndex];
+        if (!followedAgent) continue;
+
+        const btpUrlForDocker = this.getAgentBtpUrlForDocker(followIndex);
+        await httpPost(`${agent.httpUrl}/follows`, {
+          pubkey: followedAgent.pubkey,
+          ilpAddress: followedAgent.ilpAddress,
+          evmAddress: followedAgent.evmAddress || undefined,
+          xrpAddress: followedAgent.xrpAddress || undefined,
+          petname: followedAgent.agentId,
+          btpUrl: btpUrlForDocker,
+        });
+
+        updatedCount++;
+      }
+    }
+
+    return `Updated ${updatedCount} peer addresses with EVM/XRP info`;
+  }
+
+  /**
    * Open XRP payment channels between connected peers
    */
   private async openXRPChannels(): Promise<string> {
+    // Advance the ledger to ensure all funded accounts are visible
+    try {
+      await this.xrplRpcRequest('ledger_accept', {});
+    } catch {
+      // Ignore if ledger_accept fails
+    }
+
     const topology =
       this.config.agentCount <= 5
         ? SOCIAL_GRAPH_5_PEERS
@@ -1106,6 +1201,349 @@ class DockerAgentTestRunner {
     // Convert drops to XRP for display
     const totalXRP = Number(totalAmount) / 1000000;
     return `Verified ${totalChannels} XRP channels with ${totalXRP.toFixed(2)} XRP total`;
+  }
+
+  // ============================================
+  // Settlement Phase Methods
+  // ============================================
+
+  /**
+   * Phase 15: Settle EVM channels via cooperative settle
+   */
+  private async settleEVMChannels(): Promise<string> {
+    let settledCount = 0;
+    let totalSettled = 0n;
+    const errors: string[] = [];
+
+    for (const [agentId] of this.agentChannels) {
+      const agent = this.agents.find((a) => a.agentId === agentId);
+      if (!agent) continue;
+
+      // Get agent's channels to find peer and balances
+      const channelsResult = (await httpGet(`${agent.httpUrl}/channels`)) as {
+        channels: Array<{
+          channelId: string;
+          peerAddress: string;
+          deposit: string;
+          status: string;
+          nonce: number;
+          transferredAmount: string;
+        }>;
+      };
+
+      for (const ch of channelsResult.channels) {
+        if (ch.status !== 'opened') continue;
+
+        try {
+          const transferredAmount = ch.transferredAmount;
+          const nonce = Math.max(ch.nonce, 1);
+
+          // Agent A signs proof with their transferred amount
+          const proofA = (await httpPost(`${agent.httpUrl}/channels/sign-proof`, {
+            channelId: ch.channelId,
+            nonce,
+            transferredAmount,
+          })) as { signature: string; signer: string };
+
+          // Find peer agent by EVM address
+          const peerAgent = this.agents.find(
+            (a) => a.evmAddress.toLowerCase() === ch.peerAddress.toLowerCase()
+          );
+          if (!peerAgent) {
+            errors.push(`Peer not found for channel ${ch.channelId.slice(0, 10)}...`);
+            continue;
+          }
+
+          // Peer signs proof with 0 transferred (unidirectional)
+          const proofB = (await httpPost(`${peerAgent.httpUrl}/channels/sign-proof`, {
+            channelId: ch.channelId,
+            nonce,
+            transferredAmount: '0',
+          })) as { signature: string; signer: string };
+
+          // Call cooperative settle (use longer timeout - tx.wait() polling can be slow)
+          const zeroHash = '0x' + '0'.repeat(64);
+          const settleResult = (await httpPost(
+            `${agent.httpUrl}/channels/cooperative-settle`,
+            {
+              channelId: ch.channelId,
+              proof1: {
+                channelId: ch.channelId,
+                nonce,
+                transferredAmount,
+                lockedAmount: 0,
+                locksRoot: zeroHash,
+              },
+              sig1: proofA.signature,
+              proof2: {
+                channelId: ch.channelId,
+                nonce,
+                transferredAmount: '0',
+                lockedAmount: 0,
+                locksRoot: zeroHash,
+              },
+              sig2: proofB.signature,
+            },
+            120000 // 120s timeout for on-chain settlement
+          )) as { success: boolean; txHash?: string; error?: string };
+
+          if (settleResult.success) {
+            settledCount++;
+            totalSettled += BigInt(transferredAmount);
+            console.log(
+              `    Settled channel ${ch.channelId.slice(0, 10)}... (${transferredAmount} transferred)`
+            );
+          } else {
+            errors.push(`${ch.channelId.slice(0, 10)}...: ${settleResult.error}`);
+          }
+
+          // Small delay between settlements to let nonce sync
+          await sleep(500);
+        } catch (error) {
+          errors.push(`${ch.channelId.slice(0, 10)}...: ${(error as Error).message}`);
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      console.log(
+        `    Settlement errors: ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '...' : ''}`
+      );
+    }
+
+    const settledTokens = ethers.formatUnits(totalSettled, 18);
+    return `Settled ${settledCount} EVM channels, ${settledTokens} AGENT tokens transferred`;
+  }
+
+  /**
+   * Phase 16: Claim XRP payment channels
+   */
+  private async claimXRPChannels(): Promise<string> {
+    let claimedCount = 0;
+    let totalClaimed = 0n;
+    const errors: string[] = [];
+
+    for (const agent of this.agents) {
+      try {
+        const channelsResult = (await httpGet(`${agent.httpUrl}/xrp-channels`)) as {
+          channels: Array<{
+            channelId: string;
+            destination: string;
+            amount: string;
+            balance: string;
+            status: string;
+          }>;
+        };
+
+        for (const ch of channelsResult.channels) {
+          if (ch.status !== 'open' || ch.balance === '0') continue;
+
+          try {
+            const claimResult = (await httpPost(`${agent.httpUrl}/xrp-channels/claim`, {
+              channelId: ch.channelId,
+            })) as {
+              success: boolean;
+              claimedAmount?: string;
+              txHash?: string;
+              error?: string;
+            };
+
+            if (claimResult.success) {
+              claimedCount++;
+              totalClaimed += BigInt(claimResult.claimedAmount || '0');
+              console.log(
+                `    Claimed XRP channel ${ch.channelId.slice(0, 10)}... (${claimResult.claimedAmount} drops)`
+              );
+            } else {
+              errors.push(`${ch.channelId.slice(0, 10)}...: ${claimResult.error}`);
+            }
+          } catch (error) {
+            errors.push(`${ch.channelId.slice(0, 10)}...: ${(error as Error).message}`);
+          }
+        }
+      } catch {
+        // Skip agents without XRP channels
+      }
+    }
+
+    if (errors.length > 0) {
+      console.log(
+        `    XRP claim errors: ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '...' : ''}`
+      );
+    }
+
+    const totalXRP = Number(totalClaimed) / 1000000;
+    return `Claimed ${claimedCount} XRP channels, ${totalXRP.toFixed(2)} XRP claimed`;
+  }
+
+  /**
+   * Phase 17: Verify EVM settlement on-chain
+   */
+  private async verifyEVMSettlement(): Promise<string> {
+    if (!this.contracts) {
+      throw new Error('Contracts not deployed');
+    }
+
+    const provider = new ethers.JsonRpcProvider(this.config.anvilRpcUrl);
+    const TOKEN_NETWORK_ABI = [
+      'function channels(bytes32) external view returns (uint256 settlementTimeout, uint8 state, uint256 closedAt, uint256 openedAt, address participant1, address participant2)',
+    ];
+    const tokenNetwork = new ethers.Contract(
+      this.contracts.tokenNetworkAddress,
+      TOKEN_NETWORK_ABI,
+      provider
+    );
+
+    let verifiedCount = 0;
+    let totalChannels = 0;
+
+    for (const [, channelIds] of this.agentChannels) {
+      for (const channelId of channelIds) {
+        totalChannels++;
+        try {
+          const channelsFn = tokenNetwork.getFunction('channels');
+          const channelInfo = await channelsFn(channelId);
+          const state = channelInfo[1]; // uint8 state
+          if (state === 3n) {
+            // Settled
+            verifiedCount++;
+          } else {
+            console.log(
+              `    Channel ${channelId.slice(0, 10)}... state: ${state} (expected 3/Settled)`
+            );
+          }
+        } catch (error) {
+          console.log(
+            `    Failed to query channel ${channelId.slice(0, 10)}...: ${(error as Error).message}`
+          );
+        }
+      }
+    }
+
+    return `Verified ${verifiedCount}/${totalChannels} EVM channels settled on-chain`;
+  }
+
+  /**
+   * Phase 18: Verify XRP settlement on-chain
+   */
+  private async verifyXRPSettlement(): Promise<string> {
+    let verifiedCount = 0;
+    let totalChannels = 0;
+
+    for (const agent of this.agents) {
+      try {
+        const channelsResult = (await httpGet(`${agent.httpUrl}/xrp-channels`)) as {
+          channels: Array<{
+            channelId: string;
+            balance: string;
+            status: string;
+          }>;
+        };
+
+        for (const ch of channelsResult.channels) {
+          if (ch.balance === '0') continue;
+          totalChannels++;
+
+          try {
+            // Query rippled for the channel on-chain state
+            const ledgerEntry = (await this.xrplRpcRequest('ledger_entry', {
+              payment_channel: ch.channelId,
+              ledger_index: 'validated',
+            })) as {
+              result: {
+                node?: {
+                  Balance: string;
+                };
+              };
+            };
+
+            if (ledgerEntry.result?.node?.Balance && ledgerEntry.result.node.Balance !== '0') {
+              verifiedCount++;
+            } else {
+              console.log(
+                `    Channel ${ch.channelId.slice(0, 10)}... on-chain balance: ${ledgerEntry.result?.node?.Balance || 'unknown'}`
+              );
+            }
+          } catch (error) {
+            console.log(
+              `    Failed to query XRP channel ${ch.channelId.slice(0, 10)}...: ${(error as Error).message}`
+            );
+          }
+        }
+      } catch {
+        // Skip agents without XRP channels
+      }
+    }
+
+    return `Verified ${verifiedCount}/${totalChannels} XRP channels with on-chain balance updates`;
+  }
+
+  /**
+   * Phase 19: Report agent balances (wallets + channels) for visibility
+   */
+  private async reportAgentBalances(): Promise<string> {
+    console.log('');
+    console.log('    ┌─────────────────────────────────────────────────────────────────────┐');
+    console.log('    │                        Agent Balance Report                         │');
+    console.log('    ├──────────┬──────────────┬──────────────┬──────────────┬──────────────┤');
+    console.log('    │ Agent    │ ETH          │ AGENT Token  │ XRP          │ Channels     │');
+    console.log('    ├──────────┼──────────────┼──────────────┼──────────────┼──────────────┤');
+
+    for (const agent of this.agents) {
+      try {
+        const balances = (await httpGet(`${agent.httpUrl}/balances`)) as {
+          ethBalance: string | null;
+          agentTokenBalance: string | null;
+          xrpBalance: string | null;
+          evmChannels: Array<{
+            channelId: string;
+            peerAddress: string;
+            deposit: string;
+            transferredAmount: string;
+            status: string;
+          }>;
+          xrpChannels: Array<{
+            channelId: string;
+            balance: string;
+            status: string;
+          }>;
+        };
+
+        const eth = balances.ethBalance ? parseFloat(balances.ethBalance).toFixed(4) : 'N/A';
+        const token = balances.agentTokenBalance
+          ? parseFloat(balances.agentTokenBalance).toFixed(2)
+          : 'N/A';
+        const xrp = balances.xrpBalance ? parseFloat(balances.xrpBalance).toFixed(2) : 'N/A';
+        const evmCh = balances.evmChannels?.length || 0;
+        const xrpCh = balances.xrpChannels?.length || 0;
+
+        console.log(
+          `    │ ${agent.agentId.padEnd(8)} │ ${eth.padStart(12)} │ ${token.padStart(12)} │ ${xrp.padStart(12)} │ ${`${evmCh} EVM, ${xrpCh} XRP`.padStart(12)} │`
+        );
+
+        // Print channel details
+        for (const ch of balances.evmChannels || []) {
+          const peerShort = ch.peerAddress.slice(0, 10) + '...';
+          console.log(
+            `    │          │  EVM: ${ch.status.padEnd(8)} dep=${ch.deposit.padStart(8)} sent=${ch.transferredAmount.padStart(8)} to ${peerShort}`
+          );
+        }
+        for (const ch of balances.xrpChannels || []) {
+          console.log(
+            `    │          │  XRP: ${ch.status.padEnd(8)} bal=${ch.balance.padStart(10)}`
+          );
+        }
+      } catch (error) {
+        console.log(
+          `    │ ${agent.agentId.padEnd(8)} │ Error: ${(error as Error).message.slice(0, 50)}`
+        );
+      }
+    }
+
+    console.log('    └──────────┴──────────────┴──────────────┴──────────────┴──────────────┘');
+    console.log('');
+
+    return `Reported balances for ${this.agents.length} agents`;
   }
 
   /**

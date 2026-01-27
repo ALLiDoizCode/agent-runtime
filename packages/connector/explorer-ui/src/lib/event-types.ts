@@ -36,6 +36,7 @@ export type TelemetryEventType =
   // Agent channel events
   | 'AGENT_CHANNEL_OPENED'
   | 'AGENT_CHANNEL_PAYMENT_SENT'
+  | 'AGENT_CHANNEL_BALANCE_UPDATE'
   | 'AGENT_CHANNEL_CLOSED'
   // Security events
   | 'WALLET_BALANCE_MISMATCH'
@@ -143,6 +144,7 @@ export const EVENT_TYPE_COLORS: Record<string, string> = {
   // Agent channels - violet
   AGENT_CHANNEL_OPENED: 'bg-violet-500',
   AGENT_CHANNEL_PAYMENT_SENT: 'bg-violet-400',
+  AGENT_CHANNEL_BALANCE_UPDATE: 'bg-violet-300',
   AGENT_CHANNEL_CLOSED: 'bg-violet-600',
   // Security events - red shades
   WALLET_BALANCE_MISMATCH: 'bg-red-500',
@@ -246,6 +248,9 @@ export const SETTLEMENT_EVENT_TYPES = [
   'XRP_CHANNEL_OPENED',
   'XRP_CHANNEL_CLAIMED',
   'XRP_CHANNEL_CLOSED',
+  'AGENT_CHANNEL_OPENED',
+  'AGENT_CHANNEL_BALANCE_UPDATE',
+  'AGENT_CHANNEL_CLOSED',
 ] as const;
 
 /**
@@ -253,4 +258,44 @@ export const SETTLEMENT_EVENT_TYPES = [
  */
 export function isSettlementEvent(type: TelemetryEventType): boolean {
   return SETTLEMENT_EVENT_TYPES.includes(type as (typeof SETTLEMENT_EVENT_TYPES)[number]);
+}
+
+// ============================================================================
+// On-Chain Wallet Balance Types
+// ============================================================================
+
+/**
+ * EVM payment channel from /api/balances
+ */
+export interface WalletEvmChannel {
+  channelId: string;
+  peerAddress: string;
+  deposit: string;
+  transferredAmount: string;
+  status: string;
+}
+
+/**
+ * XRP payment channel from /api/balances
+ */
+export interface WalletXrpChannel {
+  channelId: string;
+  destination: string;
+  amount: string;
+  balance: string;
+  status: string;
+}
+
+/**
+ * Response from GET /api/balances
+ */
+export interface WalletBalances {
+  agentId: string;
+  evmAddress: string;
+  xrpAddress: string | null;
+  ethBalance: string | null;
+  agentTokenBalance: string | null;
+  xrpBalance: string | null;
+  evmChannels: WalletEvmChannel[];
+  xrpChannels: WalletXrpChannel[];
 }

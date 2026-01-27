@@ -2,6 +2,7 @@ import * as React from 'react';
 import { TelemetryEvent } from '@/lib/event-types';
 import { cn } from '@/lib/utils';
 import { useExpiryCountdown } from '@/hooks/useExpiryCountdown';
+import { PeerField } from './FieldDisplay';
 
 export interface PacketInspectorProps {
   event: TelemetryEvent;
@@ -261,9 +262,9 @@ export function PacketInspector({ event }: PacketInspectorProps) {
       <div className="grid grid-cols-1 gap-4">
         <h4 className="text-xs font-medium text-muted-foreground uppercase">Routing</h4>
 
-        {packetData.from && <Field label="From (Sender)" value={packetData.from} mono />}
+        {packetData.from && <PeerField label="From (Sender)" value={packetData.from} />}
 
-        {packetData.to && <Field label="To (Next Hop)" value={packetData.to} mono />}
+        {packetData.to && <PeerField label="To (Next Hop)" value={packetData.to} />}
 
         {packetData.destination && (
           <Field label="Destination (Final)" value={packetData.destination} mono />

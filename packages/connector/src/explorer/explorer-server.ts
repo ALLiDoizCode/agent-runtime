@@ -31,6 +31,8 @@ export interface ExplorerServerConfig {
   corsOrigins?: string[];
   /** Connector node ID for health status */
   nodeId: string;
+  /** Optional callback to fetch on-chain wallet balances */
+  balancesFetcher?: () => Promise<unknown>;
 }
 
 // Default configuration values
@@ -55,7 +57,9 @@ const SHUTDOWN_TIMEOUT_MS = 10000;
  * - Graceful shutdown with timeout
  */
 export class ExplorerServer {
-  private readonly _config: Required<Omit<ExplorerServerConfig, 'corsOrigins'>> & {
+  private readonly _config: Required<
+    Omit<ExplorerServerConfig, 'corsOrigins' | 'balancesFetcher'>
+  > & {
     corsOrigins: (string | RegExp)[];
   };
   private readonly _eventStore: EventStore;
@@ -64,6 +68,7 @@ export class ExplorerServer {
   private readonly _server: HTTPServer;
   private readonly _wss: WebSocketServer;
   private readonly _broadcaster: EventBroadcaster;
+  private readonly _balancesFetcher?: () => Promise<unknown>;
   private _unsubscribe: (() => void) | null = null;
   private _port: number = 0;
   private _started: boolean = false;
@@ -92,6 +97,7 @@ export class ExplorerServer {
       nodeId: config.nodeId,
     };
     this._eventStore = eventStore;
+    this._balancesFetcher = config.balancesFetcher;
     this._logger = logger.child({ component: 'ExplorerServer' });
 
     // Initialize Express app
@@ -259,6 +265,22 @@ export class ExplorerServer {
           error: error instanceof Error ? error.message : 'Unknown error',
           timestamp: new Date().toISOString(),
         });
+      }
+    });
+
+    // GET /api/balances - On-chain wallet balances
+    router.get('/api/balances', async (_req: Request, res: Response) => {
+      if (!this._balancesFetcher) {
+        res.status(404).json({ error: 'Balances not available' });
+        return;
+      }
+
+      try {
+        const balances = await this._balancesFetcher();
+        res.json(balances);
+      } catch (error) {
+        this._logger.error({ error }, 'Failed to fetch balances');
+        res.status(500).json({ error: 'Failed to fetch balances' });
       }
     });
 

@@ -24,8 +24,14 @@ import { getPublicKey } from 'nostr-tools';
 import { WebSocketServer, WebSocket } from 'ws';
 import pino, { Logger } from 'pino';
 import { ethers } from 'ethers';
-import { Client as XrplClient, Wallet as XrplWallet } from 'xrpl';
+import {
+  Client as XrplClient,
+  Wallet as XrplWallet,
+  signPaymentChannelClaim,
+  dropsToXrp,
+} from 'xrpl';
 import { AgentNode, AgentNodeConfig } from './agent-node';
+import { getDomainSeparator, getBalanceProofTypes } from '../settlement/eip712-helper';
 import { ToonCodec, NostrEvent } from './toon-codec';
 import { PacketType, ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared';
 import { EventStore } from '../explorer/event-store';
@@ -208,6 +214,7 @@ export class AgentServer {
         port: this.config.explorerPort,
         nodeId: this.config.agentId,
         staticPath: path.resolve(__dirname, '../../dist/explorer-ui'),
+        balancesFetcher: () => this.getBalances(),
       },
       this.eventStore,
       this.telemetryEmitter,
@@ -282,6 +289,8 @@ export class AgentServer {
 
     try {
       this.evmProvider = new ethers.JsonRpcProvider(this.config.anvilRpcUrl);
+      // Use fast polling for local chains (Anvil mines instantly)
+      this.evmProvider.pollingInterval = 500;
       this.evmWallet = new ethers.Wallet(this.config.evmPrivkey, this.evmProvider);
 
       // Initialize TokenNetwork contract if address provided
@@ -291,6 +300,7 @@ export class AgentServer {
           'function setTotalDeposit(bytes32 channelId, address participant, uint256 totalDeposit) external',
           'function channels(bytes32) external view returns (uint256 settlementTimeout, uint8 state, uint256 closedAt, uint256 openedAt, address participant1, address participant2)',
           'function participants(bytes32, address) external view returns (uint256 deposit, uint256 withdrawnAmount, bool isCloser, uint256 nonce, uint256 transferredAmount)',
+          'function cooperativeSettle(bytes32 channelId, tuple(bytes32 channelId, uint256 nonce, uint256 transferredAmount, uint256 lockedAmount, bytes32 locksRoot) proof1, bytes signature1, tuple(bytes32 channelId, uint256 nonce, uint256 transferredAmount, uint256 lockedAmount, bytes32 locksRoot) proof2, bytes signature2) external',
           'event ChannelOpened(bytes32 indexed channelId, address indexed participant1, address indexed participant2, uint256 settlementTimeout)',
         ];
         this.tokenNetworkContract = new ethers.Contract(
@@ -483,6 +493,14 @@ export class AgentServer {
         return;
       }
 
+      // Balances endpoint - returns EVM token + ETH + XRP balances
+      if (req.method === 'GET' && url.pathname === '/balances') {
+        const balances = await this.getBalances();
+        res.writeHead(200);
+        res.end(JSON.stringify(balances));
+        return;
+      }
+
       // Add follow
       if (req.method === 'POST' && url.pathname === '/follows') {
         const body = await this.readRequestBody(req);
@@ -671,6 +689,62 @@ export class AgentServer {
           data.amount,
           data.settleDelay || 3600
         );
+        res.writeHead(result.success ? 200 : 400);
+        res.end(JSON.stringify(result));
+        return;
+      }
+
+      // Sign EVM balance proof
+      if (req.method === 'POST' && url.pathname === '/channels/sign-proof') {
+        const body = await this.readRequestBody(req);
+        const data = JSON.parse(body) as {
+          channelId: string;
+          nonce: number;
+          transferredAmount: string;
+        };
+        const result = await this.signBalanceProof(
+          data.channelId,
+          data.nonce,
+          data.transferredAmount
+        );
+        res.writeHead(result.signature ? 200 : 400);
+        res.end(JSON.stringify(result));
+        return;
+      }
+
+      // EVM cooperative settle
+      if (req.method === 'POST' && url.pathname === '/channels/cooperative-settle') {
+        const body = await this.readRequestBody(req);
+        const data = JSON.parse(body) as {
+          channelId: string;
+          proof1: {
+            channelId: string;
+            nonce: number;
+            transferredAmount: string;
+            lockedAmount: number;
+            locksRoot: string;
+          };
+          sig1: string;
+          proof2: {
+            channelId: string;
+            nonce: number;
+            transferredAmount: string;
+            lockedAmount: number;
+            locksRoot: string;
+          };
+          sig2: string;
+        };
+        const result = await this.cooperativeSettle(data);
+        res.writeHead(result.success ? 200 : 400);
+        res.end(JSON.stringify(result));
+        return;
+      }
+
+      // XRP payment channel claim
+      if (req.method === 'POST' && url.pathname === '/xrp-channels/claim') {
+        const body = await this.readRequestBody(req);
+        const data = JSON.parse(body) as { channelId: string };
+        const result = await this.claimXRPChannel(data.channelId);
         res.writeHead(result.success ? 200 : 400);
         res.end(JSON.stringify(result));
         return;
@@ -1319,10 +1393,28 @@ export class AgentServer {
     }
 
     try {
-      this.logger.info({ destination, amount, settleDelay }, 'Opening XRP payment channel');
+      this.logger.info(
+        {
+          destination,
+          amount,
+          settleDelay,
+          account: this.xrplWallet.address,
+          network: this.config.xrpNetwork,
+        },
+        'Opening XRP payment channel'
+      );
 
       // Get the public key from the wallet for the channel
       const publicKey = this.xrplWallet.publicKey;
+
+      // In standalone mode, advance ledger first to ensure account state is current
+      if (this.config.xrpNetwork === 'standalone') {
+        try {
+          await this.xrplClient.request({ command: 'ledger_accept' } as never);
+        } catch {
+          // Ignore - may not be needed
+        }
+      }
 
       // Construct PaymentChannelCreate transaction
       const tx = {
@@ -1338,12 +1430,30 @@ export class AgentServer {
       const prepared = await this.xrplClient.autofill(tx);
       const signed = this.xrplWallet.sign(prepared);
 
-      // Submit and wait for confirmation
-      const result = await this.xrplClient.submitAndWait(signed.tx_blob);
+      let result;
+      if (this.config.xrpNetwork === 'standalone') {
+        // In standalone mode, submit and manually advance the ledger
+        const submitResult = await this.xrplClient.submit(signed.tx_blob);
+        if (submitResult.result.engine_result !== 'tesSUCCESS') {
+          return { success: false, error: `Submit failed: ${submitResult.result.engine_result}` };
+        }
+        // Advance the ledger to validate the transaction
+        await this.xrplClient.request({ command: 'ledger_accept' } as never);
+        // Fetch the transaction to get meta
+        const txResponse = await this.xrplClient.request({
+          command: 'tx',
+          transaction: submitResult.result.tx_json?.hash || signed.hash,
+        } as never);
+        result = txResponse;
+      } else {
+        // Normal mode - submit and wait for validation
+        result = await this.xrplClient.submitAndWait(signed.tx_blob);
+      }
 
       // The channel ID is derived from the transaction
       // For PaymentChannelCreate, the channel ID is in the meta.AffectedNodes
-      const meta = result.result.meta as {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const meta = (result as any).result.meta as {
         AffectedNodes?: Array<{
           CreatedNode?: {
             LedgerEntryType: string;
@@ -1396,6 +1506,300 @@ export class AgentServer {
       this.logger.error({ err: error, destination }, 'Failed to open XRP payment channel');
       return { success: false, error: (error as Error).message };
     }
+  }
+
+  // ============================================
+  // EVM Settlement
+  // ============================================
+
+  private async signBalanceProof(
+    channelId: string,
+    nonce: number,
+    transferredAmount: string
+  ): Promise<{ signature?: string; signer?: string; error?: string }> {
+    if (!this.evmWallet || !this.evmProvider || !this.config.tokenNetworkAddress) {
+      return { error: 'EVM not initialized' };
+    }
+
+    try {
+      const network = await this.evmProvider.getNetwork();
+      const domain = getDomainSeparator(network.chainId, this.config.tokenNetworkAddress);
+      const types = getBalanceProofTypes();
+      const value = {
+        channelId,
+        nonce,
+        transferredAmount,
+        lockedAmount: 0,
+        locksRoot: ethers.ZeroHash,
+      };
+
+      const signature = await this.evmWallet.signTypedData(domain, types, value);
+      return { signature, signer: this.evmWallet.address };
+    } catch (error) {
+      this.logger.error({ err: error, channelId }, 'Failed to sign balance proof');
+      return { error: (error as Error).message };
+    }
+  }
+
+  private async cooperativeSettle(data: {
+    channelId: string;
+    proof1: {
+      channelId: string;
+      nonce: number;
+      transferredAmount: string;
+      lockedAmount: number;
+      locksRoot: string;
+    };
+    sig1: string;
+    proof2: {
+      channelId: string;
+      nonce: number;
+      transferredAmount: string;
+      lockedAmount: number;
+      locksRoot: string;
+    };
+    sig2: string;
+  }): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    if (!this.tokenNetworkContract || !this.evmWallet) {
+      return { success: false, error: 'EVM not initialized' };
+    }
+
+    const proof1Tuple = [
+      data.proof1.channelId,
+      data.proof1.nonce,
+      data.proof1.transferredAmount,
+      data.proof1.lockedAmount,
+      data.proof1.locksRoot,
+    ];
+    const proof2Tuple = [
+      data.proof2.channelId,
+      data.proof2.nonce,
+      data.proof2.transferredAmount,
+      data.proof2.lockedAmount,
+      data.proof2.locksRoot,
+    ];
+
+    // Retry with escalating nonce on nonce collision (ethers v6 internal tracker can get out of sync)
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const nonce = await this.evmProvider!.getTransactionCount(this.evmWallet.address, 'latest');
+        const adjustedNonce = nonce + attempt; // Escalate nonce on retry
+        const settleFn = this.tokenNetworkContract.getFunction('cooperativeSettle');
+        const tx = await settleFn(data.channelId, proof1Tuple, data.sig1, proof2Tuple, data.sig2, {
+          nonce: adjustedNonce,
+        });
+        // Wait for 1 confirmation with a timeout
+        const receipt = await Promise.race([
+          tx.wait(1),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('tx.wait timeout')), 30000)
+          ),
+        ]);
+
+        // Update local channel state
+        const channel = this.paymentChannels.get(data.channelId);
+        if (channel) {
+          channel.status = 'settled';
+        }
+
+        this.logger.info(
+          { channelId: data.channelId, txHash: receipt.hash },
+          'Channel cooperatively settled'
+        );
+        return { success: true, txHash: receipt.hash };
+      } catch (error) {
+        const errMsg = (error as Error).message || '';
+        if (errMsg.includes('nonce') && attempt < maxRetries - 1) {
+          this.logger.warn(
+            { channelId: data.channelId, attempt, nonce: attempt },
+            'Nonce collision, retrying with incremented nonce'
+          );
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          continue;
+        }
+        this.logger.error({ err: error, channelId: data.channelId }, 'Cooperative settle failed');
+        return { success: false, error: errMsg };
+      }
+    }
+    return { success: false, error: 'Max retries exceeded' };
+  }
+
+  // ============================================
+  // XRP Settlement
+  // ============================================
+
+  private async claimXRPChannel(channelId: string): Promise<{
+    success: boolean;
+    channelId: string;
+    claimedAmount?: string;
+    txHash?: string;
+    error?: string;
+  }> {
+    if (!this.xrplClient || !this.xrplWallet) {
+      return { success: false, channelId, error: 'XRP not initialized' };
+    }
+
+    const channel = this.xrpChannels.get(channelId);
+    if (!channel) {
+      return { success: false, channelId, error: 'Channel not found' };
+    }
+
+    if (!this.xrplClient.isConnected()) {
+      try {
+        await this.xrplClient.connect();
+      } catch (error) {
+        return {
+          success: false,
+          channelId,
+          error: `Failed to connect to XRP ledger: ${(error as Error).message}`,
+        };
+      }
+    }
+
+    try {
+      const balance = channel.balance;
+
+      // Sign the payment channel claim (signPaymentChannelClaim expects XRP, not drops)
+      const balanceInXRP = dropsToXrp(balance);
+      const signature = signPaymentChannelClaim(
+        channelId,
+        balanceInXRP,
+        this.xrplWallet.privateKey
+      );
+
+      // Submit PaymentChannelClaim transaction
+      const tx = {
+        TransactionType: 'PaymentChannelClaim' as const,
+        Account: this.xrplWallet.address,
+        Channel: channelId,
+        Balance: balance,
+        Amount: balance,
+        Signature: signature.toUpperCase(),
+        PublicKey: this.xrplWallet.publicKey,
+      };
+
+      const prepared = await this.xrplClient.autofill(tx);
+      const signed = this.xrplWallet.sign(prepared);
+
+      let txHash: string | undefined;
+      if (this.config.xrpNetwork === 'standalone') {
+        const submitResult = await this.xrplClient.submit(signed.tx_blob);
+        if (submitResult.result.engine_result !== 'tesSUCCESS') {
+          return {
+            success: false,
+            channelId,
+            error: `Claim submit failed: ${submitResult.result.engine_result}`,
+          };
+        }
+        await this.xrplClient.request({ command: 'ledger_accept' } as never);
+        txHash = submitResult.result.tx_json?.hash || signed.hash;
+      } else {
+        const result = await this.xrplClient.submitAndWait(signed.tx_blob);
+        txHash = result.result.hash;
+      }
+
+      this.logger.info({ channelId, claimedAmount: balance, txHash }, 'XRP channel claimed');
+
+      return {
+        success: true,
+        channelId,
+        claimedAmount: balance,
+        txHash,
+      };
+    } catch (error) {
+      this.logger.error({ err: error, channelId }, 'XRP channel claim failed');
+      return { success: false, channelId, error: (error as Error).message };
+    }
+  }
+
+  // ============================================
+  // Balance Queries
+  // ============================================
+
+  private async getBalances(): Promise<{
+    agentId: string;
+    evmAddress: string;
+    xrpAddress: string | null;
+    ethBalance: string | null;
+    agentTokenBalance: string | null;
+    xrpBalance: string | null;
+    evmChannels: Array<{
+      channelId: string;
+      peerAddress: string;
+      deposit: string;
+      transferredAmount: string;
+      status: string;
+    }>;
+    xrpChannels: Array<{
+      channelId: string;
+      destination: string;
+      amount: string;
+      balance: string;
+      status: string;
+    }>;
+  }> {
+    let ethBalance: string | null = null;
+    let agentTokenBalance: string | null = null;
+    let xrpBalance: string | null = null;
+
+    // Query EVM balances
+    if (this.evmProvider && this.evmWallet) {
+      try {
+        const rawEth = await this.evmProvider.getBalance(this.evmWallet.address);
+        ethBalance = ethers.formatEther(rawEth);
+      } catch {
+        // ignore
+      }
+
+      if (this.agentTokenContract) {
+        try {
+          const balFn = this.agentTokenContract.getFunction('balanceOf');
+          const rawToken = await balFn(this.evmWallet.address);
+          agentTokenBalance = ethers.formatUnits(rawToken, 18);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    // Query XRP balance
+    if (this.xrplClient?.isConnected() && this.config.xrpAccountAddress) {
+      try {
+        const info = await this.xrplClient.request({
+          command: 'account_info',
+          account: this.config.xrpAccountAddress,
+          ledger_index: 'validated',
+        });
+        const drops = info.result.account_data.Balance;
+        xrpBalance = (Number(drops) / 1_000_000).toFixed(6);
+      } catch {
+        // ignore
+      }
+    }
+
+    return {
+      agentId: this.config.agentId,
+      evmAddress: this.config.evmAddress,
+      xrpAddress: this.config.xrpAccountAddress,
+      ethBalance,
+      agentTokenBalance,
+      xrpBalance,
+      evmChannels: Array.from(this.paymentChannels.values()).map((ch) => ({
+        channelId: ch.channelId,
+        peerAddress: ch.peerAddress,
+        deposit: ethers.formatUnits(ch.deposit, 18),
+        transferredAmount: ethers.formatUnits(ch.transferredAmount, 18),
+        status: ch.status,
+      })),
+      xrpChannels: Array.from(this.xrpChannels.values()).map((ch) => ({
+        channelId: ch.channelId,
+        destination: ch.destination,
+        amount: (Number(ch.amount) / 1_000_000).toFixed(6),
+        balance: (Number(ch.balance) / 1_000_000).toFixed(6),
+        status: ch.status,
+      })),
+    };
   }
 
   // ============================================

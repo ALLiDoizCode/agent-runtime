@@ -12,7 +12,7 @@ import { JsonViewer } from './JsonViewer';
 import { PacketInspector, isPacketEvent } from './PacketInspector';
 import { ToonViewer, hasNostrEvent } from './ToonViewer';
 import { useRelatedEvents, hasPacketId } from '@/hooks/useRelatedEvents';
-import { CopyButton, AddressField, AmountField } from './FieldDisplay';
+import { CopyButton, AddressField, AmountField, PeerField } from './FieldDisplay';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ExternalLink } from 'lucide-react';
 
@@ -224,7 +224,7 @@ export function EventDetailPanel({ event, onClose, onEventSelect }: EventDetailP
                   <AddressField label="Node" value={displayData.nodeId} />
                 </div>
               )}
-              {displayData.peerId && <AddressField label="Peer" value={displayData.peerId} />}
+              {displayData.peerId && <PeerField label="Peer" value={displayData.peerId} />}
               {displayData.packetId && (
                 <AddressField label="Packet ID" value={displayData.packetId} />
               )}

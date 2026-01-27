@@ -146,6 +146,69 @@ export function useAccountBalances(
   );
 
   /**
+   * Process an AGENT_CHANNEL_PAYMENT_SENT event to derive account state
+   */
+  const processAgentPaymentEvent = useCallback(
+    (
+      event: TelemetryEvent & {
+        peerId: string;
+        amount: string;
+        packetType: string;
+        channelId: string;
+      }
+    ) => {
+      setAccountsMap((prev) => {
+        const peerId = event.peerId;
+        const tokenId = 'AGENT';
+        const key = getAccountKey(peerId, tokenId);
+        const existing = prev.get(key);
+        const timestamp =
+          typeof event.timestamp === 'string'
+            ? new Date(event.timestamp).getTime()
+            : event.timestamp;
+
+        const amount = BigInt(event.amount || '0');
+
+        // Track cumulative balances: fulfills going out = we paid (debit), coming in = they paid (credit)
+        const prevDebit = existing?.debitBalance ?? 0n;
+        const prevCredit = existing?.creditBalance ?? 0n;
+
+        const isFulfill = event.packetType === 'fulfill';
+        const debitBalance = isFulfill ? prevDebit + amount : prevDebit;
+        const creditBalance = prevCredit;
+        const netBalance = creditBalance - debitBalance;
+
+        const newHistoryEntry: BalanceHistoryEntry = {
+          timestamp,
+          balance: netBalance,
+        };
+        const balanceHistory = existing
+          ? [...existing.balanceHistory, newHistoryEntry].slice(-maxHistoryEntries)
+          : [newHistoryEntry];
+
+        const updatedAccount: AccountState = {
+          peerId,
+          tokenId,
+          debitBalance,
+          creditBalance,
+          netBalance,
+          settlementThreshold: 1000n,
+          settlementState: 'IDLE',
+          balanceHistory,
+          hasActiveChannel: true,
+          channelType: 'evm',
+          lastUpdated: timestamp,
+        };
+
+        const newMap = new Map(prev);
+        newMap.set(key, updatedAccount);
+        return newMap;
+      });
+    },
+    [maxHistoryEntries]
+  );
+
+  /**
    * Connect to WebSocket
    */
   const connect = useCallback(() => {
@@ -175,6 +238,15 @@ export function useAccountBalances(
         const event = JSON.parse(messageEvent.data) as TelemetryEvent;
         if (isAccountBalanceEvent(event)) {
           processAccountBalanceEvent(event);
+        } else if (event.type === 'AGENT_CHANNEL_PAYMENT_SENT') {
+          processAgentPaymentEvent(
+            event as TelemetryEvent & {
+              peerId: string;
+              amount: string;
+              packetType: string;
+              channelId: string;
+            }
+          );
         }
       } catch (err) {
         // Silently ignore parse errors to not spam console
@@ -204,7 +276,7 @@ export function useAccountBalances(
     };
 
     wsRef.current = ws;
-  }, [processAccountBalanceEvent, reconnectDelay, maxReconnectAttempts]);
+  }, [processAccountBalanceEvent, processAgentPaymentEvent, reconnectDelay, maxReconnectAttempts]);
 
   const clearAccounts = useCallback(() => {
     setAccountsMap(new Map());

@@ -209,6 +209,90 @@ export function usePaymentChannels(
           }
           break;
         }
+
+        // Agent-level channel events (emitted by agent wallet code)
+        case 'AGENT_CHANNEL_OPENED': {
+          const agentEvent = event as TelemetryEvent & {
+            channelId: string;
+            chain: 'evm' | 'xrp';
+            peerId: string;
+            amount: string;
+            nodeId?: string;
+            agentId?: string;
+          };
+          const isXrp = agentEvent.chain === 'xrp';
+          const channel: ChannelState = {
+            channelId: agentEvent.channelId,
+            nodeId: agentEvent.nodeId || agentEvent.agentId || '',
+            peerId: agentEvent.peerId || '',
+            participants: [agentEvent.agentId || '', agentEvent.peerId],
+            tokenAddress: isXrp ? 'XRP' : 'AGENT',
+            tokenSymbol: isXrp ? 'XRP' : 'AGENT',
+            settlementTimeout: 0,
+            deposits: { [agentEvent.agentId || '']: agentEvent.amount },
+            myNonce: 0,
+            theirNonce: 0,
+            myTransferred: '0',
+            theirTransferred: '0',
+            status: 'active',
+            openedAt: timestamp,
+            lastActivityAt: timestamp,
+            settlementMethod: isXrp ? 'xrp' : 'evm',
+            ...(isXrp && {
+              xrpAccount: agentEvent.agentId || '',
+              xrpDestination: agentEvent.peerId,
+              xrpAmount: agentEvent.amount,
+              xrpBalance: '0',
+            }),
+          };
+          newMap.set(agentEvent.channelId, channel);
+          break;
+        }
+
+        case 'AGENT_CHANNEL_BALANCE_UPDATE': {
+          const balanceEvent = event as TelemetryEvent & {
+            channelId: string;
+            peerId: string;
+            previousBalance: string;
+            newBalance: string;
+            amount: string;
+            direction: string;
+          };
+          const existing = newMap.get(balanceEvent.channelId);
+          if (existing) {
+            const transferred =
+              balanceEvent.direction === 'outgoing'
+                ? balanceEvent.newBalance
+                : existing.myTransferred;
+            const theirTransferred =
+              balanceEvent.direction === 'incoming'
+                ? balanceEvent.newBalance
+                : existing.theirTransferred;
+            newMap.set(balanceEvent.channelId, {
+              ...existing,
+              myTransferred: transferred,
+              theirTransferred: theirTransferred,
+              lastActivityAt: timestamp,
+            });
+          }
+          break;
+        }
+
+        case 'AGENT_CHANNEL_CLOSED': {
+          const closeEvent = event as TelemetryEvent & {
+            channelId: string;
+          };
+          const existing = newMap.get(closeEvent.channelId);
+          if (existing) {
+            newMap.set(closeEvent.channelId, {
+              ...existing,
+              status: 'settled',
+              settledAt: timestamp,
+              lastActivityAt: timestamp,
+            });
+          }
+          break;
+        }
       }
 
       return newMap;
@@ -248,6 +332,9 @@ export function usePaymentChannels(
           'XRP_CHANNEL_OPENED',
           'XRP_CHANNEL_CLAIMED',
           'XRP_CHANNEL_CLOSED',
+          'AGENT_CHANNEL_OPENED',
+          'AGENT_CHANNEL_BALANCE_UPDATE',
+          'AGENT_CHANNEL_CLOSED',
         ];
         if (channelEventTypes.includes(event.type)) {
           processChannelEvent(event);

@@ -408,7 +408,12 @@ export function FilterBar({ filters, onFilterChange, onReset }: FilterBarProps) 
                 : 'outline'
             }
             size="sm"
-            onClick={() => onFilterChange({ eventTypes: [...SETTLEMENT_EVENT_TYPES] })}
+            onClick={() => {
+              const isSettlementActive =
+                filters.eventTypes.length === SETTLEMENT_EVENT_TYPES.length &&
+                SETTLEMENT_EVENT_TYPES.every((t) => filters.eventTypes.includes(t));
+              onFilterChange({ eventTypes: isSettlementActive ? [] : [...SETTLEMENT_EVENT_TYPES] });
+            }}
             className="gap-1.5"
           >
             <Wallet className="h-4 w-4" />
