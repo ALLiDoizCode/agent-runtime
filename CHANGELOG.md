@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0](https://github.com/ALLiDoizCode/m2m/compare/v1.1.0...v1.2.0) (2026-01-27)
+
+### Features
+
+- **agent:** implement real EVM payment channels for Docker agent test ([bce647f](https://github.com/ALLiDoizCode/m2m/commit/bce647fbc24db34ac9cfb1928e0858b9d73d4105))
+- **explorer:** add ILP packet type display with routing fields ([9974d71](https://github.com/ALLiDoizCode/m2m/commit/9974d71a42b0c3f7b5fd5279eeea2731e4794086))
+- **explorer:** add on-chain wallet panel and improve accounts view ([b260a81](https://github.com/ALLiDoizCode/m2m/commit/b260a8144101fd86dc24fc2d8f1f704df80e2150))
+- **explorer:** add packet ID correlation and improve status display ([fe5e582](https://github.com/ALLiDoizCode/m2m/commit/fe5e582157dec817bedb0ecf8ea34f0035e4b2b6))
+- **explorer:** add Peers & Routing Table view, historical data hydration, and QA reviews ([285b8a3](https://github.com/ALLiDoizCode/m2m/commit/285b8a30074d1992c7b37a517c1a98ae3d2375c1))
+- **explorer:** Epic 15 — Agent Explorer polish, performance & visual quality ([d10037c](https://github.com/ALLiDoizCode/m2m/commit/d10037ceea6c23b2ab5eb7e7fa3e0f6711a529c5))
+- **explorer:** implement Packet/Event Explorer UI (Epic 14) ([de13d82](https://github.com/ALLiDoizCode/m2m/commit/de13d82d6a70f1caf1de83457c1a209b0188c2d0))
+
+### Bug Fixes
+
+- **build:** exclude test files from explorer-ui production build ([df63d4d](https://github.com/ALLiDoizCode/m2m/commit/df63d4dca56bb5f9af2c42a6291afca41236d415))
+- **explorer:** emit telemetry when receiving packet responses ([c923628](https://github.com/ALLiDoizCode/m2m/commit/c923628676fef98d2c4435a2aa5056ac77d6c2f4))
+- **test:** set EXPLORER_PORT in mesh config tests to avoid port conflict ([c0cfed4](https://github.com/ALLiDoizCode/m2m/commit/c0cfed4e670e6da6dfc4129a2fba20523b2acea5))
+
 ## [1.1.0](https://github.com/ALLiDoizCode/m2m/compare/v1.0.0...v1.1.0) (2026-01-24)
 
 ### Features
