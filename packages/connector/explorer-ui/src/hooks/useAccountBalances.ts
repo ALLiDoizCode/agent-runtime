@@ -91,122 +91,138 @@ export function useAccountBalances(
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // RAF batching refs
+  const bufferRef = useRef<TelemetryEvent[]>([]);
+  const rafRef = useRef<number | null>(null);
+
   /**
-   * Process an ACCOUNT_BALANCE event and update account state
+   * Apply a single ACCOUNT_BALANCE event to the accounts map (pure function)
    */
-  const processAccountBalanceEvent = useCallback(
-    (event: AccountBalanceEvent) => {
-      setAccountsMap((prev) => {
-        const key = getAccountKey(event.peerId, event.tokenId);
-        const existing = prev.get(key);
-        const timestamp =
-          typeof event.timestamp === 'string'
-            ? new Date(event.timestamp).getTime()
-            : event.timestamp;
+  const applyAccountBalanceEvent = useCallback(
+    (map: Map<string, AccountState>, event: AccountBalanceEvent): void => {
+      const key = getAccountKey(event.peerId, event.tokenId);
+      const existing = map.get(key);
+      const timestamp =
+        typeof event.timestamp === 'string' ? new Date(event.timestamp).getTime() : event.timestamp;
 
-        // Parse balance values as bigints
-        const debitBalance = BigInt(event.debitBalance);
-        const creditBalance = BigInt(event.creditBalance);
-        const netBalance = BigInt(event.netBalance);
-        const creditLimit = event.creditLimit ? BigInt(event.creditLimit) : undefined;
-        const settlementThreshold = event.settlementThreshold
-          ? BigInt(event.settlementThreshold)
-          : undefined;
+      const debitBalance = BigInt(event.debitBalance);
+      const creditBalance = BigInt(event.creditBalance);
+      const netBalance = BigInt(event.netBalance);
+      const creditLimit = event.creditLimit ? BigInt(event.creditLimit) : undefined;
+      const settlementThreshold = event.settlementThreshold
+        ? BigInt(event.settlementThreshold)
+        : undefined;
 
-        // Build balance history (keep last N entries)
-        const newHistoryEntry: BalanceHistoryEntry = {
-          timestamp,
-          balance: netBalance,
-        };
-        const balanceHistory = existing
-          ? [...existing.balanceHistory, newHistoryEntry].slice(-maxHistoryEntries)
-          : [newHistoryEntry];
+      const newHistoryEntry: BalanceHistoryEntry = {
+        timestamp,
+        balance: netBalance,
+      };
+      const balanceHistory = existing
+        ? [...existing.balanceHistory, newHistoryEntry].slice(-maxHistoryEntries)
+        : [newHistoryEntry];
 
-        const updatedAccount: AccountState = {
-          peerId: event.peerId,
-          tokenId: event.tokenId,
-          debitBalance,
-          creditBalance,
-          netBalance,
-          creditLimit,
-          settlementThreshold,
-          settlementState: event.settlementState,
-          balanceHistory,
-          hasActiveChannel: existing?.hasActiveChannel,
-          channelType: existing?.channelType,
-          lastUpdated: timestamp,
-        };
-
-        const newMap = new Map(prev);
-        newMap.set(key, updatedAccount);
-        return newMap;
+      map.set(key, {
+        peerId: event.peerId,
+        tokenId: event.tokenId,
+        debitBalance,
+        creditBalance,
+        netBalance,
+        creditLimit,
+        settlementThreshold,
+        settlementState: event.settlementState,
+        balanceHistory,
+        hasActiveChannel: existing?.hasActiveChannel,
+        channelType: existing?.channelType,
+        lastUpdated: timestamp,
       });
     },
     [maxHistoryEntries]
   );
 
   /**
-   * Process an AGENT_CHANNEL_PAYMENT_SENT event to derive account state
+   * Apply a single AGENT_CHANNEL_PAYMENT_SENT event to the accounts map (pure function)
    */
-  const processAgentPaymentEvent = useCallback(
+  const applyAgentPaymentEvent = useCallback(
     (
+      map: Map<string, AccountState>,
       event: TelemetryEvent & {
         peerId: string;
         amount: string;
         packetType: string;
         channelId: string;
       }
-    ) => {
-      setAccountsMap((prev) => {
-        const peerId = event.peerId;
-        const tokenId = 'AGENT';
-        const key = getAccountKey(peerId, tokenId);
-        const existing = prev.get(key);
-        const timestamp =
-          typeof event.timestamp === 'string'
-            ? new Date(event.timestamp).getTime()
-            : event.timestamp;
+    ): void => {
+      const peerId = event.peerId;
+      const tokenId = 'AGENT';
+      const key = getAccountKey(peerId, tokenId);
+      const existing = map.get(key);
+      const timestamp =
+        typeof event.timestamp === 'string' ? new Date(event.timestamp).getTime() : event.timestamp;
 
-        const amount = BigInt(event.amount || '0');
+      const amount = BigInt(event.amount || '0');
 
-        // Track cumulative balances: fulfills going out = we paid (debit), coming in = they paid (credit)
-        const prevDebit = existing?.debitBalance ?? 0n;
-        const prevCredit = existing?.creditBalance ?? 0n;
+      const prevDebit = existing?.debitBalance ?? 0n;
+      const prevCredit = existing?.creditBalance ?? 0n;
 
-        const isFulfill = event.packetType === 'fulfill';
-        const debitBalance = isFulfill ? prevDebit + amount : prevDebit;
-        const creditBalance = prevCredit;
-        const netBalance = creditBalance - debitBalance;
+      const isFulfill = event.packetType === 'fulfill';
+      const debitBalance = isFulfill ? prevDebit + amount : prevDebit;
+      const creditBalance = prevCredit;
+      const netBalance = creditBalance - debitBalance;
 
-        const newHistoryEntry: BalanceHistoryEntry = {
-          timestamp,
-          balance: netBalance,
-        };
-        const balanceHistory = existing
-          ? [...existing.balanceHistory, newHistoryEntry].slice(-maxHistoryEntries)
-          : [newHistoryEntry];
+      const newHistoryEntry: BalanceHistoryEntry = {
+        timestamp,
+        balance: netBalance,
+      };
+      const balanceHistory = existing
+        ? [...existing.balanceHistory, newHistoryEntry].slice(-maxHistoryEntries)
+        : [newHistoryEntry];
 
-        const updatedAccount: AccountState = {
-          peerId,
-          tokenId,
-          debitBalance,
-          creditBalance,
-          netBalance,
-          settlementThreshold: 1000n,
-          settlementState: 'IDLE',
-          balanceHistory,
-          hasActiveChannel: true,
-          channelType: 'evm',
-          lastUpdated: timestamp,
-        };
-
-        const newMap = new Map(prev);
-        newMap.set(key, updatedAccount);
-        return newMap;
+      map.set(key, {
+        peerId,
+        tokenId,
+        debitBalance,
+        creditBalance,
+        netBalance,
+        settlementThreshold: 1000n,
+        settlementState: 'IDLE',
+        balanceHistory,
+        hasActiveChannel: true,
+        channelType: 'evm',
+        lastUpdated: timestamp,
       });
     },
     [maxHistoryEntries]
   );
+
+  /**
+   * Flush buffered events as a single state update
+   */
+  const flushBuffer = useCallback(() => {
+    rafRef.current = null;
+    const buffered = bufferRef.current;
+    if (buffered.length === 0) return;
+    bufferRef.current = [];
+
+    setAccountsMap((prev) => {
+      const newMap = new Map(prev);
+      for (const event of buffered) {
+        if (isAccountBalanceEvent(event)) {
+          applyAccountBalanceEvent(newMap, event);
+        } else if (event.type === 'AGENT_CHANNEL_PAYMENT_SENT') {
+          applyAgentPaymentEvent(
+            newMap,
+            event as TelemetryEvent & {
+              peerId: string;
+              amount: string;
+              packetType: string;
+              channelId: string;
+            }
+          );
+        }
+      }
+      return newMap;
+    });
+  }, [applyAccountBalanceEvent, applyAgentPaymentEvent]);
 
   /**
    * Connect to WebSocket
@@ -236,20 +252,14 @@ export function useAccountBalances(
     ws.onmessage = (messageEvent) => {
       try {
         const event = JSON.parse(messageEvent.data) as TelemetryEvent;
-        if (isAccountBalanceEvent(event)) {
-          processAccountBalanceEvent(event);
-        } else if (event.type === 'AGENT_CHANNEL_PAYMENT_SENT') {
-          processAgentPaymentEvent(
-            event as TelemetryEvent & {
-              peerId: string;
-              amount: string;
-              packetType: string;
-              channelId: string;
-            }
-          );
+        if (isAccountBalanceEvent(event) || event.type === 'AGENT_CHANNEL_PAYMENT_SENT') {
+          bufferRef.current.push(event);
+          if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(flushBuffer);
+          }
         }
-      } catch (err) {
-        // Silently ignore parse errors to not spam console
+      } catch {
+        // Silently ignore parse errors
       }
     };
 
@@ -276,7 +286,7 @@ export function useAccountBalances(
     };
 
     wsRef.current = ws;
-  }, [processAccountBalanceEvent, processAgentPaymentEvent, reconnectDelay, maxReconnectAttempts]);
+  }, [flushBuffer, reconnectDelay, maxReconnectAttempts]);
 
   const clearAccounts = useCallback(() => {
     setAccountsMap(new Map());
@@ -298,8 +308,36 @@ export function useAccountBalances(
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      // Flush remaining buffer on unmount
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      // Process remaining buffered events synchronously
+      if (bufferRef.current.length > 0) {
+        const remaining = bufferRef.current;
+        bufferRef.current = [];
+        setAccountsMap((prev) => {
+          const newMap = new Map(prev);
+          for (const event of remaining) {
+            if (isAccountBalanceEvent(event)) {
+              applyAccountBalanceEvent(newMap, event);
+            } else if (event.type === 'AGENT_CHANNEL_PAYMENT_SENT') {
+              applyAgentPaymentEvent(
+                newMap,
+                event as TelemetryEvent & {
+                  peerId: string;
+                  amount: string;
+                  packetType: string;
+                  channelId: string;
+                }
+              );
+            }
+          }
+          return newMap;
+        });
+      }
     };
-  }, [connect]);
+  }, [connect, applyAccountBalanceEvent, applyAgentPaymentEvent]);
 
   // Sort accounts by net balance (highest first)
   const accounts = useMemo(() => {

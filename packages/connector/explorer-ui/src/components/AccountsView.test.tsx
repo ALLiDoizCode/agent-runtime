@@ -11,11 +11,17 @@ vi.mock('@/hooks/usePaymentChannels', () => ({
   usePaymentChannels: vi.fn(),
 }));
 
+vi.mock('@/hooks/useWalletBalances', () => ({
+  useWalletBalances: vi.fn(),
+}));
+
 import { useAccountBalances } from '@/hooks/useAccountBalances';
 import { usePaymentChannels } from '@/hooks/usePaymentChannels';
+import { useWalletBalances } from '@/hooks/useWalletBalances';
 
 const mockUseAccountBalances = vi.mocked(useAccountBalances);
 const mockUsePaymentChannels = vi.mocked(usePaymentChannels);
+const mockUseWalletBalances = vi.mocked(useWalletBalances);
 
 describe('AccountsView', () => {
   beforeEach(() => {
@@ -31,6 +37,14 @@ describe('AccountsView', () => {
       activeChannelCount: 0,
       clearChannels: vi.fn(),
       reconnect: vi.fn(),
+    });
+
+    mockUseWalletBalances.mockReturnValue({
+      data: null,
+      loading: false,
+      error: null,
+      lastUpdated: null,
+      refresh: vi.fn(),
     });
   });
 
@@ -55,7 +69,7 @@ describe('AccountsView', () => {
       ).toBeInTheDocument();
     });
 
-    it('shows connecting message when status is connecting', () => {
+    it('shows skeleton loaders when status is connecting', () => {
       mockUseAccountBalances.mockReturnValue({
         accounts: [],
         accountsMap: new Map(),
@@ -67,9 +81,11 @@ describe('AccountsView', () => {
         reconnect: vi.fn(),
       });
 
-      render(<AccountsView />);
+      const { container } = render(<AccountsView />);
 
-      expect(screen.getByText('Connecting to event stream...')).toBeInTheDocument();
+      // Skeleton loaders should be present (animate-pulse divs)
+      const skeletonElements = container.querySelectorAll('.animate-pulse');
+      expect(skeletonElements.length).toBeGreaterThan(0);
     });
 
     it('shows error message when status is error', () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { usePaymentChannels } from './usePaymentChannels';
+import { createRAFMock } from '@/test/raf-helpers';
 
 // Mock WebSocket
 class MockWebSocket {
@@ -34,10 +35,16 @@ class MockWebSocket {
   }
 }
 
+const rafMock = createRAFMock();
+const flushRAF = rafMock.flush;
+
 describe('usePaymentChannels', () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
+    rafMock.reset();
     vi.stubGlobal('WebSocket', MockWebSocket);
+    vi.stubGlobal('requestAnimationFrame', rafMock.requestAnimationFrame);
+    vi.stubGlobal('cancelAnimationFrame', rafMock.cancelAnimationFrame);
   });
 
   afterEach(() => {
@@ -63,11 +70,11 @@ describe('usePaymentChannels', () => {
     it('creates channel on PAYMENT_CHANNEL_OPENED event', async () => {
       const { result } = renderHook(() => usePaymentChannels());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PAYMENT_CHANNEL_OPENED',
           channelId: '0x123',
@@ -82,10 +89,9 @@ describe('usePaymentChannels', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.totalChannels).toBe(1);
-      });
+      await flushRAF();
 
+      expect(result.current.totalChannels).toBe(1);
       expect(result.current.channels[0].channelId).toBe('0x123');
       expect(result.current.channels[0].status).toBe('active');
       expect(result.current.channels[0].settlementMethod).toBe('evm');
@@ -94,12 +100,12 @@ describe('usePaymentChannels', () => {
     it('updates channel on PAYMENT_CHANNEL_BALANCE_UPDATE event', async () => {
       const { result } = renderHook(() => usePaymentChannels());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
       // First, open the channel
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PAYMENT_CHANNEL_OPENED',
           channelId: '0x123',
@@ -114,8 +120,10 @@ describe('usePaymentChannels', () => {
         });
       });
 
+      await flushRAF();
+
       // Then, update the balance
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PAYMENT_CHANNEL_BALANCE_UPDATE',
           channelId: '0x123',
@@ -127,10 +135,9 @@ describe('usePaymentChannels', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.channels[0].myNonce).toBe(5);
-      });
+      await flushRAF();
 
+      expect(result.current.channels[0].myNonce).toBe(5);
       expect(result.current.channels[0].myTransferred).toBe('5000');
       expect(result.current.channels[0].theirTransferred).toBe('2000');
     });
@@ -138,12 +145,12 @@ describe('usePaymentChannels', () => {
     it('marks channel settled on PAYMENT_CHANNEL_SETTLED event', async () => {
       const { result } = renderHook(() => usePaymentChannels());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
       // First, open the channel
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PAYMENT_CHANNEL_OPENED',
           channelId: '0x123',
@@ -158,8 +165,10 @@ describe('usePaymentChannels', () => {
         });
       });
 
+      await flushRAF();
+
       // Then, settle the channel
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PAYMENT_CHANNEL_SETTLED',
           channelId: '0x123',
@@ -169,9 +178,9 @@ describe('usePaymentChannels', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.channels[0].status).toBe('settled');
-      });
+      await flushRAF();
+
+      expect(result.current.channels[0].status).toBe('settled');
     });
   });
 
@@ -179,11 +188,11 @@ describe('usePaymentChannels', () => {
     it('creates XRP channel on XRP_CHANNEL_OPENED event', async () => {
       const { result } = renderHook(() => usePaymentChannels());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'XRP_CHANNEL_OPENED',
           channelId: 'xrp123',
@@ -198,10 +207,9 @@ describe('usePaymentChannels', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.totalChannels).toBe(1);
-      });
+      await flushRAF();
 
+      expect(result.current.totalChannels).toBe(1);
       expect(result.current.channels[0].settlementMethod).toBe('xrp');
       expect(result.current.channels[0].xrpAccount).toBe('rSender');
       expect(result.current.channels[0].xrpDestination).toBe('rReceiver');
@@ -210,12 +218,12 @@ describe('usePaymentChannels', () => {
     it('updates XRP balance on XRP_CHANNEL_CLAIMED event', async () => {
       const { result } = renderHook(() => usePaymentChannels());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
       // First, open the XRP channel
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'XRP_CHANNEL_OPENED',
           channelId: 'xrp123',
@@ -228,8 +236,10 @@ describe('usePaymentChannels', () => {
         });
       });
 
+      await flushRAF();
+
       // Then, claim from channel
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'XRP_CHANNEL_CLAIMED',
           channelId: 'xrp123',
@@ -238,20 +248,20 @@ describe('usePaymentChannels', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.channels[0].xrpBalance).toBe('500000');
-      });
+      await flushRAF();
+
+      expect(result.current.channels[0].xrpBalance).toBe('500000');
     });
 
     it('marks XRP channel settled on XRP_CHANNEL_CLOSED event', async () => {
       const { result } = renderHook(() => usePaymentChannels());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
       // First, open the XRP channel
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'XRP_CHANNEL_OPENED',
           channelId: 'xrp123',
@@ -264,8 +274,10 @@ describe('usePaymentChannels', () => {
         });
       });
 
+      await flushRAF();
+
       // Then, close the channel
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'XRP_CHANNEL_CLOSED',
           channelId: 'xrp123',
@@ -273,9 +285,9 @@ describe('usePaymentChannels', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.channels[0].status).toBe('settled');
-      });
+      await flushRAF();
+
+      expect(result.current.channels[0].status).toBe('settled');
     });
   });
 
@@ -283,14 +295,14 @@ describe('usePaymentChannels', () => {
     it('returns channels sorted by lastActivityAt (most recent first)', async () => {
       const { result } = renderHook(() => usePaymentChannels());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
       const oldTime = new Date(Date.now() - 10000).toISOString();
       const newTime = new Date().toISOString();
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PAYMENT_CHANNEL_OPENED',
           channelId: 'old-channel',
@@ -303,9 +315,6 @@ describe('usePaymentChannels', () => {
           initialDeposits: {},
           timestamp: oldTime,
         });
-      });
-
-      act(() => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PAYMENT_CHANNEL_OPENED',
           channelId: 'new-channel',
@@ -320,10 +329,9 @@ describe('usePaymentChannels', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.totalChannels).toBe(2);
-      });
+      await flushRAF();
 
+      expect(result.current.totalChannels).toBe(2);
       // Most recent should be first
       expect(result.current.channels[0].channelId).toBe('new-channel');
     });
@@ -333,12 +341,12 @@ describe('usePaymentChannels', () => {
     it('counts only active channels', async () => {
       const { result } = renderHook(() => usePaymentChannels());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
       // Open two channels
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PAYMENT_CHANNEL_OPENED',
           channelId: 'active-channel',
@@ -351,9 +359,6 @@ describe('usePaymentChannels', () => {
           initialDeposits: {},
           timestamp: new Date().toISOString(),
         });
-      });
-
-      act(() => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PAYMENT_CHANNEL_OPENED',
           channelId: 'settled-channel',
@@ -368,8 +373,10 @@ describe('usePaymentChannels', () => {
         });
       });
 
+      await flushRAF();
+
       // Settle one of them
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PAYMENT_CHANNEL_SETTLED',
           channelId: 'settled-channel',
@@ -379,11 +386,56 @@ describe('usePaymentChannels', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.totalChannels).toBe(2);
+      await flushRAF();
+
+      expect(result.current.totalChannels).toBe(2);
+      expect(result.current.activeChannelCount).toBe(1);
+    });
+  });
+
+  describe('batching', () => {
+    it('batches multiple channel events into single state update', async () => {
+      const { result } = renderHook(() => usePaymentChannels());
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateOpen();
       });
 
-      expect(result.current.activeChannelCount).toBe(1);
+      // Send multiple channel events in quick succession
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage({
+          type: 'PAYMENT_CHANNEL_OPENED',
+          channelId: 'ch-1',
+          nodeId: 'a',
+          peerId: 'b',
+          participants: ['0xa', '0xb'],
+          tokenAddress: '0x',
+          tokenSymbol: 'T',
+          settlementTimeout: 100,
+          initialDeposits: {},
+          timestamp: new Date().toISOString(),
+        });
+        MockWebSocket.instances[0].simulateMessage({
+          type: 'PAYMENT_CHANNEL_OPENED',
+          channelId: 'ch-2',
+          nodeId: 'a',
+          peerId: 'c',
+          participants: ['0xa', '0xc'],
+          tokenAddress: '0x',
+          tokenSymbol: 'T',
+          settlementTimeout: 100,
+          initialDeposits: {},
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      // Before flush, no updates
+      expect(result.current.totalChannels).toBe(0);
+
+      await flushRAF();
+
+      // After single flush, both channels present
+      expect(result.current.totalChannels).toBe(2);
     });
   });
 });

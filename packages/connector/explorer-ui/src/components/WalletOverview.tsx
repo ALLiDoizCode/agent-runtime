@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { Link2, Copy, Check, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -98,7 +99,11 @@ function ChannelStatusBadge({ status }: { status: string }) {
   return <Badge variant={variant}>{status}</Badge>;
 }
 
-export function WalletOverview({ data, lastUpdated, onRefresh }: WalletOverviewProps) {
+export const WalletOverview = React.memo(function WalletOverview({
+  data,
+  lastUpdated,
+  onRefresh,
+}: WalletOverviewProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -271,4 +276,4 @@ export function WalletOverview({ data, lastUpdated, onRefresh }: WalletOverviewP
       </CardContent>
     </Card>
   );
-}
+});

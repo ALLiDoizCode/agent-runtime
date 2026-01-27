@@ -1,8 +1,31 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useEventFilters, DEFAULT_FILTERS } from './useEventFilters';
 
+// Save original location to restore in tests
+const originalLocation = window.location;
+
 describe('useEventFilters', () => {
+  beforeEach(() => {
+    // Ensure clean URL state for every test
+    Object.defineProperty(window, 'location', {
+      value: { ...originalLocation, search: '', pathname: '/' },
+      writable: true,
+      configurable: true,
+    });
+    // Stub replaceState to avoid errors
+    vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Object.defineProperty(window, 'location', {
+      value: originalLocation,
+      writable: true,
+      configurable: true,
+    });
+  });
+
   describe('initialization', () => {
     it('should return default filters on initial render', () => {
       const { result } = renderHook(() => useEventFilters());
@@ -293,6 +316,113 @@ describe('useEventFilters', () => {
       });
 
       expect(result.current.hasActiveFilters).toBe(true);
+    });
+  });
+
+  describe('activeFilterCount', () => {
+    it('should be 0 when no filters are active', () => {
+      const { result } = renderHook(() => useEventFilters());
+      expect(result.current.activeFilterCount).toBe(0);
+    });
+
+    it('should count each active filter category', () => {
+      const { result } = renderHook(() => useEventFilters());
+
+      act(() => {
+        result.current.setFilters({
+          eventTypes: ['PACKET_RECEIVED'],
+          direction: 'sent',
+          searchText: 'test',
+        });
+      });
+
+      expect(result.current.activeFilterCount).toBe(3);
+    });
+  });
+
+  describe('URL persistence', () => {
+    it('should serialize filter state to URL params', () => {
+      const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+      const { result } = renderHook(() => useEventFilters());
+
+      act(() => {
+        result.current.setFilters({
+          eventTypes: ['PACKET_RECEIVED', 'PACKET_FORWARDED'],
+          direction: 'sent',
+          searchText: 'alice',
+        });
+      });
+
+      expect(replaceStateSpy).toHaveBeenCalled();
+      const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
+      const url = lastCall[2] as string;
+      expect(url).toContain('eventTypes=PACKET_RECEIVED%2CPACKET_FORWARDED');
+      expect(url).toContain('direction=sent');
+      expect(url).toContain('search=alice');
+    });
+
+    it('should read initial state from URL params', () => {
+      Object.defineProperty(window, 'location', {
+        value: {
+          ...window.location,
+          search: '?eventTypes=PACKET_RECEIVED&direction=sent&search=test',
+          pathname: '/',
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      const { result } = renderHook(() => useEventFilters());
+
+      expect(result.current.filters.eventTypes).toEqual(['PACKET_RECEIVED']);
+      expect(result.current.filters.direction).toBe('sent');
+      expect(result.current.filters.searchText).toBe('test');
+    });
+
+    it('should read time range preset from URL', () => {
+      Object.defineProperty(window, 'location', {
+        value: { ...window.location, search: '?timeRange=5m', pathname: '/' },
+        writable: true,
+        configurable: true,
+      });
+
+      const { result } = renderHook(() => useEventFilters());
+
+      expect(result.current.filters.timeRange.preset).toBe('5m');
+      expect(result.current.filters.timeRange.since).toBeDefined();
+    });
+
+    it('should clear URL params on resetFilters', () => {
+      const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+      const { result } = renderHook(() => useEventFilters());
+
+      act(() => {
+        result.current.setFilters({
+          eventTypes: ['PACKET_RECEIVED'],
+          direction: 'sent',
+        });
+      });
+
+      act(() => {
+        result.current.resetFilters();
+      });
+
+      const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
+      const url = lastCall[2] as string;
+      expect(url).toBe('/');
+    });
+
+    it('should fall back to defaults for invalid URL params', () => {
+      Object.defineProperty(window, 'location', {
+        value: { ...window.location, search: '?direction=invalid&timeRange=bogus', pathname: '/' },
+        writable: true,
+        configurable: true,
+      });
+
+      const { result } = renderHook(() => useEventFilters());
+
+      expect(result.current.filters.direction).toBe('all');
+      expect(result.current.filters.timeRange).toEqual({});
     });
   });
 });

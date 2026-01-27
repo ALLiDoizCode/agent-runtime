@@ -7,6 +7,9 @@ import {
   formatRelativeTime,
 } from '../lib/event-types';
 import { Badge } from '@/components/ui/badge';
+import { useKeyboardNavigation } from '../hooks/useKeyboardNavigation';
+import { Radio, WifiOff, SearchX } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface EventTableProps {
   events: TelemetryEvent[];
@@ -15,6 +18,10 @@ interface EventTableProps {
   showPagination?: boolean;
   total?: number;
   onLoadMore?: () => void;
+  connectionStatus?: 'connecting' | 'connected' | 'disconnected' | 'error';
+  hasActiveFilters?: boolean;
+  onClearFilters?: () => void;
+  onScrollStateChange?: (isAtTop: boolean) => void;
 }
 
 const ROW_HEIGHT = 48;
@@ -273,7 +280,7 @@ function getStatusDisplay(status: EventStatus): { icon: string; text: string; cl
     case 'success':
       return { icon: '✓', text: 'Success', className: 'text-green-500' };
     case 'failure':
-      return { icon: '✗', text: 'Failed', className: 'text-red-500' };
+      return { icon: '✗', text: 'Failed', className: 'text-red-400' };
     case 'pending':
       return { icon: '◐', text: 'Pending', className: 'text-yellow-500' };
     default:
@@ -285,7 +292,7 @@ function getStatusDisplay(status: EventStatus): { icon: string; text: string; cl
  * Clickable peer link component
  * Opens the peer's Explorer in a new tab
  */
-function PeerLink({ peerId }: { peerId: string | null }) {
+const PeerLink = React.memo(function PeerLink({ peerId }: { peerId: string | null }) {
   if (!peerId) return <span>-</span>;
 
   const explorerUrl = getPeerExplorerUrl(peerId);
@@ -303,28 +310,37 @@ function PeerLink({ peerId }: { peerId: string | null }) {
   return (
     <button
       onClick={handleClick}
-      className="text-blue-500 hover:text-blue-700 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
+      className="text-blue-400 hover:text-blue-300 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-background rounded"
       title={`Open ${peerId} Explorer (${explorerUrl})`}
     >
       {peerId}
     </button>
   );
-}
+});
 
 /**
  * Memoized row component for better performance
  */
 const EventRow = React.memo(function EventRow({
   event,
-  onClick,
+  onSelect,
+  index,
   style,
   resolvedStatus,
+  isSelected,
+  isNew,
 }: {
   event: TelemetryEvent;
-  onClick?: () => void;
+  onSelect?: (index: number) => void;
+  index: number;
   style: React.CSSProperties;
   resolvedStatus?: 'success' | 'failure';
+  isSelected?: boolean;
+  isNew?: boolean;
 }) {
+  const handleClick = React.useCallback(() => {
+    onSelect?.(index);
+  }, [onSelect, index]);
   const displayType = getDisplayType(event);
   const from = getFrom(event);
   const to = getTo(event);
@@ -336,14 +352,14 @@ const EventRow = React.memo(function EventRow({
 
   return (
     <div
-      className="flex items-center border-b border-border cursor-pointer hover:bg-muted/50"
+      className={`flex items-center border-b border-border cursor-pointer hover:bg-muted/50 ${isSelected ? 'bg-muted/50 ring-1 ring-primary' : ''} ${isNew ? 'animate-fadeIn' : ''}`}
       style={style}
-      onClick={onClick}
+      onClick={handleClick}
     >
-      <div className="w-[8%] min-w-[80px] px-3 font-mono text-sm text-muted-foreground truncate">
+      <div className="w-[12%] min-w-[80px] px-3 font-mono text-sm text-muted-foreground truncate">
         {formatRelativeTime(timestamp)}
       </div>
-      <div className="w-[12%] min-w-[100px] px-3">
+      <div className="w-[14%] min-w-[100px] px-3">
         <Badge
           variant="secondary"
           className={`${displayType.colorClass} text-white text-xs max-w-full truncate`}
@@ -352,19 +368,19 @@ const EventRow = React.memo(function EventRow({
           {displayType.label}
         </Badge>
       </div>
-      <div className="w-[16%] min-w-[120px] px-3 font-mono text-sm truncate">
+      <div className="w-[16%] min-w-[100px] px-3 font-mono text-sm truncate">
         <PeerLink peerId={from} />
       </div>
-      <div className="w-[16%] min-w-[120px] px-3 font-mono text-sm truncate">
+      <div className="w-[16%] min-w-[100px] px-3 font-mono text-sm truncate">
         <PeerLink peerId={to} />
       </div>
       <div
-        className="w-[24%] min-w-[150px] px-3 font-mono text-sm truncate"
+        className="hidden lg:block w-[20%] min-w-[150px] px-3 font-mono text-sm truncate"
         title={destination || undefined}
       >
         {destination ? formatDestination(destination) : '-'}
       </div>
-      <div className="w-[12%] min-w-[80px] px-3 font-mono text-sm truncate">
+      <div className="hidden md:block w-[10%] min-w-[80px] px-3 font-mono text-sm truncate">
         {amount ? formatAmount(amount) : '-'}
       </div>
       <div className={`w-[12%] min-w-[80px] px-3 text-sm ${statusDisplay.className}`}>
@@ -383,11 +399,45 @@ export function EventTable({
   showPagination,
   total,
   onLoadMore,
+  onScrollStateChange,
+  ...emptyStateProps
 }: EventTableProps) {
+  const { connectionStatus, hasActiveFilters, onClearFilters } = emptyStateProps;
   const parentRef = React.useRef<HTMLDivElement>(null);
+  const eventsRef = React.useRef(events);
+  eventsRef.current = events;
 
   // Build a map of packet_id -> resolved status for PREPARE packets
   const packetStatusMap = React.useMemo(() => buildPacketStatusMap(events), [events]);
+
+  // Track new events for fade-in animation (live mode only)
+  const prevEventCountRef = React.useRef(events.length);
+  const newEventCountRef = React.useRef(0);
+  const isLiveMode = !showPagination;
+
+  React.useEffect(() => {
+    const prevCount = prevEventCountRef.current;
+    const currentCount = events.length;
+    if (isLiveMode && currentCount > prevCount) {
+      // New events were prepended at the beginning
+      newEventCountRef.current = currentCount - prevCount;
+      // Clear new event markers after animation duration
+      const timer = setTimeout(() => {
+        newEventCountRef.current = 0;
+      }, 500);
+      prevEventCountRef.current = currentCount;
+      return () => clearTimeout(timer);
+    }
+    prevEventCountRef.current = currentCount;
+  }, [events.length, isLiveMode]);
+
+  // Stable callback that uses ref-based lookup to avoid events array dependency
+  const handleRowSelect = React.useCallback(
+    (index: number) => {
+      onEventClick?.(eventsRef.current[index]);
+    },
+    [onEventClick]
+  );
 
   const virtualizer = useVirtualizer({
     count: events.length,
@@ -396,30 +446,108 @@ export function EventTable({
     overscan: 10,
   });
 
+  // Stable scrollToIndex callback for keyboard navigation
+  const scrollToIndex = React.useCallback(
+    (index: number) => {
+      virtualizer.scrollToIndex(index, { align: 'auto' });
+    },
+    [virtualizer]
+  );
+
+  // Keyboard navigation for event rows (j/k/Enter)
+  const { selectedIndex } = useKeyboardNavigation({
+    events,
+    onEventClick: onEventClick || (() => {}),
+    scrollToIndex,
+  });
+
+  // Monitor scroll position for auto-switch to live
+  const lastIsAtTopRef = React.useRef(true);
+  React.useEffect(() => {
+    const scrollEl = parentRef.current;
+    if (!scrollEl || !onScrollStateChange) return;
+
+    const handleScroll = () => {
+      const isAtTop = scrollEl.scrollTop <= 10;
+      if (isAtTop !== lastIsAtTopRef.current) {
+        lastIsAtTopRef.current = isAtTop;
+        onScrollStateChange(isAtTop);
+      }
+    };
+
+    scrollEl.addEventListener('scroll', handleScroll, { passive: true });
+    return () => scrollEl.removeEventListener('scroll', handleScroll);
+  }, [onScrollStateChange]);
+
   const virtualItems = virtualizer.getVirtualItems();
 
   return (
     <div className="flex flex-col h-[calc(100vh-280px)]">
       {/* Header */}
-      <div className="flex items-center border-b border-border bg-muted/50 h-10 shrink-0">
-        <div className="w-[8%] min-w-[80px] px-3 text-sm font-medium">Time</div>
-        <div className="w-[12%] min-w-[100px] px-3 text-sm font-medium">Type</div>
-        <div className="w-[16%] min-w-[120px] px-3 text-sm font-medium">From</div>
-        <div className="w-[16%] min-w-[120px] px-3 text-sm font-medium">To</div>
-        <div className="w-[24%] min-w-[150px] px-3 text-sm font-medium">Destination</div>
-        <div className="w-[12%] min-w-[80px] px-3 text-sm font-medium">Amount</div>
+      <div className="flex items-center border-b border-border bg-muted/50 h-10 shrink-0 min-w-0 shadow-sm">
+        <div className="w-[12%] min-w-[80px] px-3 text-sm font-medium">Time</div>
+        <div className="w-[14%] min-w-[100px] px-3 text-sm font-medium">Type</div>
+        <div className="w-[16%] min-w-[100px] px-3 text-sm font-medium">From</div>
+        <div className="w-[16%] min-w-[100px] px-3 text-sm font-medium">To</div>
+        <div className="hidden lg:block w-[20%] min-w-[150px] px-3 text-sm font-medium">
+          Destination
+        </div>
+        <div className="hidden md:block w-[10%] min-w-[80px] px-3 text-sm font-medium">Amount</div>
         <div className="w-[12%] min-w-[80px] px-3 text-sm font-medium">Status</div>
       </div>
 
       {/* Body with virtual scrolling */}
       <div ref={parentRef} className="flex-1 overflow-auto">
         {loading ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            Loading events...
+          <div className="w-full">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center border-b border-border h-12">
+                <div className="w-[12%] min-w-[80px] px-3">
+                  <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+                </div>
+                <div className="w-[14%] min-w-[100px] px-3">
+                  <div className="h-5 w-24 bg-muted animate-pulse rounded" />
+                </div>
+                <div className="w-[16%] min-w-[100px] px-3">
+                  <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+                </div>
+                <div className="w-[16%] min-w-[100px] px-3">
+                  <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+                </div>
+                <div className="hidden lg:block w-[20%] min-w-[150px] px-3">
+                  <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+                </div>
+                <div className="hidden md:block w-[10%] min-w-[80px] px-3">
+                  <div className="h-4 w-14 bg-muted animate-pulse rounded" />
+                </div>
+                <div className="w-[12%] min-w-[80px] px-3">
+                  <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : connectionStatus === 'disconnected' || connectionStatus === 'error' ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+            <WifiOff className="h-12 w-12 text-muted-foreground/50" />
+            <h3 className="text-lg font-medium text-foreground">Disconnected</h3>
+            <p className="text-sm">Unable to connect to agent. Attempting to reconnect...</p>
+          </div>
+        ) : events.length === 0 && hasActiveFilters ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+            <SearchX className="h-12 w-12 text-muted-foreground/50" />
+            <h3 className="text-lg font-medium text-foreground">No events match your filters</h3>
+            <p className="text-sm">Try adjusting or clearing your filters</p>
+            {onClearFilters && (
+              <Button variant="outline" size="sm" onClick={onClearFilters} className="mt-2">
+                Clear filters
+              </Button>
+            )}
           </div>
         ) : events.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            Waiting for events...
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+            <Radio className="h-12 w-12 text-muted-foreground/50 animate-pulse" />
+            <h3 className="text-lg font-medium text-foreground">Waiting for events...</h3>
+            <p className="text-sm">Agent Explorer is connected and listening</p>
           </div>
         ) : (
           <div
@@ -439,8 +567,11 @@ export function EventTable({
                 <EventRow
                   key={`${timestamp}-${virtualRow.index}`}
                   event={event}
-                  onClick={() => onEventClick?.(event)}
+                  onSelect={handleRowSelect}
+                  index={virtualRow.index}
                   resolvedStatus={resolvedStatus}
+                  isSelected={selectedIndex === virtualRow.index}
+                  isNew={isLiveMode && virtualRow.index < newEventCountRef.current}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -465,7 +596,7 @@ export function EventTable({
           {events.length < total && onLoadMore && (
             <button
               onClick={onLoadMore}
-              className="px-4 py-2 text-sm font-medium text-primary bg-primary/10 rounded-md hover:bg-primary/20 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-primary bg-primary/10 rounded-md hover:bg-primary/20 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
             >
               Load More
             </button>

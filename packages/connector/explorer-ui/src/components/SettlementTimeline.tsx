@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle, Clock, Zap, ArrowRight } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/event-types';
@@ -74,7 +75,7 @@ function getSettlementStatus(entry: SettlementEntry): {
       return {
         label: 'Failed',
         icon: XCircle,
-        className: 'text-red-500',
+        className: 'text-red-400',
       };
     }
   }
@@ -116,7 +117,10 @@ function getElapsedTime(triggeredAt: string): string {
  * Shows: TRIGGERED → IN_PROGRESS → COMPLETED flow
  * With success/failure indicators and settlement details
  */
-export function SettlementTimeline({ peerId, settlements }: SettlementTimelineProps) {
+export const SettlementTimeline = React.memo(function SettlementTimeline({
+  peerId,
+  settlements,
+}: SettlementTimelineProps) {
   if (settlements.length === 0) {
     return (
       <div className="text-xs text-muted-foreground text-center py-2">
@@ -196,7 +200,7 @@ export function SettlementTimeline({ peerId, settlements }: SettlementTimelinePr
                   {settlement.completedAt && (
                     <>
                       <ArrowRight className="h-3 w-3" />
-                      <span className={settlement.success ? 'text-green-500' : 'text-red-500'}>
+                      <span className={settlement.success ? 'text-green-500' : 'text-red-400'}>
                         {settlement.success ? 'Completed' : 'Failed'}
                       </span>
                       <span className="text-xs">
@@ -208,7 +212,7 @@ export function SettlementTimeline({ peerId, settlements }: SettlementTimelinePr
 
                 {/* Error message for failed settlements */}
                 {!settlement.success && settlement.errorMessage && (
-                  <div className="text-red-500 text-xs mt-1">Error: {settlement.errorMessage}</div>
+                  <div className="text-red-400 text-xs mt-1">Error: {settlement.errorMessage}</div>
                 )}
               </div>
             </div>
@@ -217,4 +221,4 @@ export function SettlementTimeline({ peerId, settlements }: SettlementTimelinePr
       </div>
     </div>
   );
-}
+});

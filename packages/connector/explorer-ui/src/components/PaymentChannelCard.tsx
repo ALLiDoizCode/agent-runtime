@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ChannelState } from '@/lib/event-types';
@@ -62,7 +63,10 @@ function formatBalance(value: string): string {
  * PaymentChannelCard component - displays payment channel status
  * Story 14.6: Settlement and Balance Visualization
  */
-export function PaymentChannelCard({ channel, onClick }: PaymentChannelCardProps) {
+export const PaymentChannelCard = React.memo(function PaymentChannelCard({
+  channel,
+  onClick,
+}: PaymentChannelCardProps) {
   const statusBadge = getStatusBadge(channel.status);
   const isXrp = channel.settlementMethod === 'xrp';
   const lastActivityTs = new Date(channel.lastActivityAt).getTime();
@@ -111,7 +115,7 @@ export function PaymentChannelCard({ channel, onClick }: PaymentChannelCardProps
           </div>
           <div>
             <div className="text-muted-foreground">Their Transferred</div>
-            <div className="font-mono text-blue-500">{formatBalance(channel.theirTransferred)}</div>
+            <div className="font-mono text-blue-400">{formatBalance(channel.theirTransferred)}</div>
           </div>
         </div>
 
@@ -139,4 +143,4 @@ export function PaymentChannelCard({ channel, onClick }: PaymentChannelCardProps
       </CardContent>
     </Card>
   );
-}
+});

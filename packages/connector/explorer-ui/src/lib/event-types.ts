@@ -144,7 +144,7 @@ export const EVENT_TYPE_COLORS: Record<string, string> = {
   // Agent channels - violet
   AGENT_CHANNEL_OPENED: 'bg-violet-500',
   AGENT_CHANNEL_PAYMENT_SENT: 'bg-violet-400',
-  AGENT_CHANNEL_BALANCE_UPDATE: 'bg-violet-300',
+  AGENT_CHANNEL_BALANCE_UPDATE: 'bg-violet-500',
   AGENT_CHANNEL_CLOSED: 'bg-violet-600',
   // Security events - red shades
   WALLET_BALANCE_MISMATCH: 'bg-red-500',

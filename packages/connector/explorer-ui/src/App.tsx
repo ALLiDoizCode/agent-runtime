@@ -1,23 +1,30 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { useEventFilters } from './hooks/useEventFilters';
 import { useEvents, EventMode } from './hooks/useEvents';
 import { EventTable } from './components/EventTable';
 import { Header } from './components/Header';
-import { FilterBar } from './components/FilterBar';
 import { JumpToLive } from './components/JumpToLive';
-import { EventDetailPanel } from './components/EventDetailPanel';
 import { AccountsView } from './components/AccountsView';
 import { TelemetryEvent, StoredEvent } from './lib/event-types';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { KeyboardHelpDialog } from './components/KeyboardHelpDialog';
 import { Radio, History, Wallet, ListTree } from 'lucide-react';
+
+const FilterBar = lazy(() =>
+  import('./components/FilterBar').then((m) => ({ default: m.FilterBar }))
+);
+const EventDetailPanel = lazy(() =>
+  import('./components/EventDetailPanel').then((m) => ({ default: m.EventDetailPanel }))
+);
 
 /** Tab view types */
 type TabView = 'events' | 'accounts';
 
 function App() {
   // Filter state management
-  const { filters, setFilters, resetFilters } = useEventFilters();
+  const { filters, setFilters, resetFilters, hasActiveFilters, activeFilterCount } =
+    useEventFilters();
 
   // Combined event management (live + history)
   const {
@@ -43,45 +50,117 @@ function App() {
   // Tab view state (Story 14.6)
   const [activeTab, setActiveTab] = useState<TabView>('events');
 
-  const handleEventClick = (event: TelemetryEvent) => {
-    setSelectedEvent(event);
-  };
+  // Help dialog state (Task 3)
+  const [helpOpen, setHelpOpen] = useState(false);
 
-  const handleDetailPanelClose = () => {
+  // Auto-switch to Live mode when at top of scroll and new events arrive (Task 9)
+  const isAtTopRef = useRef(true);
+  const prevEventsLenRef = useRef(events.length);
+
+  const handleScrollStateChange = useCallback((isAtTop: boolean) => {
+    isAtTopRef.current = isAtTop;
+  }, []);
+
+  useEffect(() => {
+    if (
+      mode === 'history' &&
+      isAtTopRef.current &&
+      events.length > prevEventsLenRef.current &&
+      connectionStatus === 'connected'
+    ) {
+      setMode('live');
+    }
+    prevEventsLenRef.current = events.length;
+  }, [events.length, mode, connectionStatus, setMode]);
+
+  // Global keyboard shortcuts (Task 2)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Guard: don't activate when input/textarea/select/contenteditable has focus
+      const el = document.activeElement;
+      if (el) {
+        const tag = el.tagName.toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (
+          (el as HTMLElement).isContentEditable ||
+          (el as HTMLElement).getAttribute('contenteditable') === 'true'
+        ) {
+          return;
+        }
+      }
+
+      switch (e.key) {
+        case '1':
+          setActiveTab('events');
+          break;
+        case '2':
+          setActiveTab('accounts');
+          break;
+        case '/': {
+          e.preventDefault();
+          const searchInput = document.getElementById('explorer-search-input');
+          if (searchInput) {
+            searchInput.focus();
+          }
+          break;
+        }
+        case '?':
+          setHelpOpen(true);
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleEventClick = useCallback((event: TelemetryEvent) => {
+    setSelectedEvent(event);
+  }, []);
+
+  const handleDetailPanelClose = useCallback(() => {
     setSelectedEvent(null);
-  };
+  }, []);
 
-  const handleRelatedEventSelect = (event: StoredEvent) => {
+  const handleRelatedEventSelect = useCallback((event: StoredEvent) => {
     setSelectedEvent(event);
-  };
+  }, []);
 
-  const handleModeToggle = (newMode: EventMode) => {
-    setMode(newMode);
-  };
+  const handleModeToggle = useCallback(
+    (newMode: EventMode) => {
+      setMode(newMode);
+    },
+    [setMode]
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground dark">
-      <Header status={connectionStatus} eventCount={events.length} />
+      <Header
+        status={connectionStatus}
+        eventCount={events.length}
+        onHelpOpen={() => setHelpOpen(true)}
+      />
 
       {/* Mode toggle */}
-      <div className="flex items-center gap-2 px-6 py-2 border-b border-border">
+      <div className="flex items-center gap-2 px-4 md:px-6 py-2 border-b border-border flex-wrap">
         <span className="text-sm font-medium text-muted-foreground">View:</span>
         <Button
           variant={mode === 'live' ? 'secondary' : 'ghost'}
           size="sm"
           onClick={() => handleModeToggle('live')}
-          className="gap-2"
+          className={`gap-2 ${mode === 'live' ? 'border border-green-500/30' : ''}`}
         >
-          <Radio className={`h-4 w-4 ${mode === 'live' ? 'animate-pulse text-green-500' : ''}`} />
+          {mode === 'live' && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
+          <Radio className={`h-4 w-4 ${mode === 'live' ? 'text-green-500' : ''}`} />
           Live
         </Button>
         <Button
           variant={mode === 'history' ? 'secondary' : 'ghost'}
           size="sm"
           onClick={() => handleModeToggle('history')}
-          className="gap-2"
+          className={`gap-2 ${mode === 'history' ? 'border border-muted-foreground/30' : ''}`}
         >
-          <History className="h-4 w-4" />
+          <History className={`h-4 w-4 ${mode === 'history' ? 'text-muted-foreground' : ''}`} />
           History
         </Button>
 
@@ -107,7 +186,7 @@ function App() {
       </div>
 
       {/* Tab navigation (Story 14.6) */}
-      <div className="px-6 py-2 border-b border-border">
+      <div className="px-4 md:px-6 py-2 border-b border-border">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabView)}>
           <TabsList>
             <TabsTrigger value="events" className="gap-2">
@@ -124,10 +203,17 @@ function App() {
 
       {/* Filter bar - only show on events tab */}
       {activeTab === 'events' && (
-        <FilterBar filters={filters} onFilterChange={setFilters} onReset={resetFilters} />
+        <Suspense fallback={null}>
+          <FilterBar
+            filters={filters}
+            onFilterChange={setFilters}
+            onReset={resetFilters}
+            activeFilterCount={activeFilterCount}
+          />
+        </Suspense>
       )}
 
-      <main className="px-6 py-4">
+      <main className="px-4 md:px-6 py-4">
         {error && (
           <div className="mb-4 p-4 border border-destructive rounded-md bg-destructive/10 text-destructive">
             {error}
@@ -142,6 +228,10 @@ function App() {
             showPagination={mode === 'history'}
             total={total}
             onLoadMore={hasMore ? loadMore : undefined}
+            connectionStatus={connectionStatus}
+            hasActiveFilters={hasActiveFilters}
+            onClearFilters={resetFilters}
+            onScrollStateChange={handleScrollStateChange}
           />
         ) : (
           <AccountsView />
@@ -157,12 +247,17 @@ function App() {
 
       {/* Event detail panel (Story 14.5) - only on events tab */}
       {activeTab === 'events' && (
-        <EventDetailPanel
-          event={selectedEvent}
-          onClose={handleDetailPanelClose}
-          onEventSelect={handleRelatedEventSelect}
-        />
+        <Suspense fallback={null}>
+          <EventDetailPanel
+            event={selectedEvent}
+            onClose={handleDetailPanelClose}
+            onEventSelect={handleRelatedEventSelect}
+          />
+        </Suspense>
       )}
+
+      {/* Keyboard shortcuts help dialog (Story 15.3) */}
+      <KeyboardHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </div>
   );
 }

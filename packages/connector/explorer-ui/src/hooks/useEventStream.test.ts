@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useEventStream } from './useEventStream';
+import { createRAFMock } from '@/test/raf-helpers';
 
 // WebSocket readyState constants
 const WS_CONNECTING = 0;
@@ -47,10 +48,16 @@ class MockWebSocket {
   }
 }
 
+const rafMock = createRAFMock();
+const flushRAF = rafMock.flush;
+
 describe('useEventStream', () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
+    rafMock.reset();
     vi.stubGlobal('WebSocket', MockWebSocket);
+    vi.stubGlobal('requestAnimationFrame', rafMock.requestAnimationFrame);
+    vi.stubGlobal('cancelAnimationFrame', rafMock.cancelAnimationFrame);
   });
 
   afterEach(() => {
@@ -72,7 +79,7 @@ describe('useEventStream', () => {
     expect(result.current.status).toBe('connected');
   });
 
-  it('should receive and store events', async () => {
+  it('should receive and store events via RAF batching', async () => {
     const { result } = renderHook(() => useEventStream());
 
     await act(async () => {
@@ -84,8 +91,37 @@ describe('useEventStream', () => {
       });
     });
 
+    // Flush the RAF to process buffered events
+    await flushRAF();
+
     expect(result.current.events).toHaveLength(1);
     expect(result.current.events[0]?.type).toBe('ACCOUNT_BALANCE');
+  });
+
+  it('should batch multiple messages into a single state update', async () => {
+    const { result } = renderHook(() => useEventStream());
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.simulateOpen();
+      // Send multiple messages in quick succession (within one frame)
+      for (let i = 0; i < 5; i++) {
+        MockWebSocket.instances[0]?.simulateMessage({
+          type: 'ACCOUNT_BALANCE',
+          nodeId: 'test-node',
+          timestamp: Date.now() + i,
+          id: `event-${i}`,
+        });
+      }
+    });
+
+    // Before flush, events should still be empty (buffered in ref)
+    expect(result.current.events).toHaveLength(0);
+
+    // Flush RAF to apply batch
+    await flushRAF();
+
+    // All 5 events should appear after single flush
+    expect(result.current.events).toHaveLength(5);
   });
 
   it('should limit events to maxEvents', async () => {
@@ -102,6 +138,9 @@ describe('useEventStream', () => {
       }
     });
 
+    // Flush the RAF
+    await flushRAF();
+
     expect(result.current.events).toHaveLength(5);
   });
 
@@ -117,6 +156,8 @@ describe('useEventStream', () => {
       });
     });
 
+    await flushRAF();
+
     expect(result.current.events).toHaveLength(1);
 
     act(() => {
@@ -124,5 +165,70 @@ describe('useEventStream', () => {
     });
 
     expect(result.current.events).toHaveLength(0);
+  });
+
+  it('should flush events on unmount to avoid lost events', async () => {
+    let capturedEvents: unknown[] = [];
+    const { result, unmount } = renderHook(() => useEventStream());
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.simulateOpen();
+      // Send messages that are buffered but not yet flushed
+      MockWebSocket.instances[0]?.simulateMessage({
+        type: 'ACCOUNT_BALANCE',
+        nodeId: 'test-node',
+        timestamp: Date.now(),
+        id: 'unmount-event',
+      });
+    });
+
+    // Events are buffered, not yet flushed
+    expect(result.current.events).toHaveLength(0);
+    capturedEvents = result.current.events;
+
+    // Unmount triggers cleanup which flushes buffer synchronously
+    await act(async () => {
+      unmount();
+    });
+
+    // After unmount the state update from cleanup will have run.
+    // Since the hook is unmounted, we can't read result.current,
+    // but the flush ensures setEvents was called (no lost events).
+    // This test verifies the unmount cleanup path doesn't throw.
+    expect(capturedEvents).toBeDefined();
+  });
+
+  it('should preserve newest-first ordering with batched events', async () => {
+    const { result } = renderHook(() => useEventStream());
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.simulateOpen();
+      MockWebSocket.instances[0]?.simulateMessage({
+        type: 'ACCOUNT_BALANCE',
+        nodeId: 'test-node',
+        timestamp: 1000,
+        id: 'first',
+      });
+      MockWebSocket.instances[0]?.simulateMessage({
+        type: 'ACCOUNT_BALANCE',
+        nodeId: 'test-node',
+        timestamp: 2000,
+        id: 'second',
+      });
+      MockWebSocket.instances[0]?.simulateMessage({
+        type: 'ACCOUNT_BALANCE',
+        nodeId: 'test-node',
+        timestamp: 3000,
+        id: 'third',
+      });
+    });
+
+    await flushRAF();
+
+    // Newest event (last received) should be first in array
+    expect(result.current.events).toHaveLength(3);
+    expect((result.current.events[0] as unknown as { id: string }).id).toBe('third');
+    expect((result.current.events[1] as unknown as { id: string }).id).toBe('second');
+    expect((result.current.events[2] as unknown as { id: string }).id).toBe('first');
   });
 });

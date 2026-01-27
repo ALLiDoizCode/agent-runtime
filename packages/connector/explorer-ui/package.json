@@ -1,10 +1,11 @@
 {
-  "name": "@m2m/explorer-ui",
+  "name": "@agent/explorer-ui",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:agent-explorer": "AGENT_PORT=${AGENT_PORT:-8100} vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",

@@ -58,6 +58,7 @@ export interface FilterBarProps {
   filters: FilterState;
   onFilterChange: (filters: Partial<FilterState>) => void;
   onReset: () => void;
+  activeFilterCount?: number;
 }
 
 /**
@@ -348,7 +349,7 @@ function TimeRangeSelector({
 /**
  * FilterBar component
  */
-export function FilterBar({ filters, onFilterChange, onReset }: FilterBarProps) {
+export function FilterBar({ filters, onFilterChange, onReset, activeFilterCount }: FilterBarProps) {
   const [searchInput, setSearchInput] = React.useState(filters.searchText);
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -390,7 +391,7 @@ export function FilterBar({ filters, onFilterChange, onReset }: FilterBarProps) 
     filters.searchText !== '';
 
   return (
-    <div className="flex flex-col gap-3 p-4 border-b border-border bg-card">
+    <div className="flex flex-col gap-3 px-4 md:px-6 py-3 border-b border-border bg-card">
       {/* First row: Event types and Direction */}
       <div className="flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2">
@@ -441,11 +442,12 @@ export function FilterBar({ filters, onFilterChange, onReset }: FilterBarProps) 
           </Select>
         </div>
 
-        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+        <div className="flex items-center gap-2 flex-1 min-w-[200px] w-full md:w-auto">
           <span className="text-sm font-medium text-muted-foreground">Search:</span>
-          <div className="relative flex-1 max-w-[300px]">
+          <div className="relative flex-1 max-w-full md:max-w-[300px]">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
+              id="explorer-search-input"
               placeholder="Search destination, peer, packet..."
               value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
@@ -465,10 +467,17 @@ export function FilterBar({ filters, onFilterChange, onReset }: FilterBarProps) 
         </div>
 
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={onReset} className="text-muted-foreground">
-            <X className="h-4 w-4 mr-1" />
-            Reset
-          </Button>
+          <div className="flex items-center gap-2">
+            {activeFilterCount !== undefined && activeFilterCount > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {activeFilterCount} active
+              </Badge>
+            )}
+            <Button variant="outline" size="sm" onClick={onReset}>
+              <X className="h-4 w-4 mr-1" />
+              Clear all filters
+            </Button>
+          </div>
         )}
       </div>
 

@@ -1,3 +1,28 @@
+/*
+ * ============================================================================
+ * Agent Explorer — Typography Scale
+ * ============================================================================
+ *
+ * Headings:
+ *   Page title:       text-lg md:text-xl font-bold
+ *   Section heading:  text-sm font-medium
+ *   Subsection/label: text-xs font-medium text-muted-foreground
+ *
+ * Body:
+ *   Default:          text-sm
+ *   Caption/meta:     text-xs text-muted-foreground
+ *
+ * Mono (addresses, amounts, IDs):
+ *   Standard:         font-mono text-sm
+ *   Compact:          font-mono text-xs
+ *   Large value:      font-mono text-lg font-bold
+ *
+ * Badges:             text-xs (always)
+ * Timestamps:         font-mono text-sm text-muted-foreground
+ *                     (or font-mono text-xs in compact contexts)
+ * ============================================================================
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -56,4 +81,20 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* New event row fade-in animation (Story 15.4) */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 200ms ease-out;
 }

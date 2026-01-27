@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -46,7 +47,7 @@ function formatBalance(value: bigint): string {
  */
 function getBalanceColor(value: bigint): string {
   if (value > 0n) return 'text-green-500';
-  if (value < 0n) return 'text-red-500';
+  if (value < 0n) return 'text-red-400';
   return 'text-muted-foreground';
 }
 
@@ -81,7 +82,7 @@ function calculateSettlementProgress(creditBalance: bigint, threshold: bigint | 
  * AccountCard component - displays individual peer account balance and status
  * Story 14.6: Settlement and Balance Visualization
  */
-export function AccountCard({
+export const AccountCard = React.memo(function AccountCard({
   peerId,
   tokenId,
   debitBalance,
@@ -97,7 +98,7 @@ export function AccountCard({
   const stateBadge = getSettlementStateBadge(settlementState);
 
   return (
-    <Card className="py-4">
+    <Card className="py-4 hover:border-primary/50 transition-colors">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium truncate" title={peerId}>
@@ -173,4 +174,4 @@ export function AccountCard({
       </CardContent>
     </Card>
   );
-}
+});

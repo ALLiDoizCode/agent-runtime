@@ -87,6 +87,21 @@ export function useEventStream(options: UseEventStreamOptions = {}): UseEventStr
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // RAF batching refs
+  const bufferRef = useRef<TelemetryEvent[]>([]);
+  const rafRef = useRef<number | null>(null);
+
+  const flushBuffer = useCallback(() => {
+    rafRef.current = null;
+    const buffered = bufferRef.current;
+    if (buffered.length === 0) return;
+    bufferRef.current = [];
+    setEvents((prev) => {
+      const updated = [...buffered.reverse(), ...prev];
+      return updated.length > maxEvents ? updated.slice(0, maxEvents) : updated;
+    });
+  }, [maxEvents]);
+
   const connect = useCallback(() => {
     // Clean up existing connection
     if (wsRef.current) {
@@ -112,12 +127,12 @@ export function useEventStream(options: UseEventStreamOptions = {}): UseEventStr
     ws.onmessage = (event) => {
       try {
         const telemetryEvent = JSON.parse(event.data) as TelemetryEvent;
-        setEvents((prev) => {
-          const updated = [telemetryEvent, ...prev];
-          return updated.slice(0, maxEvents);
-        });
-      } catch (err) {
-        console.error('Failed to parse event:', err);
+        bufferRef.current.push(telemetryEvent);
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(flushBuffer);
+        }
+      } catch {
+        // Silently ignore parse errors
       }
     };
 
@@ -144,7 +159,7 @@ export function useEventStream(options: UseEventStreamOptions = {}): UseEventStr
     };
 
     wsRef.current = ws;
-  }, [maxEvents, reconnectDelay, maxReconnectAttempts]);
+  }, [flushBuffer, reconnectDelay, maxReconnectAttempts]);
 
   const clearEvents = useCallback(() => {
     setEvents([]);
@@ -166,8 +181,20 @@ export function useEventStream(options: UseEventStreamOptions = {}): UseEventStr
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      // Flush any remaining buffered events on unmount
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      if (bufferRef.current.length > 0) {
+        const remaining = bufferRef.current;
+        bufferRef.current = [];
+        setEvents((prev) => {
+          const updated = [...remaining.reverse(), ...prev];
+          return updated.length > maxEvents ? updated.slice(0, maxEvents) : updated;
+        });
+      }
     };
-  }, [connect]);
+  }, [connect, maxEvents]);
 
   // Filter events based on filter state
   const filteredEvents = useMemo(() => {

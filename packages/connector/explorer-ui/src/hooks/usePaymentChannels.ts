@@ -52,252 +52,280 @@ export function usePaymentChannels(
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // RAF batching refs
+  const bufferRef = useRef<TelemetryEvent[]>([]);
+  const rafRef = useRef<number | null>(null);
+
+  const CHANNEL_EVENT_TYPES = useMemo(
+    () =>
+      new Set([
+        'PAYMENT_CHANNEL_OPENED',
+        'PAYMENT_CHANNEL_BALANCE_UPDATE',
+        'PAYMENT_CHANNEL_SETTLED',
+        'XRP_CHANNEL_OPENED',
+        'XRP_CHANNEL_CLAIMED',
+        'XRP_CHANNEL_CLOSED',
+        'AGENT_CHANNEL_OPENED',
+        'AGENT_CHANNEL_BALANCE_UPDATE',
+        'AGENT_CHANNEL_CLOSED',
+      ]),
+    []
+  );
+
   /**
-   * Process channel events and update state
+   * Apply a single channel event to the map (mutates the map in place)
    */
-  const processChannelEvent = useCallback((event: TelemetryEvent) => {
+  const applyChannelEvent = useCallback((map: Map<string, ChannelState>, event: TelemetryEvent) => {
     const timestamp =
       typeof event.timestamp === 'string'
         ? event.timestamp
         : new Date(event.timestamp).toISOString();
 
-    setChannelsMap((prev) => {
-      const newMap = new Map(prev);
-
-      switch (event.type) {
-        case 'PAYMENT_CHANNEL_OPENED': {
-          const channelEvent = event as TelemetryEvent & {
-            channelId: string;
-            nodeId: string;
-            peerId: string;
-            participants: [string, string];
-            tokenAddress: string;
-            tokenSymbol: string;
-            settlementTimeout: number;
-            initialDeposits: Record<string, string>;
-          };
-          const channel: ChannelState = {
-            channelId: channelEvent.channelId,
-            nodeId: channelEvent.nodeId || '',
-            peerId: channelEvent.peerId || '',
-            participants: channelEvent.participants,
-            tokenAddress: channelEvent.tokenAddress,
-            tokenSymbol: channelEvent.tokenSymbol,
-            settlementTimeout: channelEvent.settlementTimeout,
-            deposits: channelEvent.initialDeposits,
-            myNonce: 0,
-            theirNonce: 0,
-            myTransferred: '0',
-            theirTransferred: '0',
-            status: 'active',
-            openedAt: timestamp,
-            lastActivityAt: timestamp,
-            settlementMethod: 'evm',
-          };
-          newMap.set(channelEvent.channelId, channel);
-          break;
-        }
-
-        case 'PAYMENT_CHANNEL_BALANCE_UPDATE': {
-          const balanceEvent = event as TelemetryEvent & {
-            channelId: string;
-            myNonce: number;
-            theirNonce: number;
-            myTransferred: string;
-            theirTransferred: string;
-          };
-          const existing = newMap.get(balanceEvent.channelId);
-          if (existing) {
-            newMap.set(balanceEvent.channelId, {
-              ...existing,
-              myNonce: balanceEvent.myNonce,
-              theirNonce: balanceEvent.theirNonce,
-              myTransferred: balanceEvent.myTransferred,
-              theirTransferred: balanceEvent.theirTransferred,
-              lastActivityAt: timestamp,
-            });
-          }
-          break;
-        }
-
-        case 'PAYMENT_CHANNEL_SETTLED': {
-          const settledEvent = event as TelemetryEvent & {
-            channelId: string;
-            finalBalances: Record<string, string>;
-            settlementType: string;
-          };
-          const existing = newMap.get(settledEvent.channelId);
-          if (existing) {
-            newMap.set(settledEvent.channelId, {
-              ...existing,
-              status: 'settled',
-              settledAt: timestamp,
-              lastActivityAt: timestamp,
-              deposits: settledEvent.finalBalances,
-            });
-          }
-          break;
-        }
-
-        case 'XRP_CHANNEL_OPENED': {
-          const xrpEvent = event as TelemetryEvent & {
-            channelId: string;
-            nodeId?: string;
-            peerId?: string;
-            account: string;
-            destination: string;
-            amount: string;
-            settleDelay: number;
-            publicKey: string;
-          };
-          const channel: ChannelState = {
-            channelId: xrpEvent.channelId,
-            nodeId: xrpEvent.nodeId || '',
-            peerId: xrpEvent.peerId || '',
-            participants: [xrpEvent.account, xrpEvent.destination],
-            tokenAddress: 'XRP',
-            tokenSymbol: 'XRP',
-            settlementTimeout: xrpEvent.settleDelay,
-            deposits: { [xrpEvent.account]: xrpEvent.amount },
-            myNonce: 0,
-            theirNonce: 0,
-            myTransferred: '0',
-            theirTransferred: '0',
-            status: 'active',
-            openedAt: timestamp,
-            lastActivityAt: timestamp,
-            settlementMethod: 'xrp',
-            xrpAccount: xrpEvent.account,
-            xrpDestination: xrpEvent.destination,
-            xrpAmount: xrpEvent.amount,
-            xrpBalance: '0',
-            xrpSettleDelay: xrpEvent.settleDelay,
-            xrpPublicKey: xrpEvent.publicKey,
-          };
-          newMap.set(xrpEvent.channelId, channel);
-          break;
-        }
-
-        case 'XRP_CHANNEL_CLAIMED': {
-          const claimEvent = event as TelemetryEvent & {
-            channelId: string;
-            balance: string;
-          };
-          const existing = newMap.get(claimEvent.channelId);
-          if (existing) {
-            newMap.set(claimEvent.channelId, {
-              ...existing,
-              xrpBalance: claimEvent.balance,
-              lastActivityAt: timestamp,
-            });
-          }
-          break;
-        }
-
-        case 'XRP_CHANNEL_CLOSED': {
-          const closeEvent = event as TelemetryEvent & {
-            channelId: string;
-          };
-          const existing = newMap.get(closeEvent.channelId);
-          if (existing) {
-            newMap.set(closeEvent.channelId, {
-              ...existing,
-              status: 'settled',
-              settledAt: timestamp,
-              lastActivityAt: timestamp,
-            });
-          }
-          break;
-        }
-
-        // Agent-level channel events (emitted by agent wallet code)
-        case 'AGENT_CHANNEL_OPENED': {
-          const agentEvent = event as TelemetryEvent & {
-            channelId: string;
-            chain: 'evm' | 'xrp';
-            peerId: string;
-            amount: string;
-            nodeId?: string;
-            agentId?: string;
-          };
-          const isXrp = agentEvent.chain === 'xrp';
-          const channel: ChannelState = {
-            channelId: agentEvent.channelId,
-            nodeId: agentEvent.nodeId || agentEvent.agentId || '',
-            peerId: agentEvent.peerId || '',
-            participants: [agentEvent.agentId || '', agentEvent.peerId],
-            tokenAddress: isXrp ? 'XRP' : 'AGENT',
-            tokenSymbol: isXrp ? 'XRP' : 'AGENT',
-            settlementTimeout: 0,
-            deposits: { [agentEvent.agentId || '']: agentEvent.amount },
-            myNonce: 0,
-            theirNonce: 0,
-            myTransferred: '0',
-            theirTransferred: '0',
-            status: 'active',
-            openedAt: timestamp,
-            lastActivityAt: timestamp,
-            settlementMethod: isXrp ? 'xrp' : 'evm',
-            ...(isXrp && {
-              xrpAccount: agentEvent.agentId || '',
-              xrpDestination: agentEvent.peerId,
-              xrpAmount: agentEvent.amount,
-              xrpBalance: '0',
-            }),
-          };
-          newMap.set(agentEvent.channelId, channel);
-          break;
-        }
-
-        case 'AGENT_CHANNEL_BALANCE_UPDATE': {
-          const balanceEvent = event as TelemetryEvent & {
-            channelId: string;
-            peerId: string;
-            previousBalance: string;
-            newBalance: string;
-            amount: string;
-            direction: string;
-          };
-          const existing = newMap.get(balanceEvent.channelId);
-          if (existing) {
-            const transferred =
-              balanceEvent.direction === 'outgoing'
-                ? balanceEvent.newBalance
-                : existing.myTransferred;
-            const theirTransferred =
-              balanceEvent.direction === 'incoming'
-                ? balanceEvent.newBalance
-                : existing.theirTransferred;
-            newMap.set(balanceEvent.channelId, {
-              ...existing,
-              myTransferred: transferred,
-              theirTransferred: theirTransferred,
-              lastActivityAt: timestamp,
-            });
-          }
-          break;
-        }
-
-        case 'AGENT_CHANNEL_CLOSED': {
-          const closeEvent = event as TelemetryEvent & {
-            channelId: string;
-          };
-          const existing = newMap.get(closeEvent.channelId);
-          if (existing) {
-            newMap.set(closeEvent.channelId, {
-              ...existing,
-              status: 'settled',
-              settledAt: timestamp,
-              lastActivityAt: timestamp,
-            });
-          }
-          break;
-        }
+    switch (event.type) {
+      case 'PAYMENT_CHANNEL_OPENED': {
+        const channelEvent = event as TelemetryEvent & {
+          channelId: string;
+          nodeId: string;
+          peerId: string;
+          participants: [string, string];
+          tokenAddress: string;
+          tokenSymbol: string;
+          settlementTimeout: number;
+          initialDeposits: Record<string, string>;
+        };
+        map.set(channelEvent.channelId, {
+          channelId: channelEvent.channelId,
+          nodeId: channelEvent.nodeId || '',
+          peerId: channelEvent.peerId || '',
+          participants: channelEvent.participants,
+          tokenAddress: channelEvent.tokenAddress,
+          tokenSymbol: channelEvent.tokenSymbol,
+          settlementTimeout: channelEvent.settlementTimeout,
+          deposits: channelEvent.initialDeposits,
+          myNonce: 0,
+          theirNonce: 0,
+          myTransferred: '0',
+          theirTransferred: '0',
+          status: 'active',
+          openedAt: timestamp,
+          lastActivityAt: timestamp,
+          settlementMethod: 'evm',
+        });
+        break;
       }
 
+      case 'PAYMENT_CHANNEL_BALANCE_UPDATE': {
+        const balanceEvent = event as TelemetryEvent & {
+          channelId: string;
+          myNonce: number;
+          theirNonce: number;
+          myTransferred: string;
+          theirTransferred: string;
+        };
+        const existing = map.get(balanceEvent.channelId);
+        if (existing) {
+          map.set(balanceEvent.channelId, {
+            ...existing,
+            myNonce: balanceEvent.myNonce,
+            theirNonce: balanceEvent.theirNonce,
+            myTransferred: balanceEvent.myTransferred,
+            theirTransferred: balanceEvent.theirTransferred,
+            lastActivityAt: timestamp,
+          });
+        }
+        break;
+      }
+
+      case 'PAYMENT_CHANNEL_SETTLED': {
+        const settledEvent = event as TelemetryEvent & {
+          channelId: string;
+          finalBalances: Record<string, string>;
+          settlementType: string;
+        };
+        const existing = map.get(settledEvent.channelId);
+        if (existing) {
+          map.set(settledEvent.channelId, {
+            ...existing,
+            status: 'settled',
+            settledAt: timestamp,
+            lastActivityAt: timestamp,
+            deposits: settledEvent.finalBalances,
+          });
+        }
+        break;
+      }
+
+      case 'XRP_CHANNEL_OPENED': {
+        const xrpEvent = event as TelemetryEvent & {
+          channelId: string;
+          nodeId?: string;
+          peerId?: string;
+          account: string;
+          destination: string;
+          amount: string;
+          settleDelay: number;
+          publicKey: string;
+        };
+        map.set(xrpEvent.channelId, {
+          channelId: xrpEvent.channelId,
+          nodeId: xrpEvent.nodeId || '',
+          peerId: xrpEvent.peerId || '',
+          participants: [xrpEvent.account, xrpEvent.destination],
+          tokenAddress: 'XRP',
+          tokenSymbol: 'XRP',
+          settlementTimeout: xrpEvent.settleDelay,
+          deposits: { [xrpEvent.account]: xrpEvent.amount },
+          myNonce: 0,
+          theirNonce: 0,
+          myTransferred: '0',
+          theirTransferred: '0',
+          status: 'active',
+          openedAt: timestamp,
+          lastActivityAt: timestamp,
+          settlementMethod: 'xrp',
+          xrpAccount: xrpEvent.account,
+          xrpDestination: xrpEvent.destination,
+          xrpAmount: xrpEvent.amount,
+          xrpBalance: '0',
+          xrpSettleDelay: xrpEvent.settleDelay,
+          xrpPublicKey: xrpEvent.publicKey,
+        });
+        break;
+      }
+
+      case 'XRP_CHANNEL_CLAIMED': {
+        const claimEvent = event as TelemetryEvent & {
+          channelId: string;
+          balance: string;
+        };
+        const existing = map.get(claimEvent.channelId);
+        if (existing) {
+          map.set(claimEvent.channelId, {
+            ...existing,
+            xrpBalance: claimEvent.balance,
+            lastActivityAt: timestamp,
+          });
+        }
+        break;
+      }
+
+      case 'XRP_CHANNEL_CLOSED': {
+        const closeEvent = event as TelemetryEvent & {
+          channelId: string;
+        };
+        const existing = map.get(closeEvent.channelId);
+        if (existing) {
+          map.set(closeEvent.channelId, {
+            ...existing,
+            status: 'settled',
+            settledAt: timestamp,
+            lastActivityAt: timestamp,
+          });
+        }
+        break;
+      }
+
+      case 'AGENT_CHANNEL_OPENED': {
+        const agentEvent = event as TelemetryEvent & {
+          channelId: string;
+          chain: 'evm' | 'xrp';
+          peerId: string;
+          amount: string;
+          nodeId?: string;
+          agentId?: string;
+        };
+        const isXrp = agentEvent.chain === 'xrp';
+        map.set(agentEvent.channelId, {
+          channelId: agentEvent.channelId,
+          nodeId: agentEvent.nodeId || agentEvent.agentId || '',
+          peerId: agentEvent.peerId || '',
+          participants: [agentEvent.agentId || '', agentEvent.peerId],
+          tokenAddress: isXrp ? 'XRP' : 'AGENT',
+          tokenSymbol: isXrp ? 'XRP' : 'AGENT',
+          settlementTimeout: 0,
+          deposits: { [agentEvent.agentId || '']: agentEvent.amount },
+          myNonce: 0,
+          theirNonce: 0,
+          myTransferred: '0',
+          theirTransferred: '0',
+          status: 'active',
+          openedAt: timestamp,
+          lastActivityAt: timestamp,
+          settlementMethod: isXrp ? 'xrp' : 'evm',
+          ...(isXrp && {
+            xrpAccount: agentEvent.agentId || '',
+            xrpDestination: agentEvent.peerId,
+            xrpAmount: agentEvent.amount,
+            xrpBalance: '0',
+          }),
+        });
+        break;
+      }
+
+      case 'AGENT_CHANNEL_BALANCE_UPDATE': {
+        const balanceEvent = event as TelemetryEvent & {
+          channelId: string;
+          peerId: string;
+          previousBalance: string;
+          newBalance: string;
+          amount: string;
+          direction: string;
+        };
+        const existing = map.get(balanceEvent.channelId);
+        if (existing) {
+          const transferred =
+            balanceEvent.direction === 'outgoing'
+              ? balanceEvent.newBalance
+              : existing.myTransferred;
+          const theirTransferred =
+            balanceEvent.direction === 'incoming'
+              ? balanceEvent.newBalance
+              : existing.theirTransferred;
+          map.set(balanceEvent.channelId, {
+            ...existing,
+            myTransferred: transferred,
+            theirTransferred: theirTransferred,
+            lastActivityAt: timestamp,
+          });
+        }
+        break;
+      }
+
+      case 'AGENT_CHANNEL_CLOSED': {
+        const closeEvent = event as TelemetryEvent & {
+          channelId: string;
+        };
+        const existing = map.get(closeEvent.channelId);
+        if (existing) {
+          map.set(closeEvent.channelId, {
+            ...existing,
+            status: 'settled',
+            settledAt: timestamp,
+            lastActivityAt: timestamp,
+          });
+        }
+        break;
+      }
+    }
+  }, []);
+
+  /**
+   * Flush buffered channel events as a single state update
+   */
+  const flushBuffer = useCallback(() => {
+    rafRef.current = null;
+    const buffered = bufferRef.current;
+    if (buffered.length === 0) return;
+    bufferRef.current = [];
+
+    setChannelsMap((prev) => {
+      const newMap = new Map(prev);
+      for (const event of buffered) {
+        applyChannelEvent(newMap, event);
+      }
       return newMap;
     });
-  }, []);
+  }, [applyChannelEvent]);
 
   /**
    * Connect to WebSocket
@@ -325,19 +353,11 @@ export function usePaymentChannels(
     ws.onmessage = (messageEvent) => {
       try {
         const event = JSON.parse(messageEvent.data) as TelemetryEvent;
-        const channelEventTypes = [
-          'PAYMENT_CHANNEL_OPENED',
-          'PAYMENT_CHANNEL_BALANCE_UPDATE',
-          'PAYMENT_CHANNEL_SETTLED',
-          'XRP_CHANNEL_OPENED',
-          'XRP_CHANNEL_CLAIMED',
-          'XRP_CHANNEL_CLOSED',
-          'AGENT_CHANNEL_OPENED',
-          'AGENT_CHANNEL_BALANCE_UPDATE',
-          'AGENT_CHANNEL_CLOSED',
-        ];
-        if (channelEventTypes.includes(event.type)) {
-          processChannelEvent(event);
+        if (CHANNEL_EVENT_TYPES.has(event.type)) {
+          bufferRef.current.push(event);
+          if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(flushBuffer);
+          }
         }
       } catch {
         // Silently ignore parse errors
@@ -366,7 +386,7 @@ export function usePaymentChannels(
     };
 
     wsRef.current = ws;
-  }, [processChannelEvent, reconnectDelay, maxReconnectAttempts]);
+  }, [CHANNEL_EVENT_TYPES, flushBuffer, reconnectDelay, maxReconnectAttempts]);
 
   const clearChannels = useCallback(() => {
     setChannelsMap(new Map());
@@ -387,8 +407,23 @@ export function usePaymentChannels(
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      // Flush remaining buffer on unmount
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      if (bufferRef.current.length > 0) {
+        const remaining = bufferRef.current;
+        bufferRef.current = [];
+        setChannelsMap((prev) => {
+          const newMap = new Map(prev);
+          for (const event of remaining) {
+            applyChannelEvent(newMap, event);
+          }
+          return newMap;
+        });
+      }
     };
-  }, [connect]);
+  }, [connect, applyChannelEvent]);
 
   // Sort channels by lastActivityAt (most recent first)
   const channels = useMemo(() => {

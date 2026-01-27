@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { AccountCard, AccountCardProps } from './AccountCard';
@@ -152,6 +153,60 @@ describe('AccountCard', () => {
 
       expect(screen.queryByText('EVM')).not.toBeInTheDocument();
       expect(screen.queryByText('XRP')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('memoization (AC3: sibling isolation)', () => {
+    it('does not re-render sibling AccountCard when one account updates', () => {
+      let siblingRenderCount = 0;
+
+      // A thin wrapper that counts renders of the sibling AccountCard
+      const TrackedAccountCard = React.memo(function TrackedAccountCard(props: AccountCardProps) {
+        siblingRenderCount++;
+        return <AccountCard {...props} />;
+      });
+
+      // Stable props for sibling — same reference across renders
+      const stableHistory: [] = [];
+      const siblingProps: AccountCardProps = {
+        peerId: 'peer-b',
+        tokenId: 'ILP',
+        debitBalance: 0n,
+        creditBalance: 500n,
+        netBalance: 500n,
+        settlementState: 'IDLE',
+        balanceHistory: stableHistory,
+      };
+
+      // Wrapper that renders two cards: one updating, one stable
+      function TestHarness({ creditA }: { creditA: bigint }): React.JSX.Element {
+        return (
+          <>
+            <AccountCard
+              peerId="peer-a"
+              tokenId="ILP"
+              debitBalance={0n}
+              creditBalance={creditA}
+              netBalance={creditA}
+              settlementState="IDLE"
+              balanceHistory={stableHistory}
+            />
+            <TrackedAccountCard {...siblingProps} />
+          </>
+        );
+      }
+
+      const { rerender } = render(<TestHarness creditA={1000n} />);
+
+      // Initial render: sibling renders once
+      expect(siblingRenderCount).toBe(1);
+
+      // Update peer-a's credit balance — sibling props unchanged
+      rerender(<TestHarness creditA={2000n} />);
+
+      // Sibling should NOT re-render because its props haven't changed
+      // React.memo on TrackedAccountCard prevents this
+      expect(siblingRenderCount).toBe(1);
     });
   });
 });

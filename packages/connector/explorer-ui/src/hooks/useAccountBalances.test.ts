@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useAccountBalances } from './useAccountBalances';
+import { createRAFMock } from '@/test/raf-helpers';
 
 // Mock WebSocket
 class MockWebSocket {
@@ -34,10 +35,16 @@ class MockWebSocket {
   }
 }
 
+const rafMock = createRAFMock();
+const flushRAF = rafMock.flush;
+
 describe('useAccountBalances', () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
+    rafMock.reset();
     vi.stubGlobal('WebSocket', MockWebSocket);
+    vi.stubGlobal('requestAnimationFrame', rafMock.requestAnimationFrame);
+    vi.stubGlobal('cancelAnimationFrame', rafMock.cancelAnimationFrame);
   });
 
   afterEach(() => {
@@ -61,13 +68,11 @@ describe('useAccountBalances', () => {
     it('transitions to connected after WebSocket opens', async () => {
       const { result } = renderHook(() => useAccountBalances());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
-      await waitFor(() => {
-        expect(result.current.status).toBe('connected');
-      });
+      expect(result.current.status).toBe('connected');
     });
   });
 
@@ -75,11 +80,11 @@ describe('useAccountBalances', () => {
     it('updates account state on ACCOUNT_BALANCE event', async () => {
       const { result } = renderHook(() => useAccountBalances());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'ACCOUNT_BALANCE',
           nodeId: 'connector-a',
@@ -93,10 +98,9 @@ describe('useAccountBalances', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.totalAccounts).toBe(1);
-      });
+      await flushRAF();
 
+      expect(result.current.totalAccounts).toBe(1);
       expect(result.current.accounts[0].peerId).toBe('peer-b');
       expect(result.current.accounts[0].tokenId).toBe('ILP');
       expect(result.current.accounts[0].creditBalance).toBe(1000n);
@@ -105,11 +109,11 @@ describe('useAccountBalances', () => {
     it('ignores non-ACCOUNT_BALANCE events', async () => {
       const { result } = renderHook(() => useAccountBalances());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'PACKET_RECEIVED',
           nodeId: 'connector-a',
@@ -117,27 +121,23 @@ describe('useAccountBalances', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.status).toBe('connected');
-      });
+      await flushRAF();
 
       expect(result.current.totalAccounts).toBe(0);
     });
-  });
 
-  describe('balance history tracking', () => {
-    it('tracks balance history entries', async () => {
+    it('batches multiple balance updates into single state update', async () => {
       const { result } = renderHook(() => useAccountBalances());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
-      // Send multiple balance updates
-      act(() => {
+      // Send multiple events in quick succession
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'ACCOUNT_BALANCE',
-          peerId: 'peer-b',
+          peerId: 'peer-a',
           tokenId: 'ILP',
           debitBalance: '0',
           creditBalance: '1000',
@@ -145,9 +145,6 @@ describe('useAccountBalances', () => {
           settlementState: 'IDLE',
           timestamp: new Date().toISOString(),
         });
-      });
-
-      act(() => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'ACCOUNT_BALANCE',
           peerId: 'peer-b',
@@ -160,9 +157,56 @@ describe('useAccountBalances', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.accounts[0].balanceHistory.length).toBe(2);
+      // Before flush, no updates
+      expect(result.current.totalAccounts).toBe(0);
+
+      await flushRAF();
+
+      // After single flush, both accounts present
+      expect(result.current.totalAccounts).toBe(2);
+    });
+  });
+
+  describe('balance history tracking', () => {
+    it('tracks balance history entries', async () => {
+      const { result } = renderHook(() => useAccountBalances());
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateOpen();
       });
+
+      // Send multiple balance updates
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage({
+          type: 'ACCOUNT_BALANCE',
+          peerId: 'peer-b',
+          tokenId: 'ILP',
+          debitBalance: '0',
+          creditBalance: '1000',
+          netBalance: '-1000',
+          settlementState: 'IDLE',
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      await flushRAF();
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage({
+          type: 'ACCOUNT_BALANCE',
+          peerId: 'peer-b',
+          tokenId: 'ILP',
+          debitBalance: '0',
+          creditBalance: '2000',
+          netBalance: '-2000',
+          settlementState: 'IDLE',
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      await flushRAF();
+
+      expect(result.current.accounts[0].balanceHistory.length).toBe(2);
     });
   });
 
@@ -170,11 +214,11 @@ describe('useAccountBalances', () => {
     it('returns accounts sorted by net balance (highest first)', async () => {
       const { result } = renderHook(() => useAccountBalances());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'ACCOUNT_BALANCE',
           peerId: 'peer-low',
@@ -185,9 +229,6 @@ describe('useAccountBalances', () => {
           settlementState: 'IDLE',
           timestamp: new Date().toISOString(),
         });
-      });
-
-      act(() => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'ACCOUNT_BALANCE',
           peerId: 'peer-high',
@@ -200,10 +241,9 @@ describe('useAccountBalances', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.totalAccounts).toBe(2);
-      });
+      await flushRAF();
 
+      expect(result.current.totalAccounts).toBe(2);
       // Highest net balance should be first
       expect(result.current.accounts[0].peerId).toBe('peer-high');
       expect(result.current.accounts[1].peerId).toBe('peer-low');
@@ -214,11 +254,11 @@ describe('useAccountBalances', () => {
     it('counts accounts near settlement threshold (>70%)', async () => {
       const { result } = renderHook(() => useAccountBalances());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'ACCOUNT_BALANCE',
           peerId: 'peer-near',
@@ -232,9 +272,9 @@ describe('useAccountBalances', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.nearThresholdCount).toBe(1);
-      });
+      await flushRAF();
+
+      expect(result.current.nearThresholdCount).toBe(1);
     });
   });
 
@@ -242,11 +282,11 @@ describe('useAccountBalances', () => {
     it('clears all account data', async () => {
       const { result } = renderHook(() => useAccountBalances());
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
       });
 
-      act(() => {
+      await act(async () => {
         MockWebSocket.instances[0].simulateMessage({
           type: 'ACCOUNT_BALANCE',
           peerId: 'peer-b',
@@ -259,9 +299,9 @@ describe('useAccountBalances', () => {
         });
       });
 
-      await waitFor(() => {
-        expect(result.current.totalAccounts).toBe(1);
-      });
+      await flushRAF();
+
+      expect(result.current.totalAccounts).toBe(1);
 
       act(() => {
         result.current.clearAccounts();
