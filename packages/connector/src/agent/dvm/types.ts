@@ -49,6 +49,8 @@ export interface DVMJobRequest {
   relays: string[];
   /** Original Nostr event for downstream access */
   event: NostrEvent;
+  /** Job dependencies (event IDs from 'e' tags with 'dependency' marker) */
+  dependencies: string[];
 }
 
 /**
@@ -95,7 +97,14 @@ export interface DVMResultEvent {
 /**
  * Error codes for DVM parsing failures.
  */
-export type DVMErrorCode = 'INVALID_KIND' | 'INVALID_INPUT_TYPE' | 'INVALID_BID';
+export type DVMErrorCode =
+  | 'INVALID_KIND'
+  | 'INVALID_INPUT_TYPE'
+  | 'INVALID_BID'
+  | 'MISSING_DEPENDENCY'
+  | 'CIRCULAR_DEPENDENCY'
+  | 'MAX_DEPTH_EXCEEDED'
+  | 'INVALID_DEPENDENCY_TIMESTAMP';
 
 /**
  * Constant object for programmatic error code access.
@@ -104,6 +113,10 @@ export const DVM_ERROR_CODES = {
   INVALID_KIND: 'INVALID_KIND',
   INVALID_INPUT_TYPE: 'INVALID_INPUT_TYPE',
   INVALID_BID: 'INVALID_BID',
+  MISSING_DEPENDENCY: 'MISSING_DEPENDENCY',
+  CIRCULAR_DEPENDENCY: 'CIRCULAR_DEPENDENCY',
+  MAX_DEPTH_EXCEEDED: 'MAX_DEPTH_EXCEEDED',
+  INVALID_DEPENDENCY_TIMESTAMP: 'INVALID_DEPENDENCY_TIMESTAMP',
 } as const satisfies Record<DVMErrorCode, DVMErrorCode>;
 
 /**
@@ -171,4 +184,27 @@ export interface DVMFeedbackEvent {
   tags: string[][];
   /** Empty string - to be filled after signing */
   sig: string;
+}
+
+/**
+ * Resolved dependency result containing extracted job result data.
+ * Used for job chaining where one job depends on another's results.
+ */
+export interface ResolvedDependency {
+  /** Kind of the dependency result event (6000-6999) */
+  kind: number;
+  /** Result content extracted from the event */
+  content: string;
+  /** Status of the dependency job */
+  status: DVMResultStatus;
+  /** Original timestamp of the dependency event */
+  created_at: number;
+}
+
+/**
+ * Map of dependency event IDs to their resolved results.
+ * Used to pass resolved dependencies to job execution.
+ */
+export interface ResolvedDependencies {
+  [eventId: string]: ResolvedDependency;
 }
