@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0](https://github.com/ALLiDoizCode/m2m/compare/v1.4.0...v1.5.0) (2026-01-28)
+
+### Features
+
+- **agent:** add DVM job feedback formatter (Story 17.3) ([538a01c](https://github.com/ALLiDoizCode/m2m/commit/538a01c12941bec436dd93651700e86f5991f77e))
+- **agent:** complete Story 17.4 query handler migration to Kind 5000 ([ab32e37](https://github.com/ALLiDoizCode/m2m/commit/ab32e37c8f124095254dd53feef7135410fcfa64))
+- **agent:** complete Story 17.5 job chaining support ([56b1c93](https://github.com/ALLiDoizCode/m2m/commit/56b1c9329c5a2c90c2a358b908a891b521953d9b))
+- **agent:** complete Story 17.6 task delegation request parsing (Kind 5900) ([4b6caaa](https://github.com/ALLiDoizCode/m2m/commit/4b6caaa440606e1eaf6bc0bc5c008daab8df34a2))
+- **agent:** complete Story 17.7 task delegation result (Kind 6900) ([a0ffdd9](https://github.com/ALLiDoizCode/m2m/commit/a0ffdd94df4d5c6561e4188a9ac8d9d8d128150a))
+- **agent:** complete Story 17.8 task status tracking ([8e00acf](https://github.com/ALLiDoizCode/m2m/commit/8e00acf78c04107a0677ef64b220099c499fac37))
+- **agent:** complete Story 17.9 timeout & retry logic ([04c39ef](https://github.com/ALLiDoizCode/m2m/commit/04c39eff869a4d22992a61fe729f775a9e44a504))
+- **docs:** create Epic 17 stories 17.6-17.11 (complete story pipeline) ([cb4afbe](https://github.com/ALLiDoizCode/m2m/commit/cb4afbede19a8b894bf40b7c14d6401344cb4588))
+
+### Bug Fixes
+
+- **agent:** complete Epic 17 Story 17.4 - migrate query to Kind 5000 DVM ([06dcbfb](https://github.com/ALLiDoizCode/m2m/commit/06dcbfbf014591d7ac2df83e71db9b8b68fae1c5))
+
 ## [1.4.0](https://github.com/ALLiDoizCode/m2m/compare/v1.3.0...v1.4.0) (2026-01-28)
 
 ### Features
