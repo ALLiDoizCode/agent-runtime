@@ -299,3 +299,46 @@ export interface TaskFeedback extends Omit<DVMFeedback, 'kind'> {
   /** Optional estimated seconds remaining */
   eta?: number;
 }
+
+/**
+ * Metadata for tracking retry attempts (Story 17.9).
+ * Used to record retry history for task execution failures.
+ */
+export interface RetryMetadata {
+  /** Current attempt number (0-indexed, 0 = first attempt) */
+  attemptNumber: number;
+  /** Maximum number of retries allowed */
+  maxRetries: number;
+  /** Last error message encountered */
+  lastError: string;
+  /** Backoff delays used between retries (milliseconds) */
+  backoffHistory: number[];
+}
+
+/**
+ * Error thrown when operation exceeds timeout (Story 17.9).
+ */
+export class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TimeoutError';
+    // Maintain proper prototype chain for instanceof checks
+    Object.setPrototypeOf(this, TimeoutError.prototype);
+  }
+}
+
+/**
+ * Options for retry execution with exponential backoff (Story 17.9).
+ */
+export interface RetryOptions {
+  /** Maximum number of retry attempts (default: 3) */
+  maxRetries: number;
+  /** Base backoff delay in milliseconds (default: 1000) */
+  baseBackoffMs?: number;
+  /** Maximum backoff delay in milliseconds (default: 30000) */
+  maxBackoffMs?: number;
+  /** Predicate to determine if error is retryable (default: always true) */
+  shouldRetry?: (error: Error) => boolean;
+  /** Callback invoked before each retry with attempt number and error */
+  onRetry?: (attempt: number, error: Error) => void | Promise<void>;
+}

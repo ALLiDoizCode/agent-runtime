@@ -26,15 +26,18 @@ export type {
   TaskState,
   TaskTrackingMetadata,
   TaskFeedback,
+  RetryMetadata,
+  RetryOptions,
 } from './types';
 
-// Constants and Error class
+// Constants and Error classes
 export {
   DVM_KIND_RANGE,
   DVM_RESULT_KIND_OFFSET,
   DVM_FEEDBACK_KIND,
   DVM_ERROR_CODES,
   DVMParseError,
+  TimeoutError,
 } from './types';
 
 // Parser
@@ -65,3 +68,9 @@ export {
   type TaskTrackingConfig,
   type FeedbackEmitter,
 } from './task-status-tracker';
+
+// Timeout utilities (Story 17.9)
+export { executeWithTimeout, createTimeoutPromise } from './timeout-utils';
+
+// Retry utilities (Story 17.9)
+export { executeWithRetry, calculateBackoff, sleep } from './retry-utils';
