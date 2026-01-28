@@ -128,6 +128,7 @@ export class TokenBudget {
     // Check warning thresholds
     if (status.usagePercent >= 95 && !this._warningEmitted95) {
       this._warningEmitted95 = true;
+      this._warningEmitted80 = true; // Also set 80% flag since we've crossed that threshold too
       this._emitTelemetry({
         type: 'AI_BUDGET_WARNING',
         timestamp: new Date().toISOString(),

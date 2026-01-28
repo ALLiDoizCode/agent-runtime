@@ -80,6 +80,7 @@ export {
 } from './ai';
 export type {
   AIAgentConfig,
+  AIAgentDispatcherConfig,
   AIYamlConfig,
   AIBudgetConfig,
   AIAgentPersonality,
@@ -88,4 +89,6 @@ export type {
   SkillSummary,
   TokenUsageRecord,
   TokenBudgetStatus,
+  TokenBudgetTelemetryEvent,
+  PromptContext,
 } from './ai';

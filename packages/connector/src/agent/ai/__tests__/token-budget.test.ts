@@ -97,6 +97,40 @@ describe('TokenBudget', () => {
       expect(budget.getStatus().tokensUsedInWindow).toBe(0);
       expect(budget.getStatus().requestCount).toBe(0);
     });
+
+    it('should reset warning flags', () => {
+      const events: TokenBudgetTelemetryEvent[] = [];
+      budget.onTelemetry = (event) => events.push(event);
+
+      // Trigger 80% warning
+      budget.recordUsage({ promptTokens: 400, completionTokens: 400, totalTokens: 800 });
+      const warningsBefore = events.filter((e) => e.type === 'AI_BUDGET_WARNING').length;
+      expect(warningsBefore).toBe(1);
+
+      // Reset and record same usage - should trigger warning again
+      budget.reset();
+      events.length = 0;
+      budget.recordUsage({ promptTokens: 400, completionTokens: 400, totalTokens: 800 });
+      const warningsAfter = events.filter((e) => e.type === 'AI_BUDGET_WARNING').length;
+      expect(warningsAfter).toBe(1);
+    });
+  });
+
+  describe('default configuration', () => {
+    it('should use default windowMs of 1 hour (3600000ms)', () => {
+      const defaultBudget = new TokenBudget({
+        maxTokensPerWindow: 1000,
+      });
+      const status = defaultBudget.getStatus();
+      expect(status.windowMs).toBe(3600000);
+    });
+  });
+
+  describe('status windowMs field', () => {
+    it('should include windowMs in status', () => {
+      const status = budget.getStatus();
+      expect(status.windowMs).toBe(60000);
+    });
   });
 
   describe('rolling window', () => {
@@ -115,6 +149,36 @@ describe('TokenBudget', () => {
         setTimeout(() => {
           expect(shortBudget.canSpend()).toBe(true);
           expect(shortBudget.getStatus().tokensUsedInWindow).toBe(0);
+          resolve();
+        }, 100);
+      });
+    });
+
+    it('should reset warning flags when usage drops below threshold after pruning', () => {
+      const events: TokenBudgetTelemetryEvent[] = [];
+      const shortBudget = new TokenBudget({
+        maxTokensPerWindow: 1000,
+        windowMs: 50, // 50ms window
+        onTelemetry: (event) => events.push(event),
+      });
+
+      // Record 80% usage to trigger warning
+      shortBudget.recordUsage({ promptTokens: 400, completionTokens: 400, totalTokens: 800 });
+      const firstWarnings = events.filter((e) => e.type === 'AI_BUDGET_WARNING').length;
+      expect(firstWarnings).toBe(1);
+
+      // Wait for window to expire (usage drops to 0%)
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          // Trigger a prune by checking status - this resets flags since usage is now 0%
+          const status = shortBudget.getStatus();
+          expect(status.tokensUsedInWindow).toBe(0);
+
+          events.length = 0;
+          // Record 80% again - should trigger warning again since flags were reset
+          shortBudget.recordUsage({ promptTokens: 400, completionTokens: 400, totalTokens: 800 });
+          const secondWarnings = events.filter((e) => e.type === 'AI_BUDGET_WARNING').length;
+          expect(secondWarnings).toBe(1);
           resolve();
         }, 100);
       });
@@ -174,6 +238,81 @@ describe('TokenBudget', () => {
       expect(() => {
         budget.recordUsage({ promptTokens: 100, completionTokens: 50, totalTokens: 150 });
       }).not.toThrow();
+    });
+
+    it('should allow setting onTelemetry callback via setter', () => {
+      const events: TokenBudgetTelemetryEvent[] = [];
+
+      // Set callback via setter (not constructor)
+      budget.onTelemetry = (event) => events.push(event);
+
+      budget.recordUsage({ promptTokens: 100, completionTokens: 50, totalTokens: 150 });
+
+      expect(events.length).toBeGreaterThan(0);
+      expect(events[0]!.type).toBe('AI_TOKEN_USAGE');
+    });
+
+    it('should include all required fields in TokenBudgetTelemetryEvent', () => {
+      const events: TokenBudgetTelemetryEvent[] = [];
+      budget.onTelemetry = (event) => events.push(event);
+
+      budget.recordUsage({ promptTokens: 100, completionTokens: 50, totalTokens: 150 });
+
+      const event = events[0]!;
+      expect(event).toHaveProperty('type');
+      expect(event).toHaveProperty('timestamp');
+      expect(event).toHaveProperty('tokensUsed');
+      expect(event).toHaveProperty('tokensRemaining');
+      expect(event).toHaveProperty('usagePercent');
+      expect(event).toHaveProperty('windowMs');
+
+      // Verify types
+      expect(typeof event.type).toBe('string');
+      expect(typeof event.timestamp).toBe('string');
+      expect(typeof event.tokensUsed).toBe('number');
+      expect(typeof event.tokensRemaining).toBe('number');
+      expect(typeof event.usagePercent).toBe('number');
+      expect(typeof event.windowMs).toBe('number');
+
+      // Verify timestamp is ISO format
+      expect(() => new Date(event.timestamp)).not.toThrow();
+      expect(new Date(event.timestamp).toISOString()).toBe(event.timestamp);
+    });
+
+    it('should emit warning only once per threshold crossing', () => {
+      const events: TokenBudgetTelemetryEvent[] = [];
+      budget.onTelemetry = (event) => events.push(event);
+
+      // First record at 40% - no warning
+      budget.recordUsage({ promptTokens: 200, completionTokens: 200, totalTokens: 400 });
+      expect(events.filter((e) => e.type === 'AI_BUDGET_WARNING').length).toBe(0);
+
+      // Second record pushes to 80% - warning emitted
+      budget.recordUsage({ promptTokens: 200, completionTokens: 200, totalTokens: 400 });
+      expect(events.filter((e) => e.type === 'AI_BUDGET_WARNING').length).toBe(1);
+
+      // Third record at 85% - no additional warning (already at 80%+ and flag set)
+      budget.recordUsage({ promptTokens: 25, completionTokens: 25, totalTokens: 50 });
+      expect(events.filter((e) => e.type === 'AI_BUDGET_WARNING').length).toBe(1);
+    });
+
+    it('should emit 95% warning only once even with multiple records above 95%', () => {
+      const events: TokenBudgetTelemetryEvent[] = [];
+      budget.onTelemetry = (event) => events.push(event);
+
+      // Jump straight to 95%
+      budget.recordUsage({ promptTokens: 475, completionTokens: 475, totalTokens: 950 });
+      const warningsAt95 = events.filter(
+        (e) => e.type === 'AI_BUDGET_WARNING' && e.usagePercent >= 95
+      ).length;
+      expect(warningsAt95).toBe(1);
+
+      // Add more usage above 95% - no additional warning
+      budget.recordUsage({ promptTokens: 10, completionTokens: 10, totalTokens: 20 });
+      const warningsAfter = events.filter(
+        (e) => e.type === 'AI_BUDGET_WARNING' && e.usagePercent >= 95
+      ).length;
+      expect(warningsAfter).toBe(1);
     });
   });
 });

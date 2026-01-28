@@ -334,4 +334,234 @@ describe('AIAgentDispatcher', () => {
       expect(status.tokensUsedInWindow).toBe(0);
     });
   });
+
+  describe('skillRegistry', () => {
+    it('should expose the skill registry for external inspection', () => {
+      const skillRegistry = new SkillRegistry();
+      skillRegistry.register({
+        name: 'test_skill',
+        description: 'Test skill',
+        parameters: z.object({ value: z.string() }),
+        execute: async () => ({ success: true }),
+        eventKinds: [1],
+      });
+
+      const dispatcher = createTestDispatcher({ skillRegistry });
+      expect(dispatcher.skillRegistry).toBe(skillRegistry);
+      expect(dispatcher.skillRegistry.getSkillNames()).toHaveLength(1);
+    });
+  });
+
+  describe('timeout handling', () => {
+    it('should fall back to direct handler when AI times out', async () => {
+      // Mock generateText to take longer than timeout
+      mockGenerateText.mockImplementation(() => {
+        return new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                text: '',
+                toolResults: [{ success: true }],
+                toolCalls: [],
+                steps: [],
+                usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+                finishReason: 'tool-calls',
+              } as any),
+            500 // Longer than timeout
+          );
+        });
+      });
+
+      const fallbackHandler = new AgentEventHandler({
+        agentPubkey: 'd'.repeat(64),
+        database: {} as any,
+      });
+      const handleEventSpy = jest
+        .spyOn(fallbackHandler, 'handleEvent')
+        .mockResolvedValue({ success: true, responseEvent: { id: 'fallback' } as any });
+
+      const dispatcher = createTestDispatcher({
+        fallbackHandler,
+        timeoutMs: 50, // Very short timeout
+      });
+
+      const result = await dispatcher.handleEvent(createTestContext());
+      expect(handleEventSpy).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+    });
+
+    it('should use custom timeout configuration', async () => {
+      mockGenerateText.mockImplementation(() => {
+        return new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                text: '',
+                toolResults: [{ success: true }],
+                toolCalls: [],
+                steps: [],
+                usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+                finishReason: 'tool-calls',
+              } as any),
+            200 // Takes 200ms
+          );
+        });
+      });
+
+      const fallbackHandler = new AgentEventHandler({
+        agentPubkey: 'd'.repeat(64),
+        database: {} as any,
+      });
+      const handleEventSpy = jest.spyOn(fallbackHandler, 'handleEvent');
+
+      // With 500ms timeout, should NOT timeout
+      const dispatcher = createTestDispatcher({
+        fallbackHandler,
+        timeoutMs: 500,
+      });
+
+      await dispatcher.handleEvent(createTestContext());
+      // Should complete normally without fallback
+      expect(handleEventSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('prompt context', () => {
+    it('should build prompt with destination from packet', async () => {
+      let capturedPrompt = '';
+      mockGenerateText.mockImplementation(async ({ system }: any) => {
+        capturedPrompt = system;
+        return {
+          text: '',
+          toolResults: [{ success: true }],
+          toolCalls: [],
+          steps: [],
+          usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+          finishReason: 'tool-calls',
+        } as any;
+      });
+
+      const dispatcher = createTestDispatcher();
+      const context = createTestContext({
+        packet: {
+          type: 12,
+          amount: 5000n,
+          destination: 'g.agent.custom-destination',
+          executionCondition: Buffer.alloc(32),
+          expiresAt: new Date(),
+          data: Buffer.alloc(0),
+        },
+      });
+
+      await dispatcher.handleEvent(context);
+      expect(capturedPrompt).toContain('g.agent.custom-destination');
+    });
+  });
+
+  describe('logger configuration', () => {
+    it('should create child logger with component name when logger provided', () => {
+      const mockLogger = createMockLogger();
+      createTestDispatcher({ logger: mockLogger });
+      expect(mockLogger.child).toHaveBeenCalledWith({ component: 'AIAgentDispatcher' });
+    });
+
+    it('should work without logger (no-op logger)', async () => {
+      mockGenerateText.mockResolvedValue({
+        text: '',
+        toolResults: [{ success: true }],
+        toolCalls: [],
+        steps: [],
+        usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        finishReason: 'tool-calls',
+        response: {} as any,
+        request: {} as any,
+        warnings: [],
+        experimental_providerMetadata: {},
+        providerMetadata: {},
+        reasoning: undefined,
+        reasoningDetails: [],
+        sources: [],
+        files: [],
+        responseMessages: [],
+        toJsonResponse: jest.fn(),
+      } as any);
+
+      const skillRegistry = new SkillRegistry();
+      skillRegistry.register({
+        name: 'store_note',
+        description: 'Store a text note',
+        parameters: z.object({ reason: z.string() }),
+        execute: async () => ({ success: true }),
+        eventKinds: [1],
+      });
+
+      const systemPromptBuilder = new SystemPromptBuilder({
+        agentPubkey: 'd'.repeat(64),
+        skillRegistry,
+      });
+
+      const tokenBudget = new TokenBudget({ maxTokensPerWindow: 100000 });
+
+      const fallbackHandler = new AgentEventHandler({
+        agentPubkey: 'd'.repeat(64),
+        database: {} as any,
+      });
+
+      // Create without logger - should not throw
+      const dispatcher = new AIAgentDispatcher({
+        aiConfig: createTestAIConfig(),
+        model: {} as any,
+        skillRegistry,
+        systemPromptBuilder,
+        tokenBudget,
+        fallbackHandler,
+        // No logger provided
+      });
+
+      // Should work normally
+      const result = await dispatcher.handleEvent(createTestContext());
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('result extraction from steps', () => {
+    it('should extract result from nested step.toolResults array', async () => {
+      mockGenerateText.mockResolvedValue({
+        text: '',
+        toolResults: [], // Empty top-level
+        toolCalls: [],
+        steps: [
+          {
+            toolResults: [
+              {
+                result: {
+                  success: true,
+                  responseEvent: { id: 'from-step' },
+                },
+              },
+            ],
+          },
+        ],
+        usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        finishReason: 'tool-calls',
+        response: {} as any,
+        request: {} as any,
+        warnings: [],
+        experimental_providerMetadata: {},
+        providerMetadata: {},
+        reasoning: undefined,
+        reasoningDetails: [],
+        sources: [],
+        files: [],
+        responseMessages: [],
+        toJsonResponse: jest.fn(),
+      } as any);
+
+      const dispatcher = createTestDispatcher();
+      const result = await dispatcher.handleEvent(createTestContext());
+
+      expect(result.success).toBe(true);
+      expect(result.responseEvent).toEqual({ id: 'from-step' });
+    });
+  });
 });

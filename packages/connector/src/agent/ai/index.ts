@@ -31,13 +31,19 @@ export type { AgentSkill, SkillExecuteContext, SkillSummary } from './skill-regi
 
 // System Prompt
 export { SystemPromptBuilder } from './system-prompt';
+export type { PromptContext } from './system-prompt';
 
 // Token Budget
 export { TokenBudget } from './token-budget';
-export type { TokenUsageRecord, TokenBudgetStatus } from './token-budget';
+export type {
+  TokenUsageRecord,
+  TokenBudgetStatus,
+  TokenBudgetTelemetryEvent,
+} from './token-budget';
 
 // AI Agent Dispatcher
 export { AIAgentDispatcher } from './ai-agent-dispatcher';
+export type { AIAgentDispatcherConfig } from './ai-agent-dispatcher';
 
 // Built-in Skills
 export { registerBuiltInSkills } from './skills';
