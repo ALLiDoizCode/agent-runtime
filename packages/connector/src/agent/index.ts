@@ -66,3 +66,29 @@ export type {
 // Agent Node Orchestrator
 export { AgentNode } from './agent-node';
 export type { AgentNodeConfig, AgentTelemetryEvent } from './agent-node';
+
+// AI Agent Module
+export {
+  AIAgentDispatcher,
+  SkillRegistry,
+  SystemPromptBuilder,
+  TokenBudget,
+  parseAIConfig,
+  createModelFromConfig,
+  registerBuiltInSkills,
+  AI_AGENT_DEFAULTS,
+} from './ai';
+export type {
+  AIAgentConfig,
+  AIAgentDispatcherConfig,
+  AIYamlConfig,
+  AIBudgetConfig,
+  AIAgentPersonality,
+  AgentSkill,
+  SkillExecuteContext,
+  SkillSummary,
+  TokenUsageRecord,
+  TokenBudgetStatus,
+  TokenBudgetTelemetryEvent,
+  PromptContext,
+} from './ai';
