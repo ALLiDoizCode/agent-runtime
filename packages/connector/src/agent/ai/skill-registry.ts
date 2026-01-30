@@ -11,6 +11,8 @@
 import { tool, type CoreTool } from 'ai';
 import type { z } from 'zod';
 import type { EventHandlerContext, EventHandlerResult } from '../event-handler';
+import type { SocialCapabilityDiscovery } from '../discovery/social-discovery';
+import type { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared';
 
 /**
  * Context passed to skill execute functions.
@@ -19,6 +21,13 @@ import type { EventHandlerContext, EventHandlerResult } from '../event-handler';
 export interface SkillExecuteContext extends EventHandlerContext {
   /** The AI agent's reasoning for invoking this skill (from generateText) */
   reasoning?: string;
+  /** Capability discovery service for finding capable agents (Epic 18) */
+  discovery?: SocialCapabilityDiscovery;
+  /** Function to send ILP packets to other agents */
+  sendPacket?: (
+    ilpAddress: string,
+    packet: ILPPreparePacket
+  ) => Promise<ILPFulfillPacket | ILPRejectPacket>;
 }
 
 /**
@@ -31,6 +40,10 @@ export interface SkillSummary {
   description: string;
   /** Associated Nostr event kinds */
   eventKinds?: number[];
+  /** Pricing information for capability publishing */
+  pricing?: {
+    base: bigint;
+  };
 }
 
 /**

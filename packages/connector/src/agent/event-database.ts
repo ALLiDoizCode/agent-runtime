@@ -21,6 +21,7 @@ export interface NostrFilter {
   limit?: number; // Maximum results (default: 100)
   '#e'?: string[]; // Events referenced in tags
   '#p'?: string[]; // Pubkeys referenced in tags
+  '#d'?: string[]; // d-tags to match (for replaceable events)
 }
 
 /**
@@ -313,6 +314,19 @@ export class AgentEventDatabase {
       args.push(...filter['#p']);
     }
 
+    // Handle #d tag filter (d-tags for replaceable events)
+    if (filter['#d'] && filter['#d'].length > 0) {
+      const tagConditions = filter['#d'].map(() => {
+        return `EXISTS (
+          SELECT 1 FROM json_each(tags)
+          WHERE json_extract(value, '$[0]') = 'd'
+          AND json_extract(value, '$[1]') = ?
+        )`;
+      });
+      conditions.push(`(${tagConditions.join(' OR ')})`);
+      args.push(...filter['#d']);
+    }
+
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const limit = filter.limit ?? DEFAULT_QUERY_LIMIT;
 
@@ -470,6 +484,19 @@ export class AgentEventDatabase {
       });
       conditions.push(`(${tagConditions.join(' OR ')})`);
       args.push(...filter['#p']);
+    }
+
+    // Handle #d tag filter
+    if (filter['#d'] && filter['#d'].length > 0) {
+      const tagConditions = filter['#d'].map(() => {
+        return `EXISTS (
+          SELECT 1 FROM json_each(tags)
+          WHERE json_extract(value, '$[0]') = 'd'
+          AND json_extract(value, '$[1]') = ?
+        )`;
+      });
+      conditions.push(`(${tagConditions.join(' OR ')})`);
+      args.push(...filter['#d']);
     }
 
     if (conditions.length === 0) {

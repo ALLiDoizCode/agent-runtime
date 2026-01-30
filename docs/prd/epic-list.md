@@ -63,12 +63,24 @@ Implement NIP-XX4 (Agent Reputation & Trust), defining a decentralized reputatio
 **Epic 22: Emergent Workflow Composition (NIP-XX5)**
 Implement NIP-XX5 (Emergent Workflow Composition), defining how agents compose multi-step workflows dynamically. Enables declarative workflow definitions that orchestrate multiple agents in sequence or parallel for complex task pipelines like data processing, multi-modal transformations, approval workflows, and conditional branching.
 
+**Epic 23: NIP-56XX Payment Streams Protocol**
+Implement NIP-56XX (Payment Streams), defining Nostr event kinds (5610-5615) that replace the ILP STREAM protocol for payment coordination over Interledger. STREAM's coordination functions (session setup, flow control, receipts) are replaced by Nostr events traveling inside ILP packets (TOON-encoded), while ILP's PREPARE/FULFILL/REJECT cycle handles actual value transfer. Includes HMAC-based condition/fulfillment generation, stream lifecycle management, and AI skills for streaming payments. Foundation for all streaming payment use cases including live video, pay-per-use services, and continuous micropayments.
+
+**Epic 24: Live Streaming Infrastructure Integration**
+Integrate live streaming infrastructure with the Agent Society Protocol, enabling real-time video delivery with per-second micropayments. Combines Livepeer for transcoding (80% cost savings), WebRTC/LL-HLS for video delivery, and NIP-56XX (Epic 23) for payment streams. Implements NIP-53 stream announcements (Kind 30311), viewer payment sessions with access tokens, HLS playback integration, and live chat (Kind 1311). Demonstrates a compelling use case for the Agent Society Protocol with significant market opportunity ($76-113B live streaming market) and 85-95% creator revenue share.
+
+**Epic 25: zkVM Compute Verification**
+Implement trustless verification of agent compute using zero-knowledge virtual machines (zkVMs). The key insight: we don't prove LLM inference (impractical), we prove the compute execution that results from LLM planning. The LLM generates a deterministic Execution Plan IR, which is executed in RISC Zero or SP1 to generate a cryptographic proof of correct execution. Enables automatic payment settlement based on proof validity, with auto-FULFILL on valid proof and auto-REJECT + slashing on invalid. Includes proof storage via Blossom/IPFS, DVM integration with ZK tags, program registry for known-good guest binaries, and tiered verification (hash commitment → TEE → zkVM → zkVM + TLS oracle). Foundation for Epic 26 (Service Markets).
+
+**Epic 26: Agent Service Markets**
+Implement multi-party staking markets for agent services, transforming bilateral escrow into true prediction markets. Third parties can stake YES (provider delivers) or NO (provider fails) on job outcomes, with market prices aggregating collective beliefs about provider reliability. Features social graph-bounded stake eligibility, simple pool accounting (upgradeable to AMM), ZK proof auto-resolution via Epic 25, challenge/arbitration mechanism for disputes, and proportional payout distribution. Enables price discovery (market odds = reliability signal), social graph vouching (followers stake on trusted agents), and market-based reputation as an alternative to Epic 21's attestation system.
+
 ---
 
 ## Removed Epics (After Redundancy Review)
 
 **Epic 19: Agent Task Delegation** — _Merged into Epic 17_. Task delegation is implemented as a DVM job type (Kind 5900) rather than a separate protocol, avoiding duplication of patterns.
 
-**Epic 23: Agent Payment Protocol** — _Removed as redundant_. Payment is already handled by existing infrastructure: ILP PREPARE packet amounts, `EventHandler._validatePayment()`, EVM/XRP payment channels (Epics 8, 9), and TigerBeetle accounting (Epic 6). Dispute resolution mechanisms were absorbed into Epic 21. No additional payment protocol needed.
+**Former Epic 23: Agent Payment Protocol** — _Removed as redundant_. Payment is already handled by existing infrastructure: ILP PREPARE packet amounts, `EventHandler._validatePayment()`, EVM/XRP payment channels (Epics 8, 9), and TigerBeetle accounting (Epic 6). Dispute resolution mechanisms were absorbed into Epic 21. The Epic 23 number was reassigned to NIP-56XX Payment Streams Protocol.
 
 ---

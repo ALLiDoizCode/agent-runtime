@@ -306,6 +306,9 @@ export class AgentNode {
       registerBuiltInSkills(skillRegistry, {
         followGraphRouter: this._followGraphRouter,
         registeredKinds: () => this._eventHandler.getRegisteredKinds(),
+        coordinatorPrivateKey: this._agentConfig.agentPrivkey ?? '',
+        voterPrivateKey: this._agentConfig.agentPrivkey ?? '',
+        logger: this._logger,
       });
 
       // Create system prompt builder
