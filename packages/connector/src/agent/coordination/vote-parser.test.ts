@@ -33,7 +33,7 @@ describe('VoteParser', () => {
     coordinatorPubkey = getPublicKey(coordinatorPrivateKey);
 
     voteCreator = new VoteCreator(voterPrivateKeyHex);
-    proposalCreator = new ProposalCreator(coordinatorPrivateKeyHex);
+    proposalCreator = new ProposalCreator(coordinatorPrivateKeyHex, 'g.test.agent');
 
     // Create a default proposal for testing
     const proposalEvent = proposalCreator.create({

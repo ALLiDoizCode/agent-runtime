@@ -34,7 +34,7 @@ describe('VoteCreator', () => {
 
     // Create instances
     voteCreator = new VoteCreator(voterPrivateKeyHex);
-    proposalCreator = new ProposalCreator(coordinatorPrivateKeyHex);
+    proposalCreator = new ProposalCreator(coordinatorPrivateKeyHex, 'g.test.agent');
   });
 
   describe('constructor and pubkey getter', () => {

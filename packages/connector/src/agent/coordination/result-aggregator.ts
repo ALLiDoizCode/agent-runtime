@@ -17,6 +17,7 @@ import {
   TAG_VOTES,
   TAG_PARTICIPANTS,
 } from './types';
+import { EscrowCoordinator } from './escrow-coordinator';
 
 /**
  * Creates coordination result events (Kind 7910).
@@ -39,10 +40,12 @@ export class ResultAggregator {
    *
    * @param privateKeyHex - The coordinator's private key as a hex string
    * @param logger - Pino logger for structured logging
+   * @param escrowCoordinator - Optional escrow coordinator for staked proposals
    */
   constructor(
     privateKeyHex: string,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    private readonly escrowCoordinator?: EscrowCoordinator
   ) {
     this._privateKey = hexToBytes(privateKeyHex);
     this._pubkey = getPublicKey(this._privateKey);
@@ -299,6 +302,12 @@ export class ResultAggregator {
   ): Promise<CoordinationResult> {
     // Create result
     const result = this.createResult(proposal, votes, outcome);
+
+    // Trigger escrow resolution if stake required
+    if (proposal.stakeRequired && this.escrowCoordinator) {
+      this.logger.info({ proposalId: proposal.id, outcome }, 'Triggering escrow resolution');
+      await this.escrowCoordinator.releaseEscrow(proposal, outcome);
+    }
 
     // Execute action if approved and action defined
     if (outcome === 'approved' && proposal.action) {

@@ -13,7 +13,7 @@ describe('ProposalParser', () => {
   beforeEach(() => {
     const privateKey = generateSecretKey();
     testPrivateKeyHex = bytesToHex(privateKey);
-    creator = new ProposalCreator(testPrivateKeyHex);
+    creator = new ProposalCreator(testPrivateKeyHex, 'g.test.agent');
     parser = new ProposalParser();
   });
 

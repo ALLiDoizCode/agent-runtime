@@ -72,6 +72,9 @@ Implement trustless verification of agent compute using zero-knowledge virtual m
 **Epic 26: Agent Service Markets**
 Implement multi-party staking markets for agent services, transforming bilateral escrow into true prediction markets. Third parties can stake YES (provider delivers) or NO (provider fails) on job outcomes, with market prices aggregating collective beliefs about provider reliability. Features social graph-bounded stake eligibility, simple pool accounting (upgradeable to AMM), ZK proof auto-resolution via Epic 25, challenge/arbitration mechanism for disputes, and proportional payout distribution. Enables price discovery (market odds = reliability signal), social graph vouching (followers stake on trusted agents), and market-based reputation (replaces attestation-based Epic 21).
 
+**Epic 27: Aptos Payment Channels (Move Modules)**
+Integrate Aptos blockchain payment channels for settlement, enabling tri-chain settlement support where connectors can settle using EVM payment channels (Epic 8), XRP payment channels (Epic 9), and Aptos Move-based payment channels. Build minimal Aptos payment channel infrastructure including Move smart contract modules, TypeScript SDK integration, integration with the existing UnifiedSettlementExecutor, and basic telemetry. Leverages Aptos's high throughput (160,000+ TPS) and sub-second finality for AI agent micropayments.
+
 ---
 
 ## Removed Epics (After Redundancy Review)

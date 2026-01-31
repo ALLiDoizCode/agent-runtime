@@ -63,6 +63,9 @@ export const TAG_VOTES = 'votes';
 /** participants tag - participation stats */
 export const TAG_PARTICIPANTS = 'participants';
 
+/** stake tag - required stake amount */
+export const TAG_STAKE = 'stake';
+
 // ============================================================================
 // Security Limits
 // ============================================================================
@@ -188,6 +191,12 @@ export interface Proposal {
   content: string;
   /** Original Nostr event */
   event: NostrEvent;
+  /** Required stake amount (optional) */
+  stakeRequired?: bigint;
+  /** ILP escrow address (generated if stake required) */
+  escrowAddress?: string;
+  /** Participant stakes (pubkey -> staked amount) */
+  stakes?: Map<string, bigint>;
 }
 
 /**
@@ -210,6 +219,8 @@ export interface CreateProposalParams {
   weights?: Record<string, number>;
   /** Proposal description */
   description: string;
+  /** Required stake amount (optional) */
+  stakeRequired?: bigint;
 }
 
 /**
@@ -224,6 +235,7 @@ export const CreateProposalParamsSchema = z.object({
   action: ProposalActionSchema.optional(),
   weights: z.record(z.string(), z.number()).optional(),
   description: z.string().min(1, 'Description required'),
+  stakeRequired: z.bigint().positive().optional(),
 });
 
 /**

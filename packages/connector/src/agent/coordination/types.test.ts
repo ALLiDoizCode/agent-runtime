@@ -27,6 +27,7 @@ import {
   TAG_OUTCOME,
   TAG_VOTES,
   TAG_PARTICIPANTS,
+  TAG_STAKE,
 } from './types';
 
 describe('Coordination Types', () => {
@@ -367,6 +368,100 @@ describe('Coordination Types', () => {
           },
         })
       ).toThrow();
+    });
+  });
+
+  describe('TAG_STAKE', () => {
+    it('should have correct stake tag constant', () => {
+      expect(TAG_STAKE).toBe('stake');
+    });
+  });
+
+  describe('CreateProposalParamsSchema with stakeRequired', () => {
+    it('should validate proposal with stakeRequired', () => {
+      const params = {
+        type: 'consensus',
+        participants: ['pubkey1', 'pubkey2'],
+        expiresIn: 3600,
+        description: 'Test with stake',
+        stakeRequired: 1000n,
+      };
+      const result = CreateProposalParamsSchema.parse(params);
+      expect(result.stakeRequired).toBe(1000n);
+    });
+
+    it('should validate proposal without stakeRequired', () => {
+      const params = {
+        type: 'consensus',
+        participants: ['pubkey1', 'pubkey2'],
+        expiresIn: 3600,
+        description: 'Test without stake',
+      };
+      const result = CreateProposalParamsSchema.parse(params);
+      expect(result.stakeRequired).toBeUndefined();
+    });
+
+    it('should reject zero stake', () => {
+      expect(() =>
+        CreateProposalParamsSchema.parse({
+          type: 'consensus',
+          participants: ['pubkey1'],
+          expiresIn: 3600,
+          description: 'Test',
+          stakeRequired: 0n,
+        })
+      ).toThrow();
+    });
+
+    it('should reject negative stake', () => {
+      expect(() =>
+        CreateProposalParamsSchema.parse({
+          type: 'consensus',
+          participants: ['pubkey1'],
+          expiresIn: 3600,
+          description: 'Test',
+          stakeRequired: -100n,
+        })
+      ).toThrow();
+    });
+
+    it('should handle very large stake amounts', () => {
+      const largeAmount = BigInt('999999999999999999'); // ~999 quadrillion
+      const params = {
+        type: 'consensus',
+        participants: ['pubkey1', 'pubkey2'],
+        expiresIn: 3600,
+        description: 'Test with large stake',
+        stakeRequired: largeAmount,
+      };
+      const result = CreateProposalParamsSchema.parse(params);
+      expect(result.stakeRequired).toBe(largeAmount);
+    });
+
+    it('should handle MAX_SAFE_INTEGER equivalent for bigint', () => {
+      const maxSafe = BigInt(Number.MAX_SAFE_INTEGER); // 2^53 - 1
+      const params = {
+        type: 'consensus',
+        participants: ['pubkey1', 'pubkey2'],
+        expiresIn: 3600,
+        description: 'Test with max safe integer',
+        stakeRequired: maxSafe,
+      };
+      const result = CreateProposalParamsSchema.parse(params);
+      expect(result.stakeRequired).toBe(maxSafe);
+    });
+
+    it('should handle stake amount larger than MAX_SAFE_INTEGER', () => {
+      const beyondSafe = BigInt(Number.MAX_SAFE_INTEGER) + 1000n;
+      const params = {
+        type: 'consensus',
+        participants: ['pubkey1', 'pubkey2'],
+        expiresIn: 3600,
+        description: 'Test beyond max safe integer',
+        stakeRequired: beyondSafe,
+      };
+      const result = CreateProposalParamsSchema.parse(params);
+      expect(result.stakeRequired).toBe(beyondSafe);
     });
   });
 });

@@ -38,7 +38,7 @@ describe('WeightedVoting', () => {
     // Generate coordinator key
     const coordinatorPrivateKey = generateSecretKey();
     coordinatorPrivateKeyHex = bytesToHex(coordinatorPrivateKey);
-    proposalCreator = new ProposalCreator(coordinatorPrivateKeyHex);
+    proposalCreator = new ProposalCreator(coordinatorPrivateKeyHex, 'g.test.agent');
 
     // Generate voter keys
     const voter1PrivateKey = generateSecretKey();

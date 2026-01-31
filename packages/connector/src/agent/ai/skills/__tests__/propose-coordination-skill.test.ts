@@ -77,17 +77,29 @@ describe('propose_coordination skill', () => {
 
   describe('skill registration (AC: 1)', () => {
     it('should have name "propose_coordination"', () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       expect(skill.name).toBe('propose_coordination');
     });
 
     it('should have eventKinds [5910]', () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       expect(skill.eventKinds).toEqual([5910]);
     });
 
     it('should have comprehensive description', () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       expect(skill.description).toBeDefined();
       expect(skill.description.length).toBeGreaterThan(100);
       expect(skill.description).toContain('consensus');
@@ -96,14 +108,22 @@ describe('propose_coordination skill', () => {
     });
 
     it('should have defined parameters schema', () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       expect(skill.parameters).toBeDefined();
     });
   });
 
   describe('successful consensus proposal creation (AC: 2, 4, 5)', () => {
     it('should create consensus proposal with 2 participants', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -134,7 +154,11 @@ describe('propose_coordination skill', () => {
     });
 
     it('should create majority proposal with 3 participants', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -160,7 +184,11 @@ describe('propose_coordination skill', () => {
 
   describe('successful threshold proposal creation (AC: 2, 4, 5)', () => {
     it('should create threshold proposal with threshold=2', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -184,7 +212,11 @@ describe('propose_coordination skill', () => {
 
   describe('expiration configuration (AC: 6)', () => {
     it('should set expires tag with custom expiresIn=7200', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const beforeTimestamp = Math.floor(Date.now() / 1000);
@@ -212,7 +244,11 @@ describe('propose_coordination skill', () => {
     });
 
     it('should default to expiresIn=3600 when not provided', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const beforeTimestamp = Math.floor(Date.now() / 1000);
@@ -241,7 +277,11 @@ describe('propose_coordination skill', () => {
 
   describe('proposal with action (AC: 2, 4)', () => {
     it('should include action tag when action provided', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -266,7 +306,11 @@ describe('propose_coordination skill', () => {
     });
 
     it('should omit action tag when action not provided', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -287,7 +331,11 @@ describe('propose_coordination skill', () => {
 
   describe('parameter validation (AC: 8)', () => {
     it('should reject type=threshold without threshold parameter', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -306,7 +354,11 @@ describe('propose_coordination skill', () => {
     });
 
     it('should reject single participant (< 2)', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -323,7 +375,11 @@ describe('propose_coordination skill', () => {
     });
 
     it('should reject empty participants array', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -340,7 +396,11 @@ describe('propose_coordination skill', () => {
     });
 
     it('should reject description > 500 characters', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -359,7 +419,11 @@ describe('propose_coordination skill', () => {
 
   describe('logger integration', () => {
     it('should log successful proposal creation with structured data', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -387,7 +451,11 @@ describe('propose_coordination skill', () => {
     });
 
     it('should log proposal creation with action flag', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -408,7 +476,11 @@ describe('propose_coordination skill', () => {
     });
 
     it('should log error on invalid parameters', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       // Pass invalid params (single participant) to trigger validation error
@@ -434,7 +506,11 @@ describe('propose_coordination skill', () => {
 
   describe('proposal ID extraction', () => {
     it('should extract proposal ID from event d tag', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {
@@ -465,7 +541,11 @@ describe('propose_coordination skill', () => {
 
   describe('responseEvent format', () => {
     it('should return signed NostrEvent with valid signature', async () => {
-      const skill = createProposeCoordinationSkill(coordinatorPrivateKeyHex, mockLogger);
+      const skill = createProposeCoordinationSkill(
+        coordinatorPrivateKeyHex,
+        'g.test.agent',
+        mockLogger
+      );
       const context = createTestContext();
 
       const params = {

@@ -48,6 +48,13 @@ const ProposeCoordinationParams = z
       .positive()
       .optional()
       .describe('Seconds until proposal expires (default: 3600)'),
+    stakeRequired: z
+      .string()
+      .optional()
+      .describe(
+        'Required stake amount in smallest unit (e.g., satoshis for Bitcoin, drops for XRP). ' +
+          'If specified, participants must stake this amount to the escrow address before voting.'
+      ),
   })
   .refine((data) => data.type !== 'threshold' || data.threshold !== undefined, {
     message: 'threshold required when type is "threshold"',
@@ -56,19 +63,21 @@ const ProposeCoordinationParams = z
 /**
  * Creates the propose_coordination skill.
  *
- * Factory function that injects dependencies (private key, logger) and returns
+ * Factory function that injects dependencies (private key, ILP address, logger) and returns
  * an AgentSkill that the AI can invoke to propose coordinated actions.
  *
  * @param privateKeyHex - Coordinator's private key for signing proposals
+ * @param ilpAddress - Coordinator's ILP address for escrow address generation
  * @param logger - Pino logger for skill-level structured logging
  * @returns AgentSkill for proposing coordination
  */
 export function createProposeCoordinationSkill(
   privateKeyHex: string,
+  ilpAddress: string,
   logger: Logger
 ): AgentSkill<typeof ProposeCoordinationParams> {
-  // Create ProposalCreator instance with coordinator's private key
-  const proposalCreator = new ProposalCreator(privateKeyHex);
+  // Create ProposalCreator instance with coordinator's private key and ILP address
+  const proposalCreator = new ProposalCreator(privateKeyHex, ilpAddress);
 
   return {
     name: 'propose_coordination',
@@ -78,7 +87,8 @@ export function createProposeCoordinationSkill(
       'Specify the coordination type (consensus: all must approve, majority: >50% must approve, ' +
       'threshold: N participants must approve with threshold parameter), participants (agent pubkeys), ' +
       'description of the proposal, optional action to execute if approved (action.kind and action.data), ' +
-      'and optional expiresIn seconds (default: 3600 = 1 hour). ' +
+      'optional expiresIn seconds (default: 3600 = 1 hour), and optional stakeRequired (string representing ' +
+      'stake amount in smallest unit, e.g., "1000" for satoshis). ' +
       'Returns the proposal ID for tracking votes and outcomes.',
     parameters: ProposeCoordinationParams,
     eventKinds: [COORDINATION_PROPOSAL_KIND],
@@ -105,6 +115,9 @@ export function createProposeCoordinationSkill(
         // TODO Epic XX: Query each participant for supported coordination kinds before proposal
         // TODO Epic XX: Return F99 error if participants don't support coordination
 
+        // Parse stakeRequired string to bigint if provided
+        const stakeRequired = params.stakeRequired ? BigInt(params.stakeRequired) : undefined;
+
         // Build CreateProposalParams object
         const createParams: CreateProposalParams = {
           type: params.type,
@@ -113,6 +126,7 @@ export function createProposeCoordinationSkill(
           description: params.description,
           action: params.action as ProposalAction | undefined,
           expiresIn: params.expiresIn ?? 3600, // Default 3600 seconds (1 hour)
+          stakeRequired,
         };
 
         // Create signed proposal event
@@ -132,6 +146,7 @@ export function createProposeCoordinationSkill(
             type: params.type,
             expiresAt,
             hasAction: !!params.action,
+            stakeRequired: stakeRequired?.toString(),
           },
           'Coordination proposal created via AI skill'
         );

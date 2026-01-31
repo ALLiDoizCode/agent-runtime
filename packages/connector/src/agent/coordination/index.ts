@@ -6,6 +6,8 @@ export { VoteParser } from './vote-parser';
 export { ThresholdConsensus } from './threshold-consensus';
 export { WeightedVoting } from './weighted-voting';
 export { ResultAggregator } from './result-aggregator';
+export { EscrowCoordinator } from './escrow-coordinator';
+export type { EscrowCoordinatorConfig } from './escrow-coordinator';
 
 export {
   // Event Kind Constants
@@ -28,6 +30,7 @@ export {
   TAG_OUTCOME,
   TAG_VOTES,
   TAG_PARTICIPANTS,
+  TAG_STAKE,
   // Zod Schemas
   CoordinationTypeSchema,
   VoteValueSchema,

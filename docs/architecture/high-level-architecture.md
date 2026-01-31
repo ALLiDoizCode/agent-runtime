@@ -2,7 +2,7 @@
 
 ## Technical Summary
 
-The system employs a **microservices architecture deployed via Docker containers** with an observability-first design philosophy. Multiple independent ILP connector nodes communicate using BTP (RFC-0023) over WebSocket, emitting structured telemetry events for monitoring and debugging. The architecture prioritizes developer experience through comprehensive structured logging, zero-configuration network deployment, and agent wallet integration for machine-to-machine payments. Built entirely in TypeScript on Node.js, the system leverages in-memory state for connector routing while supporting persistent agent wallet balances via TigerBeetle. The system supports dual-settlement capabilities (EVM and XRP payment channels) and configurable network topologies from linear chains to full mesh networks.
+The system employs a **microservices architecture deployed via Docker containers** with an observability-first design philosophy. Multiple independent ILP connector nodes communicate using BTP (RFC-0023) over WebSocket, emitting structured telemetry events for monitoring and debugging. The architecture prioritizes developer experience through comprehensive structured logging, zero-configuration network deployment, and agent wallet integration for machine-to-machine payments. Built entirely in TypeScript on Node.js, the system leverages in-memory state for connector routing while supporting persistent agent wallet balances via TigerBeetle. The system supports tri-chain settlement capabilities (EVM, XRP, and Aptos payment channels) and configurable network topologies from linear chains to full mesh networks.
 
 **Note:** Dashboard visualization deferred - see DASHBOARD-DEFERRED.md in root
 
@@ -16,7 +16,7 @@ The system employs a **microservices architecture deployed via Docker containers
 2. **Service Architecture:**
    - N identical connector containers (each running ILPv4 + BTP implementation)
    - Agent wallet service (machine-to-machine payment capabilities)
-   - Settlement engines (EVM and XRP payment channels)
+   - Settlement engines (EVM, XRP, and Aptos payment channels)
    - TigerBeetle accounting layer (persistent balance tracking)
    - No shared routing state - each connector maintains in-memory routing tables
 
@@ -37,7 +37,7 @@ The system employs a **microservices architecture deployed via Docker containers
    - **Push-based telemetry:** Connectors emit events to structured logging (not pull-based polling)
    - **Docker-first deployment:** Container orchestration via Docker Compose
    - **WebSocket-centric communication:** BTP uses WebSocket (RFC-0023), telemetry emitted to stdout
-   - **Dual-settlement support:** EVM payment channels (Epic 8) and XRP payment channels (Epic 9)
+   - **Tri-chain settlement:** EVM payment channels (Epic 8), XRP payment channels (Epic 9), and Aptos payment channels (Epic 27)
    - **Dashboard deferred:** Visualization tooling deferred to focus on core payment functionality
 
 ## High Level Project Diagram
@@ -62,9 +62,9 @@ graph TB
     AgentWallet -->|ILP Packets| ConnectorA
     AgentWallet -->|Balance Updates| TigerBeetle
 
-    ConnectorA -->|Settlement Events| Settlement[Settlement Executor<br/>EVM + XRP Channels]
+    ConnectorA -->|Settlement Events| Settlement[Settlement Executor<br/>EVM + XRP + Aptos]
     Settlement -->|Balance Updates| TigerBeetle
-    Settlement -->|Blockchain Txns| Blockchain[EVM/XRP Ledgers]
+    Settlement -->|Blockchain Txns| Blockchain[EVM/XRP/Aptos Ledgers]
 
     User -->|Monitor Logs| Logs
 

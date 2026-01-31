@@ -13,6 +13,7 @@ import {
   TAG_EXPIRES,
   TAG_ACTION,
   TAG_WEIGHT,
+  TAG_STAKE,
 } from './types';
 import { NostrEvent } from '../toon-codec';
 
@@ -72,6 +73,16 @@ export class ProposalParser {
       const action = this.parseAction(tags);
       const weights = this.parseWeights(tags);
 
+      // Parse optional stake tag
+      const stakeRequired = this.parseStake(tags);
+
+      // Extract escrow address from content if stake required
+      const escrowAddress =
+        stakeRequired !== undefined ? this.extractEscrowAddress(event.content) : undefined;
+
+      // Initialize stakes Map if stake required
+      const stakes = stakeRequired !== undefined ? new Map<string, bigint>() : undefined;
+
       return {
         kind: COORDINATION_PROPOSAL_KIND,
         id,
@@ -84,6 +95,9 @@ export class ProposalParser {
         weights,
         content: event.content,
         event,
+        stakeRequired,
+        escrowAddress,
+        stakes,
       };
     } catch (error) {
       // Re-throw ProposalExpiredError without wrapping
@@ -372,5 +386,40 @@ export class ProposalParser {
     }
 
     return num;
+  }
+
+  /**
+   * Parses the optional stake tag.
+   *
+   * @param tags - The event tags array
+   * @returns The stake amount as bigint or undefined
+   * @throws Error if stake value is invalid
+   */
+  private parseStake(tags: string[][]): bigint | undefined {
+    const stakeValue = this.getOptionalTag(tags, TAG_STAKE);
+    if (stakeValue === undefined) {
+      return undefined;
+    }
+
+    try {
+      const stake = BigInt(stakeValue);
+      if (stake <= 0n) {
+        throw new Error('Stake amount must be positive');
+      }
+      return stake;
+    } catch (error) {
+      throw new Error(`Invalid stake value: "${stakeValue}". Must be a positive integer`);
+    }
+  }
+
+  /**
+   * Extracts escrow address from proposal content.
+   *
+   * @param content - The proposal content string
+   * @returns The escrow address or undefined
+   */
+  private extractEscrowAddress(content: string): string | undefined {
+    const escrowMatch = content.match(/Escrow Address: (.+)/);
+    return escrowMatch?.[1] ?? undefined;
   }
 }

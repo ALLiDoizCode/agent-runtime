@@ -15,6 +15,7 @@ import {
   TAG_EXPIRES,
   TAG_ACTION,
   TAG_WEIGHT,
+  TAG_STAKE,
 } from './types';
 
 /**
@@ -31,15 +32,18 @@ import {
 export class ProposalCreator {
   private readonly _privateKey: Uint8Array;
   private readonly _pubkey: string;
+  private readonly _ilpAddress: string;
 
   /**
    * Creates a new ProposalCreator instance.
    *
    * @param privateKeyHex - The coordinator's private key as a hex string
+   * @param ilpAddress - The coordinator's ILP address for escrow address generation
    */
-  constructor(privateKeyHex: string) {
+  constructor(privateKeyHex: string, ilpAddress: string) {
     this._privateKey = hexToBytes(privateKeyHex);
     this._pubkey = getPublicKey(this._privateKey);
+    this._ilpAddress = ilpAddress;
   }
 
   /**
@@ -105,7 +109,22 @@ export class ProposalCreator {
       }
     }
 
+    // stake tag - when stake required (AC: 1, 6)
+    if (params.stakeRequired !== undefined) {
+      tags.push([TAG_STAKE, params.stakeRequired.toString()]);
+    }
+
     return tags;
+  }
+
+  /**
+   * Generates escrow ILP address for a proposal.
+   *
+   * @param proposalId - The unique proposal ID
+   * @returns Escrow ILP address in format: {ilpAddress}.escrow.{proposalId}
+   */
+  generateEscrowAddress(proposalId: string): string {
+    return `${this._ilpAddress}.escrow.${proposalId}`;
   }
 
   /**
@@ -128,12 +147,19 @@ export class ProposalCreator {
     // Build tags array
     const tags = this.buildTags(proposalId, params, expires);
 
+    // Generate escrow address if stake required
+    let contentWithEscrow = params.description;
+    if (params.stakeRequired !== undefined) {
+      const escrowAddress = this.generateEscrowAddress(proposalId);
+      contentWithEscrow += `\n\nEscrow Address: ${escrowAddress}`;
+    }
+
     // Create unsigned event template
     const eventTemplate = {
       kind: COORDINATION_PROPOSAL_KIND,
       created_at: Math.floor(Date.now() / 1000),
       tags,
-      content: params.description, // AC: 9
+      content: contentWithEscrow, // AC: 9
     };
 
     // Sign event with coordinator's private key (AC: 10)
@@ -194,6 +220,17 @@ export class ProposalCreator {
         ? new Map(weightTags.map((t) => [t[1] as string, parseFloat(t[2] as string)]))
         : undefined;
 
+    // Extract stake tag
+    const stakeTag = tags.find((t) => t[0] === TAG_STAKE);
+    const stakeRequired = stakeTag?.[1] ? BigInt(stakeTag[1]) : undefined;
+
+    // Extract escrow address from content
+    const escrowMatch = event.content.match(/Escrow Address: (.+)/);
+    const escrowAddress = escrowMatch?.[1] ?? undefined;
+
+    // Initialize stakes Map if stake required
+    const stakes = stakeRequired !== undefined ? new Map<string, bigint>() : undefined;
+
     return {
       kind: COORDINATION_PROPOSAL_KIND,
       id,
@@ -206,6 +243,9 @@ export class ProposalCreator {
       weights,
       content: event.content,
       event,
+      stakeRequired,
+      escrowAddress,
+      stakes,
     };
   }
 }

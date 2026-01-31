@@ -59,7 +59,7 @@ describe('ResultAggregator', () => {
 
     // Create aggregator and other creators
     aggregator = new ResultAggregator(coordinatorKeyHex, mockLogger as unknown as Logger);
-    proposalCreator = new ProposalCreator(coordinatorKeyHex);
+    proposalCreator = new ProposalCreator(coordinatorKeyHex, 'g.test.agent');
     voteCreator1 = new VoteCreator(bytesToHex(voter1Key));
     voteCreator2 = new VoteCreator(bytesToHex(voter2Key));
     voteCreator3 = new VoteCreator(bytesToHex(voter3Key));

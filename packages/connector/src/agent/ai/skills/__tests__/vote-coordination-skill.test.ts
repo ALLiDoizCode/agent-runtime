@@ -73,7 +73,7 @@ describe('vote_coordination skill', () => {
     participants?: string[];
     type?: 'threshold' | 'majority' | 'consensus' | 'ranked' | 'allocation';
   }): { proposal: Proposal; event: NostrEvent } {
-    const proposalCreator = new ProposalCreator(coordinatorPrivateKey);
+    const proposalCreator = new ProposalCreator(coordinatorPrivateKey, 'g.test.agent');
     const participants = overrides?.participants || [voterPubkey, otherPubkey];
     const type = overrides?.type || 'threshold';
 
@@ -91,17 +91,17 @@ describe('vote_coordination skill', () => {
 
   describe('Skill Registration', () => {
     it('should register with correct name (AC: 1)', () => {
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       expect(skill.name).toBe('vote_coordination');
     });
 
     it('should register with Kind 6910 (AC: 1)', () => {
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       expect(skill.eventKinds).toEqual([COORDINATION_VOTE_KIND]); // 6910
     });
 
     it('should have comprehensive description (AC: 1)', () => {
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       expect(skill.description).toBeDefined();
       expect(skill.description.length).toBeGreaterThan(100);
       expect(skill.description).toContain('vote');
@@ -110,7 +110,7 @@ describe('vote_coordination skill', () => {
     });
 
     it('should have Zod parameters schema (AC: 1)', () => {
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       expect(skill.parameters).toBeDefined();
       expect(skill.parameters.parse).toBeDefined(); // Zod schema has parse method
     });
@@ -119,7 +119,7 @@ describe('vote_coordination skill', () => {
   describe('Successful Vote Creation', () => {
     it('should create approve vote for valid proposal (AC: 2, 3, 4, 5, 6)', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       const { proposal, event: proposalEvent } = createTestProposal({
         participants: [voterPubkey, otherPubkey],
       });
@@ -161,7 +161,7 @@ describe('vote_coordination skill', () => {
 
     it('should create reject vote (AC: 2, 5, 6)', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       const { proposal, event: proposalEvent } = createTestProposal();
       mockDatabase.queryEvents.mockResolvedValue([proposalEvent]);
 
@@ -182,7 +182,7 @@ describe('vote_coordination skill', () => {
 
     it('should create abstain vote (AC: 2, 5, 6)', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       const { proposal, event: proposalEvent } = createTestProposal();
       mockDatabase.queryEvents.mockResolvedValue([proposalEvent]);
 
@@ -203,7 +203,7 @@ describe('vote_coordination skill', () => {
 
     it('should include reason in vote event (AC: 2, 5)', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       const { proposal, event: proposalEvent } = createTestProposal();
       mockDatabase.queryEvents.mockResolvedValue([proposalEvent]);
 
@@ -229,7 +229,7 @@ describe('vote_coordination skill', () => {
   describe('Proposal Fetching', () => {
     it('should fetch proposal with correct filter (AC: 3)', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       const { proposal, event: proposalEvent } = createTestProposal();
       mockDatabase.queryEvents.mockResolvedValue([proposalEvent]);
 
@@ -254,7 +254,7 @@ describe('vote_coordination skill', () => {
   describe('Error Handling', () => {
     it('should return error when proposal not found (AC: 3, 8)', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       mockDatabase.queryEvents.mockResolvedValue([]); // Empty result
 
       const context = createTestContext();
@@ -277,7 +277,7 @@ describe('vote_coordination skill', () => {
 
     it('should return error when agent is not a participant (AC: 4, 8)', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       const { proposal, event: proposalEvent } = createTestProposal({
         participants: [otherPubkey], // Voter NOT in participants
       });
@@ -305,7 +305,7 @@ describe('vote_coordination skill', () => {
 
     it('should validate proposalId parameter (AC: 8)', () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
 
       // Act & Assert - Zod requires .min(1) for non-empty strings, but we allow empty for now
       // The real validation happens when fetching from database (proposal not found)
@@ -319,7 +319,7 @@ describe('vote_coordination skill', () => {
 
     it('should validate vote parameter (AC: 8)', () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
 
       // Act & Assert
       expect(() => {
@@ -332,7 +332,7 @@ describe('vote_coordination skill', () => {
 
     it('should handle VoteCreator errors (AC: 8)', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       const { proposal } = createTestProposal();
 
       // Mock database to throw an error
@@ -360,7 +360,7 @@ describe('vote_coordination skill', () => {
   describe('Logger Integration', () => {
     it('should log vote creation on success', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       const { proposal, event: proposalEvent } = createTestProposal();
       mockDatabase.queryEvents.mockResolvedValue([proposalEvent]);
 
@@ -389,7 +389,7 @@ describe('vote_coordination skill', () => {
 
     it('should log errors on failure', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       mockDatabase.queryEvents.mockResolvedValue([]); // Proposal not found
 
       const context = createTestContext();
@@ -412,7 +412,7 @@ describe('vote_coordination skill', () => {
 
     it('should track hasReason flag in logs', async () => {
       // Arrange
-      const skill = createVoteCoordinationSkill(voterPrivateKey, mockLogger);
+      const skill = createVoteCoordinationSkill(voterPrivateKey, 'g.test.agent', mockLogger);
       const { proposal, event: proposalEvent } = createTestProposal();
       mockDatabase.queryEvents.mockResolvedValue([proposalEvent]);
 

@@ -34,7 +34,7 @@ describe('ProposalCreator', () => {
       getPublicKey(generateSecretKey()),
     ];
 
-    creator = new ProposalCreator(testPrivateKeyHex);
+    creator = new ProposalCreator(testPrivateKeyHex, 'g.test.agent');
   });
 
   describe('constructor', () => {

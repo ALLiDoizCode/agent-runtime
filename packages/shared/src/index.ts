@@ -76,12 +76,19 @@ export {
   TelemetryEvent,
 } from './types/telemetry';
 
-// Payment Channel Telemetry Types (Epic 8 Story 8.10)
+// Payment Channel Telemetry Types (Epic 8 Story 8.10, Epic 27 Story 27.5)
 export {
   PaymentChannelOpenedEvent,
   PaymentChannelBalanceUpdateEvent,
   PaymentChannelSettledEvent,
   DashboardChannelState,
+  // Aptos Settlement Telemetry (Story 27.5)
+  AptosChannelOpenedEvent,
+  AptosClaimSignedEvent,
+  AptosClaimSubmittedEvent,
+  AptosSettlementCompletedEvent,
+  AptosSettlementFailedEvent,
+  AptosSettlementTelemetryEvent,
 } from './types/payment-channel-telemetry';
 
 // Payment Channel Types (Epic 8 Story 8.7)

@@ -49,13 +49,14 @@ const VoteCoordinationParams = z.object({
  */
 export function createVoteCoordinationSkill(
   privateKeyHex: string,
+  ilpAddress: string,
   logger: Logger
 ): AgentSkill<typeof VoteCoordinationParams> {
   // Create VoteCreator instance inside factory (only needs privateKeyHex)
   const voteCreator = new VoteCreator(privateKeyHex);
 
   // Create ProposalCreator instance for toProposal helper (parsing proposals)
-  const proposalCreator = new ProposalCreator(privateKeyHex);
+  const proposalCreator = new ProposalCreator(privateKeyHex, ilpAddress);
 
   return {
     name: 'vote_coordination',
