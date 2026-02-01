@@ -6,9 +6,10 @@ This guide explains how to set up and use local blockchain nodes for M2M project
 
 **Purpose:**
 
-- **Epic 7-9 Development**: Local blockchain infrastructure for Base L2 (EVM) and XRP Ledger smart contract development
+- **Epic 7-9 Development**: Local blockchain infrastructure for Base L2 (EVM), XRP Ledger, and Aptos smart contract development
 - **Anvil (Base L2)**: Local Ethereum node forking Base Sepolia testnet
 - **rippled (XRP Ledger)**: Standalone XRP Ledger node for payment channel testing (Story 7.2)
+- **Aptos Local Testnet**: Local Aptos node for Move module development (Story 7.6)
 
 **Benefits of Local Blockchain Development:**
 
@@ -88,7 +89,17 @@ curl -X POST http://localhost:5005 \
   -d '{"method":"server_info","params":[]}'
 ```
 
-**Step 6: Start Developing!**
+**Step 6 (Optional): Start Aptos for Move Development**
+
+```bash
+# Start Aptos local testnet
+docker-compose -f docker-compose-dev.yml up -d aptos-local
+
+# Verify Aptos is running (may take 45-60 seconds)
+curl -s http://localhost:8080/v1 | jq .
+```
+
+**Step 7: Start Developing!**
 
 Your local blockchain nodes are ready:
 
@@ -103,6 +114,13 @@ Your local blockchain nodes are ready:
 - **Host machine WebSocket**: `ws://localhost:6006`
 - **Docker containers JSON-RPC**: `http://rippled:5005`
 - **Docker containers WebSocket**: `ws://rippled:6006`
+
+**Aptos (Move):**
+
+- **Host machine Node API**: `http://localhost:8080/v1`
+- **Host machine Faucet**: `http://localhost:8081`
+- **Docker containers Node API**: `http://aptos-local:8080/v1`
+- **Docker containers Faucet**: `http://aptos-local:8081`
 
 ## Anvil (Base L2) Setup
 
@@ -2557,6 +2575,152 @@ curl http://localhost:5005 -X POST \
 
 Check Alice's account balance increased by 900 XRP (1000 - 100 claimed).
 
+## Aptos Local Testnet Setup
+
+### What is Aptos Local Testnet?
+
+Aptos local testnet is a self-contained Aptos blockchain running in Docker, providing:
+
+- **Instant finality**: Transactions confirm immediately
+- **Free transactions**: No gas costs during development
+- **Isolated environment**: No network dependencies after Docker image download
+- **Move development**: Full support for Move module compilation and deployment
+
+**Purpose in M2M Project:**
+
+Aptos local testnet completes the tri-chain development infrastructure for Epic 27 (Aptos Payment Channels). Developers can deploy and test payment_channel Move modules locally alongside existing Anvil (EVM) and rippled (XRP) services.
+
+### Aptos Configuration
+
+Aptos is configured in `docker-compose-dev.yml` with the following settings:
+
+| Configuration       | Value                                   | Purpose                                 |
+| ------------------- | --------------------------------------- | --------------------------------------- |
+| **Image**           | `aptoslabs/tools:nightly`               | Official Aptos tools image              |
+| **Platform**        | `linux/amd64`                           | Apple Silicon compatibility via Rosetta |
+| **Node API Port**   | `8080`                                  | REST API for transactions and queries   |
+| **Faucet Port**     | `8081`                                  | Fund test accounts                      |
+| **Start Period**    | `60s`                                   | Allow time for Aptos initialization     |
+| **Contracts Mount** | `./packages/contracts-aptos:/contracts` | Move module access (read-only)          |
+
+**Environment Variables (configured in `.env.dev`):**
+
+```bash
+# Aptos image configuration
+APTOS_IMAGE_TAG=nightly
+
+# Port overrides (if 8080/8081 conflict with other services)
+APTOS_NODE_PORT=8080
+APTOS_FAUCET_PORT=8081
+
+# Aptos RPC URLs (for host machine access)
+APTOS_NODE_URL=http://localhost:8080/v1
+APTOS_FAUCET_URL=http://localhost:8081
+```
+
+### Starting Aptos Local Testnet
+
+**Start just Aptos:**
+
+```bash
+docker-compose -f docker-compose-dev.yml up -d aptos-local
+
+# Or use Makefile
+make aptos-up
+```
+
+**Start with Indexer API (optional, more resources required):**
+
+```bash
+docker-compose -f docker-compose-dev.yml --profile aptos-indexed up -d
+```
+
+**Wait for health check:**
+
+```bash
+# Check status
+docker-compose -f docker-compose-dev.yml ps aptos-local
+
+# NAME          STATUS          PORTS
+# aptos-local   healthy         0.0.0.0:8080->8080/tcp, 0.0.0.0:8081->8081/tcp
+```
+
+### Connecting to Aptos
+
+#### RPC Endpoints
+
+- **From host machine**: `http://localhost:8080/v1`
+- **From Docker containers**: `http://aptos-local:8080/v1`
+
+#### Test Connection
+
+```bash
+# Get node info
+curl -s http://localhost:8080/v1 | jq .
+```
+
+**Expected output:**
+
+```json
+{
+  "chain_id": 4,
+  "epoch": "1",
+  "ledger_version": "0",
+  "node_role": "full_node",
+  "block_height": "0"
+}
+```
+
+### Testing Aptos
+
+#### Test 1: Get Node Info
+
+```bash
+curl -s http://localhost:8080/v1 | jq .
+```
+
+#### Test 2: Fund an Account via Faucet
+
+```bash
+# Using helper script
+./scripts/aptos-fund-account.sh 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+
+# Using curl directly
+curl -X POST http://localhost:8081/mint \
+  -H "Content-Type: application/json" \
+  -d '{"address":"0x1234...","amount":100000000}'
+```
+
+#### Test 3: Deploy Move Module
+
+```bash
+# Deploy payment_channel module
+./scripts/aptos-deploy-module.sh
+```
+
+### Aptos Helper Scripts
+
+| Script                             | Purpose                                 |
+| ---------------------------------- | --------------------------------------- |
+| `./scripts/init-aptos-local.sh`    | Initialize and verify local testnet     |
+| `./scripts/aptos-fund-account.sh`  | Fund account via faucet (default 1 APT) |
+| `./scripts/aptos-deploy-module.sh` | Deploy payment_channel Move module      |
+
+### Port Conflict Resolution
+
+If ports 8080/8081 are in use by other services:
+
+```bash
+# Set custom ports in .env.dev or export before starting
+export APTOS_NODE_PORT=18080
+export APTOS_FAUCET_PORT=18081
+docker-compose -f docker-compose-dev.yml up -d aptos-local
+
+# Update your scripts/tests to use new ports
+export APTOS_NODE_URL=http://localhost:18080/v1
+export APTOS_FAUCET_URL=http://localhost:18081
+```
+
 ## Troubleshooting
 
 ### Issue: Anvil won't start
@@ -3563,6 +3727,161 @@ Configure TigerBeetle distributed ledger behavior.
   - `1` (development): Single replica, no fault tolerance
   - `3-5` (production): Quorum-based consensus, survives replica failures
   - Requires network coordination for multi-replica setups
+
+### Network Mode Configuration (Testnet vs Local)
+
+The `NETWORK_MODE` environment variable controls whether the test infrastructure connects to local Docker containers or public testnets. This is useful for ARM64 development (where some Docker images aren't available) or for production-like testing.
+
+| Variable                 | Default                                   | Description                        | Required | Example                                        |
+| ------------------------ | ----------------------------------------- | ---------------------------------- | -------- | ---------------------------------------------- |
+| NETWORK_MODE             | local                                     | Network mode: `local` or `testnet` | No       | testnet                                        |
+| APTOS_TESTNET_NODE_URL   | https://fullnode.testnet.aptoslabs.com/v1 | Aptos testnet full node URL        | No       | https://fullnode.testnet.aptoslabs.com/v1      |
+| APTOS_TESTNET_FAUCET_URL | https://faucet.testnet.aptoslabs.com      | Aptos testnet faucet URL           | No       | https://faucet.testnet.aptoslabs.com           |
+| XRP_TESTNET_WSS_URL      | wss://s.altnet.rippletest.net:51233       | XRP Testnet WebSocket URL          | No       | wss://s.altnet.rippletest.net:51233            |
+| XRP_TESTNET_FAUCET_URL   | https://faucet.altnet.rippletest.net      | XRP Testnet faucet URL             | No       | https://faucet.altnet.rippletest.net           |
+| BASE_SEPOLIA_RPC_URL     | https://sepolia.base.org                  | Base Sepolia RPC URL               | No       | https://base-sepolia.g.alchemy.com/v2/YOUR_KEY |
+
+**Network Mode Behavior:**
+
+- **`NETWORK_MODE=local` (default)**:
+  - Connects to local Docker containers (Anvil, rippled, Aptos)
+  - Uses genesis accounts for funding (XRP)
+  - Uses Docker-internal hostnames (e.g., `http://aptos-local:8080`)
+  - Instant block confirmation times
+  - Best for rapid development iteration
+
+- **`NETWORK_MODE=testnet`**:
+  - Connects to public testnet endpoints
+  - Uses public faucet APIs for funding accounts
+  - Uses public testnet URLs (e.g., `https://fullnode.testnet.aptoslabs.com/v1`)
+  - Real network latency (5-30 seconds for confirmations)
+  - Best for ARM64 development or production-like testing
+
+**Running Tests in Testnet Mode:**
+
+```bash
+# Run integration tests against public testnets
+NETWORK_MODE=testnet npm run test:integration
+
+# Run Docker agent tests against public testnets
+NETWORK_MODE=testnet ./scripts/run-docker-agent-test.sh
+```
+
+**Timeout Adjustments:**
+
+When using testnet mode, timeouts are automatically increased to accommodate network latency:
+
+| Timeout Type     | Local Mode | Testnet Mode |
+| ---------------- | ---------- | ------------ |
+| Faucet Wait      | 5 seconds  | 30 seconds   |
+| Transaction Wait | 10 seconds | 60 seconds   |
+| Health Check     | 30 seconds | 60 seconds   |
+| HTTP Request     | 10 seconds | 30 seconds   |
+
+**Faucet Rate Limits:**
+
+Public testnet faucets have rate limits:
+
+- **Aptos Testnet**: ~1 request per minute per IP
+- **XRP Testnet**: ~1 request per minute per IP
+- **Base Sepolia**: Use external faucets (Coinbase faucet, etc.)
+
+**Example: ARM64 Development Workflow:**
+
+ARM64 (Apple Silicon, Raspberry Pi) may not have Docker images for all blockchain nodes. Use testnet mode:
+
+```bash
+# In .env.dev
+NETWORK_MODE=testnet
+
+# Start only the services that work on ARM64
+docker-compose -f docker-compose-dev.yml up -d anvil
+
+# Run tests against public testnets for missing services
+NETWORK_MODE=testnet npm test
+```
+
+### Aptos Connector Settlement Variables
+
+Variables for enabling Aptos payment channel settlement in the production connector (Story 28.5).
+
+**Required when APTOS_ENABLED=true:**
+
+| Variable                | Description                          | Required | Example                                   |
+| ----------------------- | ------------------------------------ | -------- | ----------------------------------------- |
+| APTOS_ENABLED           | Enable Aptos settlement              | Yes      | true                                      |
+| APTOS_NODE_URL          | Aptos fullnode REST API URL          | Yes      | https://fullnode.testnet.aptoslabs.com/v1 |
+| APTOS_PRIVATE_KEY       | Account private key (ed25519 hex)    | Yes      | 0xabcd1234...                             |
+| APTOS_ACCOUNT_ADDRESS   | Account address (0x-prefixed)        | Yes      | 0x1234567890abcdef...                     |
+| APTOS_CLAIM_PRIVATE_KEY | Claim signing private key (ed25519)  | Yes      | 0xefgh5678...                             |
+| APTOS_MODULE_ADDRESS    | Deployed payment_channel module addr | Yes      | 0xmodule123...                            |
+
+**Optional:**
+
+| Variable                          | Default | Description                          | Example |
+| --------------------------------- | ------- | ------------------------------------ | ------- |
+| APTOS_SETTLEMENT_ENABLED          | true    | Feature flag to disable settlement   | false   |
+| APTOS_CHANNEL_REFRESH_INTERVAL_MS | 30000   | Auto-refresh interval (milliseconds) | 60000   |
+| APTOS_DEFAULT_SETTLE_DELAY        | 86400   | Default settle delay (seconds)       | 3600    |
+
+**Example .env for Tri-Chain Settlement:**
+
+```bash
+# Enable Aptos settlement
+APTOS_ENABLED=true
+APTOS_NODE_URL=https://fullnode.testnet.aptoslabs.com/v1
+APTOS_PRIVATE_KEY=0x<your-private-key>
+APTOS_ACCOUNT_ADDRESS=0x<your-account-address>
+APTOS_CLAIM_PRIVATE_KEY=0x<your-claim-private-key>
+APTOS_MODULE_ADDRESS=0x<deployed-module-address>
+
+# Optional: Customize refresh interval
+APTOS_CHANNEL_REFRESH_INTERVAL_MS=30000
+
+# Optional: Disable settlement (testing)
+# APTOS_SETTLEMENT_ENABLED=false
+```
+
+**Validation Behavior:**
+
+- If `APTOS_ENABLED=true` but required variables are missing, the connector logs a warning and continues without Aptos settlement support
+- If `APTOS_SETTLEMENT_ENABLED=false`, Aptos settlement requests throw `SettlementDisabledError`
+- The `AptosChannelSDK` auto-refresh is started during connector startup and stopped during shutdown
+
+**Peer Configuration for Aptos Settlement:**
+
+Peers supporting Aptos settlement must include `aptosAddress` and `aptosPubkey` fields:
+
+```yaml
+peers:
+  - peerId: peer-alice
+    address: g.alice
+    settlementPreference: any # or 'aptos' for Aptos-only
+    settlementTokens: ['USDC', 'XRP', 'APT']
+    evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
+    xrpAddress: 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEEW'
+    aptosAddress: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+    aptosPubkey: 'abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab'
+```
+
+**Technical Notes:**
+
+- Aptos uses ed25519 private keys (not secp256k1 like Ethereum)
+- APT token uses 8 decimal places (1 APT = 100,000,000 octas)
+- Minimum production settle delay: 3600 seconds (1 hour)
+- Module address must match the deployed payment_channel Move module
+
+**Troubleshooting:**
+
+| Issue                            | Solution                                              |
+| -------------------------------- | ----------------------------------------------------- |
+| `APTOS_MODULE_ADDRESS not set`   | Deploy Move module and set the module address         |
+| `AptosChannelSDK not configured` | Ensure `APTOS_ENABLED=true` and all required vars set |
+| `Peer missing aptosAddress`      | Add `aptosAddress` to peer config for APT settlement  |
+| `Peer missing aptosPubkey`       | Add `aptosPubkey` (ed25519 public key) to peer config |
+| `SettlementDisabledError`        | Unset or set `APTOS_SETTLEMENT_ENABLED=true`          |
+| Connection timeout               | Verify `APTOS_NODE_URL` is reachable                  |
+| Insufficient balance             | Fund account at https://faucet.testnet.aptoslabs.com  |
 
 ### Production-Specific Variables
 

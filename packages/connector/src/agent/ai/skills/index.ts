@@ -26,6 +26,8 @@ export interface RegisterSkillsConfig {
   coordinatorPrivateKey?: string;
   /** Private key for voting (optional - needed for vote_coordination skill) */
   voterPrivateKey?: string;
+  /** ILP address for coordination skills (optional - needed for coordination skills) */
+  ilpAddress?: string;
   /** Logger instance (optional - needed for coordination skills) */
   logger?: Logger;
 }
@@ -45,12 +47,16 @@ export function registerBuiltInSkills(registry: SkillRegistry, config: RegisterS
   registry.register(createForwardPacketSkill(config.followGraphRouter));
   registry.register(createGetAgentInfoSkill(config.followGraphRouter, config.registeredKinds));
 
-  // Only register coordination skills if keys and logger are provided
-  if (config.coordinatorPrivateKey && config.logger) {
-    registry.register(createProposeCoordinationSkill(config.coordinatorPrivateKey, config.logger));
+  // Only register coordination skills if keys, ilpAddress and logger are provided
+  if (config.coordinatorPrivateKey && config.ilpAddress && config.logger) {
+    registry.register(
+      createProposeCoordinationSkill(config.coordinatorPrivateKey, config.ilpAddress, config.logger)
+    );
   }
-  if (config.voterPrivateKey && config.logger) {
-    registry.register(createVoteCoordinationSkill(config.voterPrivateKey, config.logger));
+  if (config.voterPrivateKey && config.ilpAddress && config.logger) {
+    registry.register(
+      createVoteCoordinationSkill(config.voterPrivateKey, config.ilpAddress, config.logger)
+    );
   }
 }
 

@@ -8,14 +8,14 @@ compiled_package_info:
     aptos_std: "0000000000000000000000000000000000000000000000000000000000000001"
     aptos_token: "0000000000000000000000000000000000000000000000000000000000000003"
     core_resources: 000000000000000000000000000000000000000000000000000000000a550c18
-    payment_channel: 000000000000000000000000000000000000000000000000000000000000cafe
+    payment_channel: b206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a
     std: "0000000000000000000000000000000000000000000000000000000000000001"
     vm: "0000000000000000000000000000000000000000000000000000000000000000"
     vm_reserved: "0000000000000000000000000000000000000000000000000000000000000000"
-  source_digest: FF25F59E4A7EAFFE05BB4CF65C14DA79FEAA7ACDFE4EC8CCC0A413613B4DCA25
+  source_digest: 7ED393E744D50BDFFBD6BBA5C7BA2EAE0CFACACADF3F6C1C4C559C9978E0553B
   build_flags:
-    dev_mode: true
-    test_mode: true
+    dev_mode: false
+    test_mode: false
     override_std: ~
     generate_docs: false
     generate_abis: false
@@ -23,7 +23,8 @@ compiled_package_info:
     full_model_generation: true
     install_dir: ~
     force_recompilation: false
-    additional_named_addresses: {}
+    additional_named_addresses:
+      payment_channel: b206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a
     fetch_deps_only: false
     skip_fetch_latest_git_deps: false
     compiler_config:

@@ -3,13 +3,14 @@
 /// Implements payment channel logic for off-chain balance updates between two parties.
 /// Uses Move's resource model for channel state management and ed25519 signature
 /// verification for claim authentication.
+///
+/// Supports any coin type (APT, custom tokens, etc.) via generics.
 module payment_channel::channel {
     use std::signer;
     use std::vector;
     use std::bcs;
     use aptos_std::ed25519;
     use aptos_framework::coin::{Self, Coin};
-    use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::timestamp;
 
     // ============================================
@@ -41,9 +42,10 @@ module payment_channel::channel {
 
     /// Payment channel state stored under owner's account.
     /// Coins are held in escrow within the channel itself.
-    struct Channel has key {
+    /// Generic over CoinType to support any token (APT, custom tokens, etc.)
+    struct Channel<phantom CoinType> has key {
         destination: address,
-        escrow: Coin<AptosCoin>,
+        escrow: Coin<CoinType>,
         claimed: u64,
         nonce: u64,
         settle_delay: u64,
@@ -56,11 +58,11 @@ module payment_channel::channel {
     // ============================================
 
     #[view]
-    /// Get channel state for a given owner.
+    /// Get channel state for a given owner and coin type.
     /// Returns (destination, deposited, claimed, nonce, settle_delay, close_requested_at)
-    public fun get_channel(owner: address): (address, u64, u64, u64, u64, u64) acquires Channel {
-        assert!(exists<Channel>(owner), E_CHANNEL_NOT_FOUND);
-        let channel = borrow_global<Channel>(owner);
+    public fun get_channel<CoinType>(owner: address): (address, u64, u64, u64, u64, u64) acquires Channel {
+        assert!(exists<Channel<CoinType>>(owner), E_CHANNEL_NOT_FOUND);
+        let channel = borrow_global<Channel<CoinType>>(owner);
         (
             channel.destination,
             coin::value(&channel.escrow),
@@ -72,16 +74,16 @@ module payment_channel::channel {
     }
 
     #[view]
-    /// Check if a channel exists for the given owner
-    public fun channel_exists(owner: address): bool {
-        exists<Channel>(owner)
+    /// Check if a channel exists for the given owner and coin type
+    public fun channel_exists<CoinType>(owner: address): bool {
+        exists<Channel<CoinType>>(owner)
     }
 
     #[view]
     /// Get the destination public key for a channel
-    public fun get_destination_pubkey(owner: address): vector<u8> acquires Channel {
-        assert!(exists<Channel>(owner), E_CHANNEL_NOT_FOUND);
-        let channel = borrow_global<Channel>(owner);
+    public fun get_destination_pubkey<CoinType>(owner: address): vector<u8> acquires Channel {
+        assert!(exists<Channel<CoinType>>(owner), E_CHANNEL_NOT_FOUND);
+        let channel = borrow_global<Channel<CoinType>>(owner);
         channel.destination_pubkey
     }
 
@@ -92,7 +94,8 @@ module payment_channel::channel {
     /// Open a new payment channel.
     /// Creates a new channel from owner to destination with initial deposit.
     /// The destination_pubkey is used to verify claim signatures.
-    public entry fun open_channel(
+    /// Generic over CoinType - can be APT, custom tokens, etc.
+    public entry fun open_channel<CoinType>(
         owner: &signer,
         destination: address,
         destination_pubkey: vector<u8>,
@@ -101,8 +104,8 @@ module payment_channel::channel {
     ) {
         let owner_addr = signer::address_of(owner);
 
-        // Verify channel doesn't already exist
-        assert!(!exists<Channel>(owner_addr), E_CHANNEL_EXISTS);
+        // Verify channel doesn't already exist for this coin type
+        assert!(!exists<Channel<CoinType>>(owner_addr), E_CHANNEL_EXISTS);
 
         // Verify amount is greater than zero
         assert!(amount > 0, E_ZERO_AMOUNT);
@@ -111,10 +114,10 @@ module payment_channel::channel {
         assert!(vector::length(&destination_pubkey) == 32, E_INVALID_SIGNATURE);
 
         // Withdraw coins from owner and store in escrow
-        let escrow = coin::withdraw<AptosCoin>(owner, amount);
+        let escrow = coin::withdraw<CoinType>(owner, amount);
 
         // Create and store Channel resource under owner's address
-        let channel = Channel {
+        let channel = Channel<CoinType> {
             destination,
             escrow,
             claimed: 0,
@@ -129,30 +132,30 @@ module payment_channel::channel {
 
     /// Add funds to an existing channel.
     /// Only the channel owner can deposit additional funds.
-    public entry fun deposit(
+    public entry fun deposit<CoinType>(
         owner: &signer,
         amount: u64,
     ) acquires Channel {
         let owner_addr = signer::address_of(owner);
 
-        // Verify channel exists
-        assert!(exists<Channel>(owner_addr), E_CHANNEL_NOT_FOUND);
+        // Verify channel exists for this coin type
+        assert!(exists<Channel<CoinType>>(owner_addr), E_CHANNEL_NOT_FOUND);
 
         // Verify amount is greater than zero
         assert!(amount > 0, E_ZERO_AMOUNT);
 
         // Withdraw additional coins from owner
-        let additional = coin::withdraw<AptosCoin>(owner, amount);
+        let additional = coin::withdraw<CoinType>(owner, amount);
 
         // Add to escrow
-        let channel = borrow_global_mut<Channel>(owner_addr);
+        let channel = borrow_global_mut<Channel<CoinType>>(owner_addr);
         coin::merge(&mut channel.escrow, additional);
     }
 
     /// Submit a claim with signed balance proof.
     /// Called by destination to redeem signed balance proofs from the owner.
     /// The signature must be over: "CLAIM_APTOS" || owner || amount || nonce
-    public entry fun claim(
+    public entry fun claim<CoinType>(
         destination: &signer,
         owner: address,
         amount: u64,
@@ -161,10 +164,10 @@ module payment_channel::channel {
     ) acquires Channel {
         let dest_addr = signer::address_of(destination);
 
-        // Verify channel exists
-        assert!(exists<Channel>(owner), E_CHANNEL_NOT_FOUND);
+        // Verify channel exists for this coin type
+        assert!(exists<Channel<CoinType>>(owner), E_CHANNEL_NOT_FOUND);
 
-        let channel = borrow_global_mut<Channel>(owner);
+        let channel = borrow_global_mut<Channel<CoinType>>(owner);
 
         // Verify caller is the channel destination
         assert!(dest_addr == channel.destination, E_UNAUTHORIZED);
@@ -201,16 +204,16 @@ module payment_channel::channel {
     /// Request channel closure - Phase 1 of two-phase close.
     /// Either owner or destination can initiate closure.
     /// Starts the settle_delay countdown.
-    public entry fun request_close(
+    public entry fun request_close<CoinType>(
         requester: &signer,
         channel_owner: address,
     ) acquires Channel {
         let requester_addr = signer::address_of(requester);
 
-        // Verify channel exists
-        assert!(exists<Channel>(channel_owner), E_CHANNEL_NOT_FOUND);
+        // Verify channel exists for this coin type
+        assert!(exists<Channel<CoinType>>(channel_owner), E_CHANNEL_NOT_FOUND);
 
-        let channel = borrow_global_mut<Channel>(channel_owner);
+        let channel = borrow_global_mut<Channel<CoinType>>(channel_owner);
 
         // Verify requester is owner or destination
         assert!(
@@ -225,18 +228,18 @@ module payment_channel::channel {
     /// Finalize channel closure - Phase 2 of two-phase close.
     /// Completes closure after settle_delay has elapsed.
     /// Returns remaining balance to owner and deletes the channel.
-    public entry fun finalize_close(
+    public entry fun finalize_close<CoinType>(
         _requester: &signer,
         channel_owner: address,
     ) acquires Channel {
         let requester_addr = signer::address_of(_requester);
 
-        // Verify channel exists
-        assert!(exists<Channel>(channel_owner), E_CHANNEL_NOT_FOUND);
+        // Verify channel exists for this coin type
+        assert!(exists<Channel<CoinType>>(channel_owner), E_CHANNEL_NOT_FOUND);
 
         // Get channel reference to check conditions
         {
-            let channel = borrow_global<Channel>(channel_owner);
+            let channel = borrow_global<Channel<CoinType>>(channel_owner);
 
             // Verify close was requested
             assert!(channel.close_requested_at > 0, E_CLOSE_NOT_REQUESTED);
@@ -262,7 +265,7 @@ module payment_channel::channel {
             settle_delay: _,
             close_requested_at: _,
             destination_pubkey: _,
-        } = move_from<Channel>(channel_owner);
+        } = move_from<Channel<CoinType>>(channel_owner);
 
         // Transfer remaining balance to owner
         if (coin::value(&escrow) > 0) {
@@ -313,9 +316,9 @@ module payment_channel::channel {
 
     #[test_only]
     /// Get the escrow balance directly (for testing)
-    public fun get_escrow_balance(owner: address): u64 acquires Channel {
-        assert!(exists<Channel>(owner), E_CHANNEL_NOT_FOUND);
-        let channel = borrow_global<Channel>(owner);
+    public fun get_escrow_balance<CoinType>(owner: address): u64 acquires Channel {
+        assert!(exists<Channel<CoinType>>(owner), E_CHANNEL_NOT_FOUND);
+        let channel = borrow_global<Channel<CoinType>>(owner);
         coin::value(&channel.escrow)
     }
 
@@ -335,19 +338,19 @@ module payment_channel::channel {
     /// Specification for open_channel
     spec open_channel {
         // Aborts if channel already exists
-        aborts_if exists<Channel>(signer::address_of(owner));
+        aborts_if exists<Channel<CoinType>>(signer::address_of(owner));
         // Aborts if amount is zero
         aborts_if amount == 0;
         // Aborts if public key is not 32 bytes
         aborts_if len(destination_pubkey) != 32;
         // Post-condition: channel is created
-        ensures exists<Channel>(signer::address_of(owner));
+        ensures exists<Channel<CoinType>>(signer::address_of(owner));
     }
 
     /// Specification for deposit
     spec deposit {
         // Aborts if channel doesn't exist
-        aborts_if !exists<Channel>(signer::address_of(owner));
+        aborts_if !exists<Channel<CoinType>>(signer::address_of(owner));
         // Aborts if amount is zero
         aborts_if amount == 0;
     }
@@ -355,26 +358,26 @@ module payment_channel::channel {
     /// Specification for claim
     spec claim {
         // Aborts if channel doesn't exist
-        aborts_if !exists<Channel>(owner);
+        aborts_if !exists<Channel<CoinType>>(owner);
         // Aborts if caller is not the destination
-        aborts_if signer::address_of(destination) != global<Channel>(owner).destination;
+        aborts_if signer::address_of(destination) != global<Channel<CoinType>>(owner).destination;
         // Aborts if nonce is not greater than current
-        aborts_if nonce <= global<Channel>(owner).nonce;
+        aborts_if nonce <= global<Channel<CoinType>>(owner).nonce;
     }
 
     /// Specification for request_close
     spec request_close {
         // Aborts if channel doesn't exist
-        aborts_if !exists<Channel>(channel_owner);
+        aborts_if !exists<Channel<CoinType>>(channel_owner);
     }
 
     /// Specification for finalize_close
     spec finalize_close {
         // Aborts if channel doesn't exist
-        aborts_if !exists<Channel>(channel_owner);
+        aborts_if !exists<Channel<CoinType>>(channel_owner);
         // Aborts if close was not requested
-        aborts_if global<Channel>(channel_owner).close_requested_at == 0;
+        aborts_if global<Channel<CoinType>>(channel_owner).close_requested_at == 0;
         // Post-condition: channel is deleted
-        ensures !exists<Channel>(channel_owner);
+        ensures !exists<Channel<CoinType>>(channel_owner);
     }
 }

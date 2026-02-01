@@ -17,6 +17,9 @@ import { HealthStatus, HealthStatusProvider } from '../http/types';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { PeerStatus } from '../telemetry/types';
 import { EventStore, ExplorerServer } from '../explorer';
+import { validateAptosEnvironment } from '../config/aptos-env-validator';
+import type { IAptosChannelSDK } from '../settlement/aptos-channel-sdk';
+import { createAptosChannelSDKFromEnv } from '../settlement/aptos-channel-sdk';
 // Import package.json for version information
 import packageJson from '../../package.json';
 
@@ -36,6 +39,7 @@ export class ConnectorNode implements HealthStatusProvider {
   private readonly _telemetryEmitter: TelemetryEmitter | null;
   private _eventStore: EventStore | null = null;
   private _explorerServer: ExplorerServer | null = null;
+  private _aptosChannelSDK: IAptosChannelSDK | null = null;
   private _healthStatus: 'healthy' | 'unhealthy' | 'starting' = 'starting';
   private readonly _startTime: Date = new Date();
   private _btpServerStarted: boolean = false;
@@ -165,6 +169,31 @@ export class ConnectorNode implements HealthStatusProvider {
     );
 
     try {
+      // Initialize Aptos Channel SDK if enabled
+      const aptosValidation = validateAptosEnvironment(this._logger);
+      if (aptosValidation.enabled && aptosValidation.valid) {
+        try {
+          this._aptosChannelSDK = createAptosChannelSDKFromEnv(this._logger);
+          this._aptosChannelSDK.startAutoRefresh();
+          this._logger.info(
+            { event: 'aptos_sdk_initialized' },
+            'AptosChannelSDK initialized with auto-refresh'
+          );
+        } catch (error) {
+          // Log error but continue without Aptos (graceful degradation)
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this._logger.error(
+            { event: 'aptos_sdk_init_failed', error: errorMessage },
+            'Failed to initialize AptosChannelSDK (connector continues without Aptos)'
+          );
+        }
+      } else if (aptosValidation.enabled && !aptosValidation.valid) {
+        this._logger.warn(
+          { event: 'aptos_disabled_missing_env', missing: aptosValidation.missing },
+          'Aptos settlement disabled due to missing environment variables'
+        );
+      }
+
       // Start BTP server to accept incoming connections
       await this._btpServer.start(this._config.btpServerPort);
       this._btpServerStarted = true;
@@ -376,6 +405,13 @@ export class ConnectorNode implements HealthStatusProvider {
     );
 
     try {
+      // Stop Aptos SDK auto-refresh if running
+      if (this._aptosChannelSDK) {
+        this._aptosChannelSDK.stopAutoRefresh();
+        this._logger.info({ event: 'aptos_sdk_stopped' }, 'AptosChannelSDK auto-refresh stopped');
+        this._aptosChannelSDK = null;
+      }
+
       // Stop explorer server if running (before health server)
       if (this._explorerServer) {
         await this._explorerServer.stop();
@@ -539,5 +575,13 @@ export class ConnectorNode implements HealthStatusProvider {
    */
   getRoutingTable(): RoutingTableEntry[] {
     return this._routingTable.getAllRoutes();
+  }
+
+  /**
+   * Get Aptos Channel SDK instance
+   * @returns IAptosChannelSDK if initialized, null otherwise
+   */
+  getAptosChannelSDK(): IAptosChannelSDK | null {
+    return this._aptosChannelSDK;
   }
 }

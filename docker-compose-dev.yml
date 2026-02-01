@@ -213,6 +213,107 @@ services:
     profiles:
       - auto-ledger  # Optional service - start with: docker-compose -f docker-compose-dev.yml --profile auto-ledger up -d
 
+  # Aptos Local Testnet - Local Aptos node for Move module development
+  #
+  # Aptos local testnet provides a self-contained Aptos blockchain for developing and
+  # testing Move smart contracts (payment channels) without testnet rate limits or
+  # network delays. This completes the tri-chain local development infrastructure
+  # alongside Anvil (EVM) and rippled (XRP).
+  #
+  # Configuration:
+  #   - Uses aptoslabs/tools image with aptos node run-local-testnet command
+  #   - Starts with --force-restart to ensure clean state on each startup
+  #   - Data persisted in Docker volume for container restarts
+  #   - Move contracts mounted read-only for deployment
+  #
+  # Network Access:
+  #   - Node REST API: http://localhost:8080 (from host), http://aptos-local:8080 (from containers)
+  #   - Faucet: http://localhost:8081 (from host), http://aptos-local:8081 (from containers)
+  #
+  # Health Check:
+  #   - Queries /v1 endpoint for node readiness
+  #   - Start period of 60s accounts for Aptos startup time (~45-60s)
+  #
+  # Development Notes:
+  #   - First startup may take 2-3 minutes due to Docker image download (~2GB)
+  #   - Subsequent startups take ~45-60 seconds
+  #   - Runs via Rosetta emulation on Apple Silicon (linux/amd64 image)
+  #   - Use APTOS_NODE_PORT/APTOS_FAUCET_PORT env vars if ports conflict with other services
+  aptos-local:
+    image: aptoslabs/tools:${APTOS_IMAGE_TAG:-nightly}
+    container_name: aptos-local
+    platform: linux/amd64  # Required for Apple Silicon compatibility via Rosetta
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # Required for --with-indexer-api
+      - aptos-testnet-data:/testnet  # Persistent testnet data
+      - ./packages/contracts-aptos:/contracts:ro  # Move contracts (read-only)
+    ports:
+      - "${APTOS_NODE_PORT:-8080}:8080"   # Node REST API (configurable for port conflicts)
+      - "${APTOS_FAUCET_PORT:-8081}:8081" # Faucet (configurable for port conflicts)
+    networks:
+      - m2m_dev_network
+    command: >
+      aptos node run-local-testnet
+      --test-dir /testnet
+      --force-restart
+      --assume-yes
+    healthcheck:
+      # Query Aptos node REST API readiness endpoint
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/v1"]
+      interval: 10s   # Check every 10 seconds
+      timeout: 5s     # Request should respond within 5 seconds
+      retries: 15     # More retries due to slower startup (~45-60s)
+      start_period: 60s  # Allow time for Aptos initialization before health checks start
+    restart: unless-stopped
+
+  # Aptos Local Testnet with Indexer API - Optional service for historical data queries
+  #
+  # This extended configuration includes the Indexer API for GraphQL queries against
+  # historical transaction data. Only use if you need indexer functionality, as it
+  # requires more resources (memory, CPU) and takes longer to start.
+  #
+  # Additional Ports:
+  #   - Indexer API GraphQL: http://localhost:8090 (from host)
+  #   - Transaction Stream gRPC: http://localhost:50051 (from host)
+  #
+  # Usage:
+  #   docker-compose -f docker-compose-dev.yml --profile aptos-indexed up -d
+  #
+  # Resource Requirements:
+  #   - Memory: ~4GB (vs ~2GB for basic mode)
+  #   - CPU: 2 cores (vs 1 core for basic mode)
+  #   - Startup time: ~90s (vs ~45-60s for basic mode)
+  aptos-local-indexed:
+    image: aptoslabs/tools:${APTOS_IMAGE_TAG:-nightly}
+    container_name: aptos-local-indexed
+    platform: linux/amd64
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # Required for Indexer API
+      - aptos-testnet-indexed-data:/testnet
+      - ./packages/contracts-aptos:/contracts:ro
+    ports:
+      - "${APTOS_NODE_PORT:-8080}:8080"   # Node REST API
+      - "${APTOS_FAUCET_PORT:-8081}:8081" # Faucet
+      - "8090:8090"   # Indexer API GraphQL
+      - "50051:50051" # Transaction Stream gRPC
+    networks:
+      - m2m_dev_network
+    command: >
+      aptos node run-local-testnet
+      --test-dir /testnet
+      --force-restart
+      --assume-yes
+      --with-indexer-api
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/v1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20      # More retries for Indexer API startup
+      start_period: 90s  # Longer start period for Indexer initialization
+    restart: unless-stopped
+    profiles:
+      - aptos-indexed  # Only starts with: docker-compose --profile aptos-indexed up
+
   # ===== Settlement Infrastructure =====
 
   # TigerBeetle - Distributed accounting database for settlement layer
@@ -317,6 +418,8 @@ services:
       # Blockchain RPC URLs (use Docker service names)
       BASE_RPC_URL: http://anvil:8545
       XRPL_RPC_URL: http://rippled:5005
+      APTOS_NODE_URL: http://aptos-local:8080/v1
+      APTOS_FAUCET_URL: http://aptos-local:8081
 
       # Settlement configuration
       TIGERBEETLE_URL: tigerbeetle:3000
@@ -369,6 +472,8 @@ services:
       # Blockchain RPC URLs (use Docker service names)
       BASE_RPC_URL: http://anvil:8545
       XRPL_RPC_URL: http://rippled:5005
+      APTOS_NODE_URL: http://aptos-local:8080/v1
+      APTOS_FAUCET_URL: http://aptos-local:8081
 
       # Settlement configuration
       TIGERBEETLE_URL: tigerbeetle:3000
@@ -426,4 +531,14 @@ volumes:
   # Persists ledger data across container restarts
   # Reset with: ./scripts/rippled-reset.sh
   rippled_data:
+    driver: local
+
+  # Aptos testnet data volume for local testnet state
+  # Persists testnet data across container restarts
+  aptos-testnet-data:
+    driver: local
+
+  # Aptos testnet indexed data volume (for Indexer API variant)
+  # Persists testnet data including indexer state
+  aptos-testnet-indexed-data:
     driver: local

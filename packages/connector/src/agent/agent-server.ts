@@ -32,6 +32,10 @@ import {
 } from 'xrpl';
 import { AgentNode, AgentNodeConfig } from './agent-node';
 import { getDomainSeparator, getBalanceProofTypes } from '../settlement/eip712-helper';
+import { AptosChannelSDK, IAptosChannelSDK } from '../settlement/aptos-channel-sdk';
+import { IAptosClient, AptosClient, AptosClientConfig } from '../settlement/aptos-client';
+import { AptosClaimSigner } from '../settlement/aptos-claim-signer';
+import { Ed25519PrivateKey, Account } from '@aptos-labs/ts-sdk';
 import { ToonCodec, NostrEvent } from './toon-codec';
 import { PacketType, ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared';
 import { EventStore } from '../explorer/event-store';
@@ -64,6 +68,15 @@ interface AgentServerConfig {
   xrpNetwork: string;
   xrpAccountSecret: string | null;
   xrpAccountAddress: string | null;
+  // Aptos Payment Channel Configuration
+  aptosEnabled: boolean;
+  aptosNodeUrl: string | null;
+  aptosPrivateKey: string | null;
+  aptosModuleAddress: string | null;
+  aptosAccountAddress: string | null;
+  aptosCoinType: string | null; // Coin type for payment channels (default: AptosCoin)
+  // Settlement Threshold Configuration
+  settlementThreshold: bigint | null; // Auto-settle when owed balance exceeds this (in base units)
 }
 
 // EVM Payment channel state tracking
@@ -87,12 +100,25 @@ interface XRPPaymentChannel {
   publicKey: string;
 }
 
+// Aptos Payment channel state tracking
+interface AptosPaymentChannel {
+  channelOwner: string; // Channel identifier (owner address)
+  destination: string; // Destination Aptos address
+  destinationPubkey: string; // ed25519 public key for claim verification
+  deposited: string; // Octas deposited (string for bigint serialization)
+  claimed: string; // Octas claimed (string for bigint serialization)
+  status: 'open' | 'closing' | 'closed';
+  settleDelay: number; // Settlement delay in seconds
+  nonce: number; // Highest nonce of submitted claims
+}
+
 interface PeerConnection {
   peerId: string;
   ilpAddress: string;
   btpUrl: string;
   evmAddress?: string; // For EVM payment channel lookup
   xrpAddress?: string; // For XRP payment channel lookup
+  aptosAddress?: string; // For Aptos payment channel lookup
   ws?: WebSocket;
 }
 
@@ -107,6 +133,7 @@ interface AddFollowRequest {
   pubkey: string;
   evmAddress?: string;
   xrpAddress?: string;
+  aptosAddress?: string;
   ilpAddress: string;
   petname?: string;
   btpUrl?: string;
@@ -145,6 +172,10 @@ export class AgentServer {
   private xrplClient: XrplClient | null = null;
   private xrplWallet: XrplWallet | null = null;
   private xrpChannels: Map<string, XRPPaymentChannel> = new Map(); // channelId -> XRPPaymentChannel
+  // Aptos Payment Channel state
+  private aptosClient: IAptosClient | null = null;
+  private aptosChannelSDK: IAptosChannelSDK | null = null;
+  private aptosChannels: Map<string, AptosPaymentChannel> = new Map(); // channelOwner -> AptosPaymentChannel
 
   constructor(config: Partial<AgentServerConfig> = {}) {
     // Generate keypair if not provided
@@ -190,6 +221,17 @@ export class AgentServer {
       xrpNetwork: config.xrpNetwork || process.env.XRPL_NETWORK || 'standalone',
       xrpAccountSecret: config.xrpAccountSecret || process.env.XRPL_ACCOUNT_SECRET || null,
       xrpAccountAddress: config.xrpAccountAddress || process.env.XRPL_ACCOUNT_ADDRESS || null,
+      // Aptos configuration
+      aptosEnabled: config.aptosEnabled ?? process.env.APTOS_ENABLED === 'true',
+      aptosNodeUrl: config.aptosNodeUrl || process.env.APTOS_NODE_URL || null,
+      aptosPrivateKey: config.aptosPrivateKey || process.env.APTOS_PRIVATE_KEY || null,
+      aptosModuleAddress: config.aptosModuleAddress || process.env.APTOS_MODULE_ADDRESS || null,
+      aptosAccountAddress: config.aptosAccountAddress || null,
+      aptosCoinType: config.aptosCoinType || process.env.APTOS_COIN_TYPE || null,
+      // Settlement threshold configuration
+      settlementThreshold:
+        config.settlementThreshold ??
+        (process.env.SETTLEMENT_THRESHOLD ? BigInt(process.env.SETTLEMENT_THRESHOLD) : null),
     };
 
     this.logger = pino({
@@ -260,6 +302,9 @@ export class AgentServer {
     // Initialize XRP client if configured
     await this.initializeXRP();
 
+    // Initialize Aptos client if configured
+    await this.initializeAptos();
+
     // Start HTTP server
     await this.startHttpServer();
 
@@ -278,6 +323,7 @@ export class AgentServer {
         ilpAddress: this.config.ilpAddress,
         pubkey: this.config.nostrPubkey,
         evmAddress: this.config.evmAddress,
+        settlementThreshold: this.config.settlementThreshold?.toString() || 'disabled',
       },
       'Agent server started'
     );
@@ -387,6 +433,97 @@ export class AgentServer {
     }
   }
 
+  private async initializeAptos(): Promise<void> {
+    if (!this.config.aptosEnabled || !this.config.aptosNodeUrl) {
+      this.logger.debug(
+        'Aptos not enabled or no node URL configured, skipping Aptos initialization'
+      );
+      return;
+    }
+
+    if (!this.config.aptosPrivateKey || !this.config.aptosModuleAddress) {
+      this.logger.debug(
+        'No Aptos private key or module address configured, Aptos will be configured at runtime'
+      );
+      return;
+    }
+
+    try {
+      // Derive account address from private key (AptosClient constructor validates this)
+      const privateKey = new Ed25519PrivateKey(this.config.aptosPrivateKey);
+      const account = Account.fromPrivateKey({ privateKey });
+      const derivedAddress = account.accountAddress.toString();
+
+      // Create Aptos client config from this.config values (not process.env)
+      const aptosClientConfig: AptosClientConfig = {
+        nodeUrl: this.config.aptosNodeUrl,
+        privateKey: this.config.aptosPrivateKey,
+        accountAddress: derivedAddress,
+      };
+
+      // Create Aptos client directly with config values
+      const aptosClient = new AptosClient(aptosClientConfig, this.logger);
+
+      // Create claim signer with the same private key
+      const claimSigner = new AptosClaimSigner(
+        { privateKey: this.config.aptosPrivateKey },
+        this.logger
+      );
+
+      // Store client reference for balance queries
+      this.aptosClient = aptosClient;
+
+      // Connect to validate account exists and check balance
+      try {
+        await aptosClient.connect();
+      } catch (error) {
+        this.logger.warn(
+          { err: error, address: derivedAddress },
+          'Aptos account validation failed (account may not exist yet)'
+        );
+      }
+
+      // Create AptosChannelSDK with optional coin type
+      this.aptosChannelSDK = new AptosChannelSDK(
+        aptosClient,
+        claimSigner,
+        {
+          moduleAddress: this.config.aptosModuleAddress,
+          coinType: this.config.aptosCoinType || undefined, // Uses AptosCoin if not specified
+        },
+        this.logger
+      );
+
+      // Update config with derived account address
+      this.config.aptosAccountAddress = aptosClient.getAddress();
+
+      // Log balance for debugging
+      try {
+        const balance = await aptosClient.getBalance(derivedAddress);
+        this.logger.info(
+          {
+            aptosAddress: this.config.aptosAccountAddress,
+            aptosModuleAddress: this.config.aptosModuleAddress,
+            balanceOctas: balance.toString(),
+            balanceAPT: (Number(balance) / 100_000_000).toFixed(4),
+          },
+          'Aptos initialized'
+        );
+      } catch (balanceError) {
+        this.logger.info(
+          {
+            aptosAddress: this.config.aptosAccountAddress,
+            aptosModuleAddress: this.config.aptosModuleAddress,
+          },
+          'Aptos initialized (balance check failed)'
+        );
+      }
+    } catch (error) {
+      this.logger.error({ err: error }, 'Failed to initialize Aptos');
+      // Don't throw - Aptos is optional and can be configured at runtime
+    }
+  }
+
   async shutdown(): Promise<void> {
     if (this.isShutdown) return;
     this.isShutdown = true;
@@ -423,6 +560,14 @@ export class AgentServer {
     if (this.xrplClient?.isConnected()) {
       await this.xrplClient.disconnect();
     }
+
+    // Cleanup Aptos resources
+    this.aptosChannels.clear();
+    this.aptosChannelSDK = null;
+    if (this.aptosClient?.isConnected()) {
+      await this.aptosClient.disconnect();
+    }
+    this.aptosClient = null;
 
     // Shutdown AgentNode
     await this.agentNode.shutdown();
@@ -482,6 +627,8 @@ export class AgentServer {
             evmAddress: this.config.evmAddress,
             xrpAddress: this.config.xrpAccountAddress,
             xrpEnabled: this.config.xrpEnabled,
+            aptosAddress: this.config.aptosAccountAddress,
+            aptosEnabled: this.config.aptosEnabled,
             initialized: this.agentNode.isInitialized,
             followCount: this.agentNode.followGraphRouter.getFollowCount(),
             peerCount: this.peers.size,
@@ -490,6 +637,7 @@ export class AgentServer {
             eventsReceived: this.eventsReceived,
             channelCount: this.paymentChannels.size,
             xrpChannelCount: this.xrpChannels.size,
+            aptosChannelCount: this.aptosChannels.size,
             ai: this.agentNode.aiDispatcher
               ? {
                   enabled: this.agentNode.aiDispatcher.isEnabled,
@@ -501,7 +649,7 @@ export class AgentServer {
         return;
       }
 
-      // Balances endpoint - returns EVM token + ETH + XRP balances
+      // Balances endpoint - returns EVM token + ETH + XRP + Aptos balances
       if (req.method === 'GET' && url.pathname === '/balances') {
         const balances = await this.getBalances();
         res.writeHead(200);
@@ -528,6 +676,7 @@ export class AgentServer {
             btpUrl: data.btpUrl,
             evmAddress: data.evmAddress,
             xrpAddress: data.xrpAddress,
+            aptosAddress: data.aptosAddress,
           });
         }
 
@@ -666,6 +815,209 @@ export class AgentServer {
             xrpAddress: this.config.xrpAccountAddress,
           })
         );
+        return;
+      }
+
+      // Configure Aptos (called by test runner)
+      if (req.method === 'POST' && url.pathname === '/configure-aptos') {
+        const body = await this.readRequestBody(req);
+        const data = JSON.parse(body) as {
+          aptosNodeUrl: string;
+          aptosPrivateKey: string;
+          aptosModuleAddress: string;
+          aptosCoinType?: string; // Optional coin type for channels (default: AptosCoin)
+        };
+
+        // Update config
+        this.config.aptosEnabled = true;
+        this.config.aptosNodeUrl = data.aptosNodeUrl;
+        this.config.aptosPrivateKey = data.aptosPrivateKey;
+        this.config.aptosModuleAddress = data.aptosModuleAddress;
+        if (data.aptosCoinType) {
+          this.config.aptosCoinType = data.aptosCoinType;
+        }
+
+        // Re-initialize Aptos with error handling
+        try {
+          await this.initializeAptos();
+
+          // Check if initialization actually succeeded
+          if (!this.aptosClient || !this.aptosChannelSDK) {
+            res.writeHead(500);
+            res.end(
+              JSON.stringify({
+                success: false,
+                error: 'Aptos initialization failed - client or SDK not created',
+              })
+            );
+            return;
+          }
+
+          res.writeHead(200);
+          res.end(
+            JSON.stringify({
+              success: true,
+              aptosAddress: this.config.aptosAccountAddress,
+            })
+          );
+        } catch (error) {
+          this.logger.error({ err: error }, 'Failed to configure Aptos');
+          res.writeHead(500);
+          res.end(
+            JSON.stringify({
+              success: false,
+              error: (error as Error).message,
+            })
+          );
+        }
+        return;
+      }
+
+      // Configure settlement threshold (event-driven - checked on each balance update)
+      if (req.method === 'POST' && url.pathname === '/configure-settlement') {
+        const body = await this.readRequestBody(req);
+        const data = JSON.parse(body) as {
+          threshold: string | null; // Base units (octas, drops, wei) or null to disable
+        };
+
+        const threshold = data.threshold ? BigInt(data.threshold) : null;
+        this.setSettlementThreshold(threshold);
+
+        res.writeHead(200);
+        res.end(
+          JSON.stringify({
+            success: true,
+            threshold: threshold?.toString() || null,
+          })
+        );
+        return;
+      }
+
+      // Get settlement status
+      if (req.method === 'GET' && url.pathname === '/settlement-status') {
+        res.writeHead(200);
+        res.end(
+          JSON.stringify({
+            threshold: this.config.settlementThreshold?.toString() || null,
+            enabled: this.config.settlementThreshold !== null, // Event-driven, enabled if threshold is set
+          })
+        );
+        return;
+      }
+
+      // Get Aptos payment channels
+      if (req.method === 'GET' && url.pathname === '/aptos-channels') {
+        const channels = Array.from(this.aptosChannels.values()).map((ch) => ({
+          channelOwner: ch.channelOwner,
+          destination: ch.destination,
+          deposited: ch.deposited,
+          claimed: ch.claimed,
+          status: ch.status,
+          settleDelay: ch.settleDelay,
+          nonce: ch.nonce,
+        }));
+        res.writeHead(200);
+        res.end(JSON.stringify({ channels }));
+        return;
+      }
+
+      // Open Aptos payment channel
+      if (req.method === 'POST' && url.pathname === '/aptos-channels/open') {
+        const body = await this.readRequestBody(req);
+        const data = JSON.parse(body) as {
+          destination: string;
+          destinationPubkey: string;
+          amount: string;
+          settleDelay?: number;
+          coinType?: string; // Optional: coin type for channel (default: AptosCoin)
+        };
+        const result = await this.openAptosPaymentChannel(
+          data.destination,
+          data.destinationPubkey,
+          data.amount,
+          data.settleDelay || 86400 // Default 24 hours
+          // Note: coinType is configured at SDK initialization, not per-channel
+        );
+        res.writeHead(result.success ? 200 : 400);
+        res.end(JSON.stringify(result));
+        return;
+      }
+
+      // Get Aptos channel by ID
+      if (
+        req.method === 'GET' &&
+        url.pathname.startsWith('/aptos-channels/') &&
+        !url.pathname.includes('/claim') &&
+        !url.pathname.includes('/close')
+      ) {
+        const channelOwner = url.pathname.split('/aptos-channels/')[1];
+
+        if (!channelOwner) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'Channel owner address required' }));
+          return;
+        }
+
+        if (!this.aptosChannelSDK) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'Aptos not initialized' }));
+          return;
+        }
+
+        // Check local cache first
+        let channel = this.aptosChannels.get(channelOwner);
+
+        // If not in cache, try to fetch from chain
+        if (!channel) {
+          const state = await this.aptosChannelSDK.getChannelState(channelOwner);
+          if (state) {
+            channel = {
+              channelOwner: state.channelOwner,
+              destination: state.destination,
+              destinationPubkey: state.destinationPubkey,
+              deposited: state.deposited.toString(),
+              claimed: state.claimed.toString(),
+              status: state.status,
+              settleDelay: state.settleDelay,
+              nonce: state.nonce,
+            };
+            this.aptosChannels.set(channelOwner, channel);
+          }
+        }
+
+        if (!channel) {
+          res.writeHead(404);
+          res.end(JSON.stringify({ error: 'Channel not found' }));
+          return;
+        }
+
+        res.writeHead(200);
+        res.end(JSON.stringify({ channel }));
+        return;
+      }
+
+      // Aptos channel claim
+      if (req.method === 'POST' && url.pathname === '/aptos-channels/claim') {
+        const body = await this.readRequestBody(req);
+        const data = JSON.parse(body) as {
+          channelOwner: string;
+          amount: string;
+          nonce: number;
+          signature: string;
+        };
+        const result = await this.claimAptosChannel(data);
+        res.writeHead(result.success ? 200 : 400);
+        res.end(JSON.stringify(result));
+        return;
+      }
+
+      // Aptos channel close
+      if (req.method === 'POST' && url.pathname === '/aptos-channels/close') {
+        const body = await this.readRequestBody(req);
+        const data = JSON.parse(body) as { channelOwner: string };
+        const result = await this.closeAptosChannel(data.channelOwner);
+        res.writeHead(result.success ? 200 : 400);
+        res.end(JSON.stringify(result));
         return;
       }
 
@@ -1111,14 +1463,14 @@ export class AgentServer {
 
   /**
    * Find and update the payment channel balance for a peer
-   * Prefers EVM channels, falls back to XRP channels
+   * Prefers EVM channels, falls back to XRP channels, then Aptos channels
    */
   private updateChannelBalanceForPeer(
-    peer: { evmAddress?: string; xrpAddress?: string },
+    peer: { evmAddress?: string; xrpAddress?: string; aptosAddress?: string },
     amount: bigint
   ): {
     channelId: string | null;
-    channelType: 'evm' | 'xrp' | 'none';
+    channelType: 'evm' | 'xrp' | 'aptos' | 'none';
     balance: string;
     previousBalance: string;
     deposit: string;
@@ -1130,6 +1482,16 @@ export class AgentServer {
           const previousBalance = channel.transferredAmount.toString();
           channel.transferredAmount += amount;
           channel.nonce++;
+
+          // Check settlement threshold
+          this.checkChannelSettlementThreshold(
+            'evm',
+            channelId,
+            channel.peerAddress,
+            channel.transferredAmount,
+            channel.deposit
+          );
+
           return {
             channelId,
             channelType: 'evm',
@@ -1148,12 +1510,51 @@ export class AgentServer {
           const previousBalance = channel.balance;
           const newBalance = (BigInt(channel.balance) + amount).toString();
           channel.balance = newBalance;
+
+          // Check settlement threshold
+          this.checkChannelSettlementThreshold(
+            'xrp',
+            channelId,
+            channel.destination,
+            BigInt(newBalance),
+            BigInt(channel.amount)
+          );
+
           return {
             channelId,
             channelType: 'xrp',
             balance: newBalance,
             previousBalance,
             deposit: channel.amount,
+          };
+        }
+      }
+    }
+
+    // Try Aptos channel
+    if (peer.aptosAddress) {
+      for (const [channelOwner, channel] of this.aptosChannels) {
+        if (channel.destination === peer.aptosAddress && channel.status === 'open') {
+          const previousClaimed = channel.claimed;
+          const newClaimed = (BigInt(channel.claimed) + amount).toString();
+          channel.claimed = newClaimed;
+          channel.nonce++;
+
+          // Check settlement threshold
+          this.checkChannelSettlementThreshold(
+            'aptos',
+            channelOwner,
+            channel.destination,
+            BigInt(newClaimed),
+            BigInt(channel.deposited)
+          );
+
+          return {
+            channelId: channelOwner,
+            channelType: 'aptos',
+            balance: newClaimed,
+            previousBalance: previousClaimed,
+            deposit: channel.deposited,
           };
         }
       }
@@ -1166,6 +1567,143 @@ export class AgentServer {
       previousBalance: '0',
       deposit: '0',
     };
+  }
+
+  /**
+   * Check if channel balance exceeds settlement threshold and trigger settlement
+   */
+  private checkChannelSettlementThreshold(
+    chain: 'evm' | 'xrp' | 'aptos',
+    channelId: string,
+    peerId: string,
+    currentBalance: bigint,
+    _deposit: bigint
+  ): void {
+    if (!this.config.settlementThreshold) return;
+
+    const threshold = this.config.settlementThreshold;
+
+    if (currentBalance >= threshold) {
+      const exceedsBy = currentBalance - threshold;
+
+      this.logger.info(
+        {
+          chain,
+          channelId,
+          peerId,
+          currentBalance: currentBalance.toString(),
+          threshold: threshold.toString(),
+          exceedsBy: exceedsBy.toString(),
+        },
+        'Settlement threshold exceeded - triggering settlement'
+      );
+
+      this.telemetryEmitter.emit({
+        type: 'SETTLEMENT_TRIGGERED',
+        nodeId: this.config.agentId,
+        peerId,
+        tokenId: chain,
+        currentBalance: currentBalance.toString(),
+        threshold: threshold.toString(),
+        exceedsBy: exceedsBy.toString(),
+        triggerReason: 'THRESHOLD_EXCEEDED',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Trigger actual settlement asynchronously
+      this.performSettlement(chain, channelId, peerId, currentBalance).catch((err) => {
+        this.logger.error({ err, chain, channelId, peerId }, 'Settlement failed');
+      });
+    }
+  }
+
+  /**
+   * Perform on-chain settlement for a payment channel
+   * Note: This requires signed balance proofs from the counterparty.
+   * Currently, balance proofs are not exchanged via BTP, so settlement
+   * may require manual intervention or cooperative signing.
+   */
+  private async performSettlement(
+    chain: 'evm' | 'xrp' | 'aptos',
+    channelId: string,
+    peerId: string,
+    amount: bigint
+  ): Promise<void> {
+    this.logger.info(
+      { chain, channelId, peerId, amount: amount.toString() },
+      'Attempting settlement'
+    );
+
+    try {
+      switch (chain) {
+        case 'evm': {
+          // EVM requires cooperative settlement with both parties' signatures
+          // or unilateral close with dispute period
+          const channel = this.paymentChannels.get(channelId);
+          if (!channel) {
+            this.logger.warn({ channelId }, 'EVM channel not found for settlement');
+            return;
+          }
+          // TODO: Implement EVM cooperative settlement
+          // This requires exchanging balance proofs with the peer
+          this.logger.info(
+            { channelId, balance: amount.toString() },
+            'EVM settlement requires cooperative signing - balance proof exchange not yet implemented in BTP'
+          );
+          break;
+        }
+
+        case 'xrp': {
+          // XRP PayChan can be claimed with a signed claim from the channel owner
+          const xrpChannel = this.xrpChannels.get(channelId);
+          if (!xrpChannel) {
+            this.logger.warn({ channelId }, 'XRP channel not found for settlement');
+            return;
+          }
+          // TODO: Implement XRP payment channel claim
+          // This requires the channel owner's signature for the claim amount
+          this.logger.info(
+            { channelId, balance: xrpChannel.balance },
+            'XRP settlement requires owner signature - balance proof exchange not yet implemented in BTP'
+          );
+          break;
+        }
+
+        case 'aptos': {
+          // Aptos channel claim requires a signature from the channel owner
+          const aptosChannel = this.aptosChannels.get(channelId);
+          if (!aptosChannel) {
+            this.logger.warn({ channelId }, 'Aptos channel not found for settlement');
+            return;
+          }
+          // TODO: Implement Aptos claim submission
+          // This requires the channel owner's signature for the claim
+          this.logger.info(
+            { channelOwner: channelId, claimed: aptosChannel.claimed },
+            'Aptos settlement requires owner signature - balance proof exchange not yet implemented in BTP'
+          );
+          break;
+        }
+      }
+
+      this.telemetryEmitter.emit({
+        type: 'SETTLEMENT_TRIGGERED',
+        nodeId: this.config.agentId,
+        peerId,
+        tokenId: chain,
+        currentBalance: amount.toString(),
+        threshold: this.config.settlementThreshold?.toString() || '0',
+        exceedsBy: '0',
+        triggerReason: 'SETTLEMENT_ATTEMPTED',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      this.logger.error(
+        { err: error, chain, channelId, peerId },
+        'Error during settlement attempt'
+      );
+      throw error;
+    }
   }
 
   private async broadcastToFollows(
@@ -1461,14 +1999,26 @@ export class AgentServer {
       // The channel ID is derived from the transaction
       // For PaymentChannelCreate, the channel ID is in the meta.AffectedNodes
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const meta = (result as any).result.meta as {
+      const resultObj = result as any;
+
+      // Handle different response formats from xrpl.js
+      // - submitAndWait returns { result: { meta: ... } }
+      // - tx command returns { result: { meta: ... } }
+      const txResult = resultObj.result || resultObj;
+      const meta = txResult.meta as {
         AffectedNodes?: Array<{
           CreatedNode?: {
             LedgerEntryType: string;
             LedgerIndex: string;
           };
         }>;
+        TransactionResult?: string;
       };
+
+      // Check if transaction was successful
+      if (meta?.TransactionResult && meta.TransactionResult !== 'tesSUCCESS') {
+        return { success: false, error: `Transaction failed: ${meta.TransactionResult}` };
+      }
 
       let channelId: string | undefined;
       if (meta?.AffectedNodes) {
@@ -1481,6 +2031,16 @@ export class AgentServer {
       }
 
       if (!channelId) {
+        // Log the result for debugging
+        this.logger.warn(
+          {
+            hasResult: !!txResult,
+            hasMeta: !!meta,
+            affectedNodesCount: meta?.AffectedNodes?.length || 0,
+            transactionResult: meta?.TransactionResult,
+          },
+          'Channel ID not found in transaction result'
+        );
         return { success: false, error: 'Channel ID not found in transaction result' };
       }
 
@@ -1513,6 +2073,199 @@ export class AgentServer {
     } catch (error) {
       this.logger.error({ err: error, destination }, 'Failed to open XRP payment channel');
       return { success: false, error: (error as Error).message };
+    }
+  }
+
+  // ============================================
+  // Aptos Payment Channels
+  // ============================================
+
+  private async openAptosPaymentChannel(
+    destination: string,
+    destinationPubkey: string,
+    amount: string,
+    settleDelay: number
+    // Note: coinType is configured at SDK initialization via configure-aptos endpoint
+  ): Promise<{ success: boolean; channelOwner?: string; error?: string }> {
+    if (!this.aptosChannelSDK) {
+      return { success: false, error: 'Aptos not initialized' };
+    }
+
+    try {
+      this.logger.info(
+        {
+          destination,
+          amount,
+          settleDelay,
+        },
+        'Opening Aptos payment channel'
+      );
+
+      // Open channel via SDK (uses coin type from SDK config)
+      // Note: coinType is configured when SDK is initialized, not per-channel
+      const channelOwner = await this.aptosChannelSDK.openChannel(
+        destination,
+        destinationPubkey,
+        BigInt(amount),
+        settleDelay
+      );
+
+      // Fetch channel state and track locally
+      const channelState = await this.aptosChannelSDK.getChannelState(channelOwner);
+      if (channelState) {
+        this.aptosChannels.set(channelOwner, {
+          channelOwner: channelState.channelOwner,
+          destination: channelState.destination,
+          destinationPubkey: channelState.destinationPubkey,
+          deposited: channelState.deposited.toString(),
+          claimed: channelState.claimed.toString(),
+          status: channelState.status,
+          settleDelay: channelState.settleDelay,
+          nonce: channelState.nonce,
+        });
+      }
+
+      this.logger.info({ channelOwner, destination }, 'Aptos payment channel opened');
+
+      // Emit telemetry
+      this.telemetryEmitter.emit({
+        type: 'AGENT_CHANNEL_OPENED',
+        timestamp: Date.now(),
+        nodeId: this.config.agentId,
+        agentId: this.config.agentId,
+        channelId: channelOwner,
+        chain: 'aptos',
+        peerId: destination,
+        amount,
+      });
+
+      return { success: true, channelOwner };
+    } catch (error) {
+      // Get more detailed error message including original error
+      let errorMessage = (error as Error).message;
+      if (error && typeof error === 'object' && 'originalError' in error) {
+        const originalError = (error as { originalError: unknown }).originalError;
+        if (originalError instanceof Error) {
+          errorMessage = `${errorMessage}: ${originalError.message}`;
+        }
+      }
+      this.logger.error(
+        { err: error, destination, errorMessage },
+        'Failed to open Aptos payment channel'
+      );
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  private async claimAptosChannel(claim: {
+    channelOwner: string;
+    amount: string;
+    nonce: number;
+    signature: string;
+  }): Promise<{
+    success: boolean;
+    channelOwner: string;
+    claimedAmount?: string;
+    error?: string;
+  }> {
+    if (!this.aptosChannelSDK) {
+      return { success: false, channelOwner: claim.channelOwner, error: 'Aptos not initialized' };
+    }
+
+    try {
+      this.logger.info(
+        {
+          channelOwner: claim.channelOwner,
+          amount: claim.amount,
+          nonce: claim.nonce,
+        },
+        'Submitting Aptos channel claim'
+      );
+
+      // Fetch channel state to get destination public key for claim verification
+      const channelState = this.aptosChannels.get(claim.channelOwner);
+      if (!channelState) {
+        return {
+          success: false,
+          channelOwner: claim.channelOwner,
+          error: 'Channel not found in local state',
+        };
+      }
+
+      // Submit claim to chain with public key from channel state
+      await this.aptosChannelSDK.submitClaim({
+        channelOwner: claim.channelOwner,
+        amount: BigInt(claim.amount),
+        nonce: claim.nonce,
+        signature: claim.signature,
+        publicKey: channelState.destinationPubkey,
+        createdAt: Date.now(),
+      });
+
+      // Refresh channel state
+      const state = await this.aptosChannelSDK.getChannelState(claim.channelOwner);
+      if (state) {
+        this.aptosChannels.set(claim.channelOwner, {
+          channelOwner: state.channelOwner,
+          destination: state.destination,
+          destinationPubkey: state.destinationPubkey,
+          deposited: state.deposited.toString(),
+          claimed: state.claimed.toString(),
+          status: state.status,
+          settleDelay: state.settleDelay,
+          nonce: state.nonce,
+        });
+      }
+
+      this.logger.info(
+        {
+          channelOwner: claim.channelOwner,
+          claimedAmount: claim.amount,
+        },
+        'Aptos channel claim submitted'
+      );
+
+      return {
+        success: true,
+        channelOwner: claim.channelOwner,
+        claimedAmount: claim.amount,
+      };
+    } catch (error) {
+      this.logger.error(
+        { err: error, channelOwner: claim.channelOwner },
+        'Aptos channel claim failed'
+      );
+      return { success: false, channelOwner: claim.channelOwner, error: (error as Error).message };
+    }
+  }
+
+  private async closeAptosChannel(channelOwner: string): Promise<{
+    success: boolean;
+    channelOwner: string;
+    error?: string;
+  }> {
+    if (!this.aptosChannelSDK) {
+      return { success: false, channelOwner, error: 'Aptos not initialized' };
+    }
+
+    try {
+      this.logger.info({ channelOwner }, 'Requesting Aptos channel close');
+
+      // Request channel close (starts settle delay)
+      await this.aptosChannelSDK.requestClose(channelOwner);
+
+      // Update local state to 'closing'
+      const channel = this.aptosChannels.get(channelOwner);
+      if (channel) {
+        channel.status = 'closing';
+      }
+
+      this.logger.info({ channelOwner }, 'Aptos channel close requested');
+
+      return { success: true, channelOwner };
+    } catch (error) {
+      this.logger.error({ err: error, channelOwner }, 'Aptos channel close failed');
+      return { success: false, channelOwner, error: (error as Error).message };
     }
   }
 
@@ -1729,9 +2482,11 @@ export class AgentServer {
     agentId: string;
     evmAddress: string;
     xrpAddress: string | null;
+    aptosAddress: string | null;
     ethBalance: string | null;
     agentTokenBalance: string | null;
     xrpBalance: string | null;
+    aptosBalance: string | null;
     evmChannels: Array<{
       channelId: string;
       peerAddress: string;
@@ -1746,10 +2501,18 @@ export class AgentServer {
       balance: string;
       status: string;
     }>;
+    aptosChannels: Array<{
+      channelOwner: string;
+      destination: string;
+      deposited: string;
+      claimed: string;
+      status: string;
+    }>;
   }> {
     let ethBalance: string | null = null;
     let agentTokenBalance: string | null = null;
     let xrpBalance: string | null = null;
+    let aptosBalance: string | null = null;
 
     // Query EVM balances
     if (this.evmProvider && this.evmWallet) {
@@ -1786,13 +2549,27 @@ export class AgentServer {
       }
     }
 
+    // Query Aptos balance
+    if (this.aptosClient?.isConnected() && this.config.aptosAccountAddress) {
+      try {
+        // Query APT balance via Aptos client (returns bigint in octas)
+        const balanceOctas = await this.aptosClient.getBalance(this.config.aptosAccountAddress);
+        // Convert octas to APT (1 APT = 100,000,000 octas)
+        aptosBalance = (Number(balanceOctas) / 100_000_000).toFixed(8);
+      } catch {
+        // ignore - balance query failed
+      }
+    }
+
     return {
       agentId: this.config.agentId,
       evmAddress: this.config.evmAddress,
       xrpAddress: this.config.xrpAccountAddress,
+      aptosAddress: this.config.aptosAccountAddress,
       ethBalance,
       agentTokenBalance,
       xrpBalance,
+      aptosBalance,
       evmChannels: Array.from(this.paymentChannels.values()).map((ch) => ({
         channelId: ch.channelId,
         peerAddress: ch.peerAddress,
@@ -1805,6 +2582,13 @@ export class AgentServer {
         destination: ch.destination,
         amount: (Number(ch.amount) / 1_000_000).toFixed(6),
         balance: (Number(ch.balance) / 1_000_000).toFixed(6),
+        status: ch.status,
+      })),
+      aptosChannels: Array.from(this.aptosChannels.values()).map((ch) => ({
+        channelOwner: ch.channelOwner,
+        destination: ch.destination,
+        deposited: (Number(ch.deposited) / 100_000_000).toFixed(8), // Octas to APT
+        claimed: (Number(ch.claimed) / 100_000_000).toFixed(8),
         status: ch.status,
       })),
     };
@@ -1876,6 +2660,22 @@ export class AgentServer {
 
   get node(): AgentNode {
     return this.agentNode;
+  }
+
+  // ============================================
+  // Settlement Threshold Configuration
+  // ============================================
+
+  /**
+   * Configure settlement threshold at runtime
+   * Threshold is checked automatically when channel balances change (no polling)
+   */
+  public setSettlementThreshold(threshold: bigint | null): void {
+    this.config.settlementThreshold = threshold;
+    this.logger.info(
+      { threshold: threshold?.toString() || 'disabled' },
+      'Settlement threshold updated'
+    );
   }
 }
 

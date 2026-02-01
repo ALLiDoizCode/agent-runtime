@@ -404,14 +404,32 @@ export class AptosClient implements IAptosClient {
       try {
         this.logger.info({ transaction }, 'Submitting transaction to Aptos...');
 
-        // The transaction should be a SimpleTransaction from the SDK
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const txn = transaction as any;
+        const txnInput = transaction as any;
+
+        // Check if this is a raw payload (from SDK) or a built SimpleTransaction
+        // Raw payloads have a 'function' property; built transactions have 'bcsToBytes'
+        let builtTxn;
+        if (txnInput.function && typeof txnInput.bcsToBytes !== 'function') {
+          // Raw payload - need to build the transaction first
+          this.logger.debug({ function: txnInput.function }, 'Building transaction from payload');
+          builtTxn = await this.aptos.transaction.build.simple({
+            sender: this.account.accountAddress,
+            data: {
+              function: txnInput.function,
+              typeArguments: txnInput.typeArguments || [],
+              functionArguments: txnInput.functionArguments || [],
+            },
+          });
+        } else {
+          // Already a built SimpleTransaction
+          builtTxn = txnInput;
+        }
 
         // Sign and submit the transaction
         const pendingTxn = await this.aptos.signAndSubmitTransaction({
           signer: this.account,
-          transaction: txn,
+          transaction: builtTxn,
         });
 
         // Wait for confirmation
@@ -431,8 +449,25 @@ export class AptosClient implements IAptosClient {
           vmStatus: committedTxn.vm_status,
         };
       } catch (error: unknown) {
-        this.logger.error({ error, transaction }, 'Transaction submission failed');
-        throw this.mapError(error, 'Failed to submit transaction');
+        // Extract detailed error message from Aptos SDK errors
+        let errorDetail = '';
+        if (error instanceof Error) {
+          errorDetail = error.message;
+          // Try to extract more details from Aptos API errors
+          const errorWithResponse = error as Error & {
+            response?: { data?: { message?: string; error_code?: string; vm_error_code?: string } };
+          };
+          if (errorWithResponse.response && typeof errorWithResponse.response === 'object') {
+            const response = errorWithResponse.response;
+            if (response.data?.message) {
+              errorDetail = response.data.message;
+            } else if (response.data?.error_code) {
+              errorDetail = `${response.data.error_code}: ${response.data.vm_error_code || response.data.message || 'unknown'}`;
+            }
+          }
+        }
+        this.logger.error({ error, transaction, errorDetail }, 'Transaction submission failed');
+        throw this.mapError(error, `Failed to submit transaction: ${errorDetail}`);
       }
     });
   }
@@ -446,11 +481,28 @@ export class AptosClient implements IAptosClient {
       this.logger.info({ transaction }, 'Simulating transaction...');
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const txn = transaction as any;
+      const txnInput = transaction as any;
+
+      // Check if this is a raw payload or a built SimpleTransaction
+      let builtTxn;
+      if (txnInput.function && typeof txnInput.bcsToBytes !== 'function') {
+        // Raw payload - need to build the transaction first
+        this.logger.debug({ function: txnInput.function }, 'Building transaction for simulation');
+        builtTxn = await this.aptos.transaction.build.simple({
+          sender: this.account.accountAddress,
+          data: {
+            function: txnInput.function,
+            typeArguments: txnInput.typeArguments || [],
+            functionArguments: txnInput.functionArguments || [],
+          },
+        });
+      } else {
+        builtTxn = txnInput;
+      }
 
       const simulationResults = await this.aptos.transaction.simulate.simple({
         signerPublicKey: this.account.publicKey,
-        transaction: txn,
+        transaction: builtTxn,
       });
 
       const simulationResult = simulationResults[0];

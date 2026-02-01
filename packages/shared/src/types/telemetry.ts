@@ -330,7 +330,7 @@ export interface AgentBalanceChangedEvent {
  */
 export interface FundingTransaction {
   /** Blockchain ('evm' or 'xrp') */
-  chain: 'evm' | 'xrp';
+  chain: 'evm' | 'xrp' | 'aptos';
   /** Token identifier ('ETH', ERC20 address, or 'XRP') */
   token: string;
   /** Recipient address */
@@ -779,10 +779,10 @@ export interface AgentChannelOpenedEvent {
   nodeId: string;
   /** Agent identifier */
   agentId: string;
-  /** Channel ID (EVM: bytes32, XRP: channel_id) */
+  /** Channel ID (EVM: bytes32, XRP: channel_id, Aptos: channelOwner) */
   channelId: string;
-  /** Blockchain network ('evm' or 'xrp') */
-  chain: 'evm' | 'xrp';
+  /** Blockchain network ('evm', 'xrp', or 'aptos') */
+  chain: 'evm' | 'xrp' | 'aptos';
   /** Peer agent identifier */
   peerId: string;
   /** Initial deposit amount, bigint as string */
@@ -896,8 +896,8 @@ export interface AgentChannelPaymentSentEvent {
   errorCode?: string;
   /** Error message if packet was rejected */
   errorMessage?: string;
-  /** Channel type (evm or xrp) */
-  channelType?: 'evm' | 'xrp' | 'none';
+  /** Channel type (evm, xrp, or aptos) */
+  channelType?: 'evm' | 'xrp' | 'aptos' | 'none';
   /** Channel balance after this payment, bigint as string */
   channelBalance?: string;
   /** Channel total deposit, bigint as string */
@@ -945,8 +945,8 @@ export interface AgentChannelBalanceUpdateEvent {
   agentId: string;
   /** Channel ID */
   channelId: string;
-  /** Channel type: 'evm' or 'xrp' */
-  channelType: 'evm' | 'xrp';
+  /** Channel type: 'evm', 'xrp', or 'aptos' */
+  channelType: 'evm' | 'xrp' | 'aptos';
   /** Peer identifier */
   peerId: string;
   /** Previous balance before this update, bigint as string */
@@ -995,7 +995,7 @@ export interface AgentChannelClosedEvent {
   /** Channel ID */
   channelId: string;
   /** Blockchain network ('evm' or 'xrp') */
-  chain: 'evm' | 'xrp';
+  chain: 'evm' | 'xrp' | 'aptos';
 }
 
 /**
@@ -1034,7 +1034,7 @@ export interface WalletBalanceMismatchEvent {
   /** Agent identifier */
   agentId: string;
   /** Blockchain network ('evm' or 'xrp') */
-  chain: 'evm' | 'xrp';
+  chain: 'evm' | 'xrp' | 'aptos';
   /** Token identifier (e.g., 'ETH', 'XRP', '0xUSDC...') */
   token: string;
   /** Expected balance from backup snapshot, bigint as string */

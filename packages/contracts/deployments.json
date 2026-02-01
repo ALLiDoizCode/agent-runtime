@@ -12,6 +12,38 @@
           "deployTxHash": "0x708754d17088c7802f676af51032809c0f0b06348860b68749bc56bb28e3b565",
           "blockNumber": 36892317,
           "deployedAt": "2026-01-27"
+        },
+        "M2MToken": {
+          "address": "0x39eaF99Cd4965A28DFe8B1455DD42aB49D0836B9",
+          "deployer": "0x4955808C589EDA5A5467871d6bB24D5613aC8304",
+          "deployTxHash": "0x4eaf655995dd1c2d7c0652de98a2417ba49e6311ed01659c26fbc7020155773c",
+          "deployedAt": "2026-01-31",
+          "name": "M2M Token",
+          "symbol": "M2M",
+          "decimals": 18
+        },
+        "TokenNetwork_M2M": {
+          "address": "0x733b89888eb811174018ce49d0eac0fa52b47554",
+          "deployer": "0x4955808C589EDA5A5467871d6bB24D5613aC8304",
+          "deployTxHash": "0x21f5c28235d435d7cea9a7e41d633297e41c14d4960315a815613888d52bb174",
+          "deployedAt": "2026-01-31",
+          "token": "0x39eaF99Cd4965A28DFe8B1455DD42aB49D0836B9"
+        }
+      }
+    },
+    "aptos-testnet": {
+      "name": "Aptos Testnet",
+      "environment": "staging",
+      "blockExplorer": "https://explorer.aptoslabs.com/?network=testnet",
+      "contracts": {
+        "PaymentChannel": {
+          "moduleAddress": "0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a",
+          "moduleName": "channel",
+          "fullAddress": "0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a::channel",
+          "deployer": "0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a",
+          "deployTxHash": "0x6d68fc9b240bc20fd57f8e63bd2ba9d57da80d7e555bf47c1cc971145b7e7b44",
+          "deployedAt": "2026-01-31",
+          "coinType": "0x1::aptos_coin::AptosCoin"
         }
       }
     },

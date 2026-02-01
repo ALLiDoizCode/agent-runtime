@@ -75,8 +75,14 @@ Implement multi-party staking markets for agent services, transforming bilateral
 **Epic 27: Aptos Payment Channels (Move Modules)**
 Integrate Aptos blockchain payment channels for settlement, enabling tri-chain settlement support where connectors can settle using EVM payment channels (Epic 8), XRP payment channels (Epic 9), and Aptos Move-based payment channels. Build minimal Aptos payment channel infrastructure including Move smart contract modules, TypeScript SDK integration, integration with the existing UnifiedSettlementExecutor, and basic telemetry. Leverages Aptos's high throughput (160,000+ TPS) and sub-second finality for AI agent micropayments.
 
-**Epic 28: ARM64 Aptos Docker Image for Local Development**
-Build and publish a multi-architecture Docker image containing the Aptos node and CLI tools, supporting both linux/amd64 and linux/arm64 platforms. The official aptoslabs/tools image only provides amd64 builds, preventing developers on Apple Silicon Macs from running Aptos local testnet in Docker. Includes CI/CD pipeline via GitHub Actions for automated builds on main branch merge, publishing to Docker Hub, and integration with docker-compose-agent-test.yml to enable full tri-chain testing on ARM64 systems.
+**Epic 28: Public Testnet Integration for Tri-Chain Settlement**
+Add `NETWORK_MODE=testnet/local` support for all three chains (Aptos Testnet, XRP Testnet, Base Sepolia), enabling developers to run integration tests against public testnets without local Docker container dependencies. Completes Aptos payment channel integration with agent server endpoints and test runner phases. Solves ARM64 compatibility issues by eliminating the need for local Aptos containers on Apple Silicon. Includes testnet URL configuration, faucet API integration, and backward-compatible local mode for offline development.
+
+**Epic 29: Blockchain Explorer Navigation Links**
+Transform static wallet addresses and transaction hashes throughout the Agent Explorer into interactive, clickable links that open the corresponding blockchain explorer in a new tab. Implements smart address type detection (Aptos, Base Sepolia, XRP Testnet) and integrates blockchain explorer URLs (Aptos Explorer, Etherscan, XRP Ledger Explorer) into all address display components (WalletOverview, PaymentChannelCard, EventDetailPanel, FieldDisplay). Improves developer experience by enabling one-click navigation from any address or transaction hash to verify on-chain state across all three settlement chains.
+
+**Epic 30: Balance Proof Exchange via Claim Events**
+Enable automatic on-chain settlement by exchanging signed balance proofs (claims) between peers via Nostr claim events (Kind 30001-30003). Claims are events that wrap message content, maintaining the "every packet is a Nostr event" architectural pattern from Epic 13. Implements bidirectional claim exchange: sender includes signed proof + unsigned requests, receiver verifies/stores claims and returns signed responses. When settlement thresholds are exceeded, agents use stored claims to settle on-chain via existing SDK methods (EVM cooperativeSettle, XRP PaymentChannelClaim, Aptos submitClaim). Aligned with RFC-0038 Settlement Engine patterns.
 
 ---
 

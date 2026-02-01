@@ -303,11 +303,14 @@ export class AgentNode {
 
       // Create skill registry and register built-in skills
       const skillRegistry = new SkillRegistry();
+      // Derive ILP address from agent pubkey (first 8 chars for uniqueness)
+      const ilpAddress = `g.agent.${this._agentConfig.agentPubkey.slice(0, 8)}`;
       registerBuiltInSkills(skillRegistry, {
         followGraphRouter: this._followGraphRouter,
         registeredKinds: () => this._eventHandler.getRegisteredKinds(),
         coordinatorPrivateKey: this._agentConfig.agentPrivkey ?? '',
         voterPrivateKey: this._agentConfig.agentPrivkey ?? '',
+        ilpAddress,
         logger: this._logger,
       });
 

@@ -16,6 +16,7 @@ This guide explains how to set up and use Aptos blockchain payment channels with
 10. [Security Best Practices](#security-best-practices)
 11. [Troubleshooting](#troubleshooting)
 12. [Architecture Overview](#architecture-overview)
+13. [Local Development](#local-development)
 
 ## Overview
 
@@ -746,6 +747,215 @@ PASS test/integration/aptos-settlement.test.ts
       ✓ should reject claim with invalid signature (5 ms)
       ✓ should auto-increment nonce for subsequent claims (3 ms)
     ...
+```
+
+## Local Development
+
+This section explains how to set up and use the Aptos local testnet for Move module development.
+
+### Overview
+
+The Aptos local testnet provides a self-contained blockchain environment for development and testing, enabling:
+
+- **Rapid Iteration**: Instant transaction finality without testnet delays
+- **No Rate Limits**: Unlimited RPC requests without API restrictions
+- **Free Transactions**: No gas costs for testing
+- **Offline Development**: Works without internet after initial Docker image download
+- **Consistent State**: Deterministic environment for reproducible tests
+
+### Prerequisites
+
+- **Docker Desktop**: 20.10+ ([Download](https://www.docker.com/products/docker-desktop))
+- **Aptos CLI** (optional, for module deployment): `brew install aptos`
+
+### Quick Start
+
+**Step 1: Start Aptos Local Testnet**
+
+```bash
+# Start just the Aptos service
+docker-compose -f docker-compose-dev.yml up -d aptos-local
+
+# Or use the Makefile
+make aptos-up
+```
+
+**Step 2: Wait for Health Check**
+
+```bash
+# Check service status
+docker-compose -f docker-compose-dev.yml ps aptos-local
+
+# Watch logs until "Ready to accept connections" appears
+docker-compose -f docker-compose-dev.yml logs -f aptos-local
+```
+
+**Step 3: Initialize and Verify**
+
+```bash
+# Run initialization script
+./scripts/init-aptos-local.sh
+
+# Verify node is responding
+curl -s http://localhost:8080/v1 | jq .
+```
+
+**Expected output:**
+
+```json
+{
+  "chain_id": 4,
+  "epoch": "1",
+  "ledger_version": "0",
+  "oldest_ledger_version": "0",
+  "ledger_timestamp": "...",
+  "node_role": "full_node",
+  "oldest_block_height": "0",
+  "block_height": "0"
+}
+```
+
+**Step 4: Deploy Move Module (Optional)**
+
+```bash
+# Deploy payment_channel module
+./scripts/aptos-deploy-module.sh
+
+# Fund a test account
+./scripts/aptos-fund-account.sh 0x<your-address>
+```
+
+### Local vs Testnet vs Mainnet Configuration
+
+| Setting              | Local Testnet              | Aptos Testnet                               | Mainnet                                     |
+| -------------------- | -------------------------- | ------------------------------------------- | ------------------------------------------- |
+| `APTOS_NODE_URL`     | `http://localhost:8080/v1` | `https://fullnode.testnet.aptoslabs.com/v1` | `https://fullnode.mainnet.aptoslabs.com/v1` |
+| `APTOS_FAUCET_URL`   | `http://localhost:8081`    | `https://faucet.testnet.aptoslabs.com`      | N/A (fund via exchange)                     |
+| Chain ID             | 4 (local)                  | 2                                           | 1                                           |
+| Transaction Cost     | Free                       | ~0.0001 APT                                 | ~0.0001 APT                                 |
+| Transaction Finality | Instant                    | ~400ms                                      | ~400ms                                      |
+| Rate Limits          | None                       | May apply                                   | May apply                                   |
+| Use Case             | Development & Testing      | Integration Testing                         | Production                                  |
+
+### Endpoint URLs
+
+**From Host Machine:**
+
+- Node REST API: `http://localhost:8080/v1`
+- Faucet: `http://localhost:8081`
+
+**From Docker Containers:**
+
+- Node REST API: `http://aptos-local:8080/v1`
+- Faucet: `http://aptos-local:8081`
+
+### Helper Scripts
+
+| Script                                   | Purpose                                 |
+| ---------------------------------------- | --------------------------------------- |
+| `./scripts/init-aptos-local.sh`          | Initialize and verify local testnet     |
+| `./scripts/aptos-fund-account.sh <addr>` | Fund account via faucet (default 1 APT) |
+| `./scripts/aptos-deploy-module.sh`       | Deploy payment_channel Move module      |
+
+### Makefile Commands
+
+| Command             | Description                            |
+| ------------------- | -------------------------------------- |
+| `make aptos-up`     | Start Aptos local testnet              |
+| `make aptos-down`   | Stop Aptos local testnet               |
+| `make aptos-init`   | Initialize testnet (run helper script) |
+| `make aptos-deploy` | Deploy Move module                     |
+| `make aptos-logs`   | View Aptos container logs              |
+
+### Troubleshooting
+
+#### Slow Startup (~2-3 minutes on first run)
+
+This is normal. The first startup downloads the Docker image (~2GB). Subsequent startups take ~45-60 seconds.
+
+```bash
+# Check progress
+docker-compose -f docker-compose-dev.yml logs -f aptos-local
+```
+
+#### Port Conflicts (8080/8081 already in use)
+
+If ports 8080 or 8081 are used by other services, override with environment variables:
+
+```bash
+# Option 1: Export before starting
+export APTOS_NODE_PORT=18080
+export APTOS_FAUCET_PORT=18081
+docker-compose -f docker-compose-dev.yml up -d aptos-local
+
+# Option 2: Add to .env.dev
+APTOS_NODE_PORT=18080
+APTOS_FAUCET_PORT=18081
+```
+
+Then update your client configuration:
+
+```bash
+export APTOS_NODE_URL=http://localhost:18080/v1
+export APTOS_FAUCET_URL=http://localhost:18081
+```
+
+#### Docker Socket Permission Issues (Indexer API)
+
+If using `--profile aptos-indexed` and encountering Docker socket errors:
+
+```bash
+# macOS: Docker socket permissions are managed by Docker Desktop
+# Linux: Add your user to the docker group
+sudo usermod -aG docker $USER
+# Then log out and back in
+```
+
+#### Apple Silicon (M1/M2/M3) Performance
+
+The Aptos Docker image runs via Rosetta 2 emulation (`linux/amd64`). Performance is acceptable for development but may be slower than native.
+
+For faster local execution, install Aptos CLI natively:
+
+```bash
+brew install aptos
+aptos node run-local-testnet --test-dir /tmp/aptos-local
+```
+
+#### Container Won't Start
+
+```bash
+# Check for errors
+docker-compose -f docker-compose-dev.yml logs aptos-local
+
+# Reset and restart
+docker-compose -f docker-compose-dev.yml down
+docker volume rm m2m_aptos-testnet-data  # Clear persistent data
+docker-compose -f docker-compose-dev.yml up -d aptos-local
+```
+
+### Using with Connectors
+
+Connectors in Docker Compose are pre-configured to use the local Aptos testnet:
+
+```yaml
+# In docker-compose-dev.yml, connectors have:
+environment:
+  APTOS_NODE_URL: http://aptos-local:8080/v1
+  APTOS_FAUCET_URL: http://aptos-local:8081
+```
+
+The `AptosClient` automatically detects `Network.LOCAL` when using localhost URLs:
+
+```typescript
+// packages/connector/src/settlement/aptos-client.ts
+private getNetworkFromUrl(url: string): Network {
+  // ...
+  else if (url.includes('localhost') || url.includes('127.0.0.1')) {
+    return Network.LOCAL;  // Automatically detected
+  }
+  // ...
+}
 ```
 
 ## Additional Resources

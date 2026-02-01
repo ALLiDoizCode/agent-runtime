@@ -86,10 +86,18 @@ export interface AptosChannelState {
  */
 export interface AptosChannelSDKConfig {
   /**
-   * Address where Move payment channel module is deployed
-   * Format: 0x-prefixed 64-character hex
+   * Full module path where Move payment channel module is deployed
+   * Format: {account_address}::{module_name}
+   * Example: 0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a::channel
    */
   moduleAddress: string;
+
+  /**
+   * Coin type for payment channels
+   * Default: 0x1::aptos_coin::AptosCoin
+   * Example: 0x1::aptos_coin::AptosCoin
+   */
+  coinType?: string;
 
   /**
    * Auto-refresh interval in milliseconds
@@ -289,6 +297,7 @@ export class AptosChannelSDK implements IAptosChannelSDK {
     this._claimSigner = claimSigner;
     this._config = {
       ...config,
+      coinType: config.coinType ?? '0x1::aptos_coin::AptosCoin',
       refreshIntervalMs: config.refreshIntervalMs ?? 30000,
       defaultSettleDelay: config.defaultSettleDelay ?? 86400,
     };
@@ -302,6 +311,39 @@ export class AptosChannelSDK implements IAptosChannelSDK {
   private normalizeAddress(address: string): string {
     const cleaned = address.replace(/^0x/i, '').toLowerCase();
     return `0x${cleaned.padStart(64, '0')}`;
+  }
+
+  /**
+   * Parse full module path into account address and module name
+   * Input: 0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a::channel
+   * Returns: { accountAddress: '0xb206...', moduleName: 'channel' }
+   */
+  private parseModulePath(): { accountAddress: string; moduleName: string } {
+    const parts = this._config.moduleAddress.split('::');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      throw new AptosError(
+        AptosErrorCode.INVALID_TRANSACTION,
+        `Invalid module address format: ${this._config.moduleAddress}. Expected format: {account_address}::{module_name}`
+      );
+    }
+    return {
+      accountAddress: parts[0],
+      moduleName: parts[1],
+    };
+  }
+
+  /**
+   * Convert hex string to Uint8Array for vector<u8> parameters
+   * Input: hex string with or without 0x prefix
+   * Returns: Uint8Array
+   */
+  private hexToBytes(hex: string): number[] {
+    const cleanHex = hex.replace(/^0x/i, '');
+    const bytes: number[] = [];
+    for (let i = 0; i < cleanHex.length; i += 2) {
+      bytes.push(parseInt(cleanHex.substring(i, i + 2), 16));
+    }
+    return bytes;
   }
 
   // --------------------------------------------------------------------------
@@ -543,9 +585,10 @@ export class AptosChannelSDK implements IAptosChannelSDK {
 
     try {
       // Call view function: get_channel(owner) -> (destination, destination_pubkey, deposited, claimed, nonce, settle_delay, close_requested_at)
+      const { accountAddress, moduleName } = this.parseModulePath();
       const result = await this._aptosClient.view<
         [string, string, string, string, string, string, string]
-      >(this._config.moduleAddress, 'payment_channel', 'get_channel', [], [normalizedOwner]);
+      >(accountAddress, moduleName, 'get_channel', [this._config.coinType!], [normalizedOwner]);
 
       // Parse tuple result
       const [
@@ -674,15 +717,13 @@ export class AptosChannelSDK implements IAptosChannelSDK {
     amount: bigint,
     settleDelay: number
   ): unknown {
+    // Convert pubkey hex string to byte array for vector<u8> parameter
+    const pubkeyBytes = this.hexToBytes(destinationPubkey);
+
     return {
-      function: `${this._config.moduleAddress}::payment_channel::open_channel`,
-      typeArguments: [],
-      functionArguments: [
-        destination,
-        destinationPubkey,
-        amount.toString(),
-        settleDelay.toString(),
-      ],
+      function: `${this._config.moduleAddress}::open_channel`,
+      typeArguments: [this._config.coinType!],
+      functionArguments: [destination, pubkeyBytes, amount.toString(), settleDelay.toString()],
     };
   }
 
@@ -691,8 +732,8 @@ export class AptosChannelSDK implements IAptosChannelSDK {
    */
   private buildDepositTransaction(amount: bigint): unknown {
     return {
-      function: `${this._config.moduleAddress}::payment_channel::deposit`,
-      typeArguments: [],
+      function: `${this._config.moduleAddress}::deposit`,
+      typeArguments: [this._config.coinType!],
       functionArguments: [amount.toString()],
     };
   }
@@ -707,8 +748,8 @@ export class AptosChannelSDK implements IAptosChannelSDK {
     signature: string
   ): unknown {
     return {
-      function: `${this._config.moduleAddress}::payment_channel::claim`,
-      typeArguments: [],
+      function: `${this._config.moduleAddress}::claim`,
+      typeArguments: [this._config.coinType!],
       functionArguments: [channelOwner, amount.toString(), nonce.toString(), signature],
     };
   }
@@ -718,8 +759,8 @@ export class AptosChannelSDK implements IAptosChannelSDK {
    */
   private buildRequestCloseTransaction(channelOwner: string): unknown {
     return {
-      function: `${this._config.moduleAddress}::payment_channel::request_close`,
-      typeArguments: [],
+      function: `${this._config.moduleAddress}::request_close`,
+      typeArguments: [this._config.coinType!],
       functionArguments: [channelOwner],
     };
   }
@@ -729,8 +770,8 @@ export class AptosChannelSDK implements IAptosChannelSDK {
    */
   private buildFinalizeCloseTransaction(channelOwner: string): unknown {
     return {
-      function: `${this._config.moduleAddress}::payment_channel::finalize_close`,
-      typeArguments: [],
+      function: `${this._config.moduleAddress}::finalize_close`,
+      typeArguments: [this._config.coinType!],
       functionArguments: [channelOwner],
     };
   }

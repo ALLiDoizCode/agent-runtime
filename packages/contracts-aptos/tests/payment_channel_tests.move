@@ -10,13 +10,10 @@
 #[test_only]
 module payment_channel::channel_tests {
     use std::signer;
-    use std::vector;
-    use std::bcs;
     use aptos_framework::account;
     use aptos_framework::coin;
     use aptos_framework::aptos_coin::{Self, AptosCoin};
     use aptos_framework::timestamp;
-    use aptos_std::ed25519;
     use payment_channel::channel;
 
     // Test constants
@@ -55,17 +52,6 @@ module payment_channel::channel_tests {
         };
     }
 
-    /// Create a test ed25519 keypair (deterministic for testing)
-    /// Returns (public_key, secret_key) as vectors
-    fun create_test_keypair(): (vector<u8>, vector<u8>) {
-        // Use a deterministic seed for testing
-        // In real tests, we'd use proper key generation
-        // This is a placeholder - actual signing happens off-chain
-        let public_key = x"0000000000000000000000000000000000000000000000000000000000000001";
-        let secret_key = x"0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001";
-        (public_key, secret_key)
-    }
-
     /// Create a dummy 32-byte public key for testing
     fun dummy_pubkey(): vector<u8> {
         x"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -98,7 +84,7 @@ module payment_channel::channel_tests {
         let pubkey = dummy_pubkey();
 
         // Open channel
-        channel::open_channel(
+        channel::open_channel<AptosCoin>(
             owner,
             dest_addr,
             pubkey,
@@ -107,11 +93,11 @@ module payment_channel::channel_tests {
         );
 
         // Verify channel exists
-        assert!(channel::channel_exists(owner_addr), 1);
+        assert!(channel::channel_exists<AptosCoin>(owner_addr), 1);
 
         // Verify channel state
         let (dest, deposited, claimed, nonce, settle_delay, close_requested_at) =
-            channel::get_channel(owner_addr);
+            channel::get_channel<AptosCoin>(owner_addr);
 
         assert!(dest == dest_addr, 2);
         assert!(deposited == CHANNEL_AMOUNT, 3);
@@ -141,10 +127,10 @@ module payment_channel::channel_tests {
         let pubkey = dummy_pubkey();
 
         // Open channel first time
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Try to open again - should fail
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
     }
 
     #[test(aptos_framework = @0x1, owner = @0x123, destination = @0x456)]
@@ -163,7 +149,7 @@ module payment_channel::channel_tests {
         let pubkey = dummy_pubkey();
 
         // Try to open with zero amount
-        channel::open_channel(owner, dest_addr, pubkey, 0, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, 0, SETTLE_DELAY);
     }
 
     // ============================================
@@ -187,18 +173,18 @@ module payment_channel::channel_tests {
         let pubkey = dummy_pubkey();
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Deposit additional funds
         let additional = 50000000; // 0.5 APT
-        channel::deposit(owner, additional);
+        channel::deposit<AptosCoin>(owner, additional);
 
         // Verify deposited amount increased
-        let (_, deposited, _, _, _, _) = channel::get_channel(owner_addr);
+        let (_, deposited, _, _, _, _) = channel::get_channel<AptosCoin>(owner_addr);
         assert!(deposited == CHANNEL_AMOUNT + additional, 1);
 
         // Verify escrow balance
-        let escrow_balance = channel::get_escrow_balance(owner_addr);
+        let escrow_balance = channel::get_escrow_balance<AptosCoin>(owner_addr);
         assert!(escrow_balance == CHANNEL_AMOUNT + additional, 2);
     }
 
@@ -212,7 +198,7 @@ module payment_channel::channel_tests {
         create_account_with_coins(aptos_framework, owner, INITIAL_BALANCE);
 
         // Try to deposit without opening channel
-        channel::deposit(owner, CHANNEL_AMOUNT);
+        channel::deposit<AptosCoin>(owner, CHANNEL_AMOUNT);
     }
 
     // ============================================
@@ -236,16 +222,16 @@ module payment_channel::channel_tests {
         let pubkey = dummy_pubkey();
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Set timestamp
         timestamp::update_global_time_for_test_secs(1000);
 
         // Request close
-        channel::request_close(owner, owner_addr);
+        channel::request_close<AptosCoin>(owner, owner_addr);
 
         // Verify close_requested_at is set
-        let (_, _, _, _, _, close_requested_at) = channel::get_channel(owner_addr);
+        let (_, _, _, _, _, close_requested_at) = channel::get_channel<AptosCoin>(owner_addr);
         assert!(close_requested_at == 1000, 1);
     }
 
@@ -266,16 +252,16 @@ module payment_channel::channel_tests {
         let pubkey = dummy_pubkey();
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Set timestamp
         timestamp::update_global_time_for_test_secs(2000);
 
         // Destination requests close
-        channel::request_close(destination, owner_addr);
+        channel::request_close<AptosCoin>(destination, owner_addr);
 
         // Verify close_requested_at is set
-        let (_, _, _, _, _, close_requested_at) = channel::get_channel(owner_addr);
+        let (_, _, _, _, _, close_requested_at) = channel::get_channel<AptosCoin>(owner_addr);
         assert!(close_requested_at == 2000, 1);
     }
 
@@ -299,10 +285,10 @@ module payment_channel::channel_tests {
         let pubkey = dummy_pubkey();
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Unauthorized account tries to close
-        channel::request_close(other, owner_addr);
+        channel::request_close<AptosCoin>(other, owner_addr);
     }
 
     #[test(aptos_framework = @0x1, owner = @0x123, destination = @0x456)]
@@ -324,22 +310,22 @@ module payment_channel::channel_tests {
         let initial_owner_balance = coin::balance<AptosCoin>(owner_addr);
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Set timestamp for close request
         timestamp::update_global_time_for_test_secs(1000);
 
         // Request close
-        channel::request_close(owner, owner_addr);
+        channel::request_close<AptosCoin>(owner, owner_addr);
 
         // Fast-forward past settle delay
         timestamp::update_global_time_for_test_secs(1000 + SETTLE_DELAY + 1);
 
         // Finalize close
-        channel::finalize_close(owner, owner_addr);
+        channel::finalize_close<AptosCoin>(owner, owner_addr);
 
         // Verify channel is deleted
-        assert!(!channel::channel_exists(owner_addr), 1);
+        assert!(!channel::channel_exists<AptosCoin>(owner_addr), 1);
 
         // Verify owner received remaining balance
         let final_owner_balance = coin::balance<AptosCoin>(owner_addr);
@@ -364,17 +350,17 @@ module payment_channel::channel_tests {
         let pubkey = dummy_pubkey();
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Set timestamp
         timestamp::update_global_time_for_test_secs(1000);
 
         // Request close
-        channel::request_close(owner, owner_addr);
+        channel::request_close<AptosCoin>(owner, owner_addr);
 
         // Try to finalize immediately (before settle delay)
         timestamp::update_global_time_for_test_secs(1000 + SETTLE_DELAY - 1);
-        channel::finalize_close(owner, owner_addr);
+        channel::finalize_close<AptosCoin>(owner, owner_addr);
     }
 
     #[test(aptos_framework = @0x1, owner = @0x123, destination = @0x456)]
@@ -395,10 +381,10 @@ module payment_channel::channel_tests {
         let pubkey = dummy_pubkey();
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Try to finalize without requesting close
-        channel::finalize_close(owner, owner_addr);
+        channel::finalize_close<AptosCoin>(owner, owner_addr);
     }
 
     // ============================================
@@ -424,10 +410,10 @@ module payment_channel::channel_tests {
         let signature = dummy_signature();
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Owner tries to claim (should fail - only destination can claim)
-        channel::claim(owner, owner_addr, 1000, 1, signature);
+        channel::claim<AptosCoin>(owner, owner_addr, 1000, 1, signature);
     }
 
     #[test(aptos_framework = @0x1, owner = @0x123, destination = @0x456)]
@@ -450,10 +436,10 @@ module payment_channel::channel_tests {
         let signature = dummy_signature();
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Try to claim with nonce 0 (must be > current nonce which is 0)
-        channel::claim(destination, owner_addr, 1000, 0, signature);
+        channel::claim<AptosCoin>(destination, owner_addr, 1000, 0, signature);
     }
 
     #[test(aptos_framework = @0x1, owner = @0x123, destination = @0x456)]
@@ -476,10 +462,10 @@ module payment_channel::channel_tests {
         let signature = dummy_signature();
 
         // Open channel with 1 APT
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Try to claim more than deposited
-        channel::claim(destination, owner_addr, CHANNEL_AMOUNT + 1, 1, signature);
+        channel::claim<AptosCoin>(destination, owner_addr, CHANNEL_AMOUNT + 1, 1, signature);
     }
 
     #[test(aptos_framework = @0x1, owner = @0x123, destination = @0x456)]
@@ -502,10 +488,10 @@ module payment_channel::channel_tests {
         let invalid_signature = dummy_signature(); // This won't match the message
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Try to claim with invalid signature
-        channel::claim(destination, owner_addr, 1000, 1, invalid_signature);
+        channel::claim<AptosCoin>(destination, owner_addr, 1000, 1, invalid_signature);
     }
 
     // ============================================
@@ -523,7 +509,7 @@ module payment_channel::channel_tests {
         let owner_addr = signer::address_of(owner);
 
         // Try to get non-existent channel
-        channel::get_channel(owner_addr);
+        channel::get_channel<AptosCoin>(owner_addr);
     }
 
     #[test(aptos_framework = @0x1, owner = @0x123, destination = @0x456)]
@@ -543,10 +529,10 @@ module payment_channel::channel_tests {
         let pubkey = dummy_pubkey();
 
         // Open channel
-        channel::open_channel(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
+        channel::open_channel<AptosCoin>(owner, dest_addr, pubkey, CHANNEL_AMOUNT, SETTLE_DELAY);
 
         // Get and verify destination pubkey
-        let stored_pubkey = channel::get_destination_pubkey(owner_addr);
+        let stored_pubkey = channel::get_destination_pubkey<AptosCoin>(owner_addr);
         assert!(stored_pubkey == pubkey, 1);
     }
 }

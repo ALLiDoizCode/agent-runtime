@@ -21,6 +21,9 @@ coverage/
 # Deployer wallet (NEVER commit private keys)
 deployer-wallet.json
 
+# Testnet wallets (contains private keys for testing)
+testnet-wallets.json
+
 # IDE specific files
 .vscode/
 .idea/

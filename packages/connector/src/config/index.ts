@@ -10,6 +10,9 @@
 // Connector Configuration (existing)
 export { ConfigLoader, ConfigurationError } from './config-loader';
 
+// Aptos Environment Validation (Story 28.5)
+export { validateAptosEnvironment, type AptosEnvValidation } from './aptos-env-validator';
+
 // Agent Configuration (Story 13.7)
 export {
   AgentConfigLoader,

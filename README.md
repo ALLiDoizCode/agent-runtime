@@ -166,6 +166,7 @@ The development environment includes local blockchain nodes and settlement infra
 
 - **Anvil (Base L2 Fork)** - Local Base Sepolia fork for smart contract development (Epic 7)
 - **rippled (XRP Ledger)** - Standalone XRP Ledger for payment channel testing (Epic 7)
+- **Aptos Local Testnet** - Local Aptos blockchain for Move module development (Epic 7)
 - **TigerBeetle** - Settlement accounting database
 - **Connectors (Alice & Bob)** - ILP connector nodes for testing packet routing
 
@@ -244,13 +245,13 @@ Use `Ctrl+C` to exit log viewer.
 
 ### Development vs Production
 
-| Aspect                | Development (docker-compose-dev.yml)    | Production (docker-compose-production.yml) |
-| --------------------- | --------------------------------------- | ------------------------------------------ |
-| **Blockchain Nodes**  | Local forks (Anvil, rippled standalone) | Public RPC endpoints                       |
-| **Hot-Reload**        | Enabled (code changes auto-restart)     | Disabled                                   |
-| **Optional Services** | auto-ledger (via profiles)              | All services required                      |
-| **Secrets**           | Hardcoded (acceptable for dev)          | Environment variables (.env file)          |
-| **Log Level**         | DEBUG (verbose)                         | INFO (production-appropriate)              |
+| Aspect                | Development (docker-compose-dev.yml)      | Production (docker-compose-production.yml) |
+| --------------------- | ----------------------------------------- | ------------------------------------------ |
+| **Blockchain Nodes**  | Local forks (Anvil, rippled, Aptos local) | Public RPC endpoints                       |
+| **Hot-Reload**        | Enabled (code changes auto-restart)       | Disabled                                   |
+| **Optional Services** | auto-ledger (via profiles)                | All services required                      |
+| **Secrets**           | Hardcoded (acceptable for dev)            | Environment variables (.env file)          |
+| **Log Level**         | DEBUG (verbose)                           | INFO (production-appropriate)              |
 
 **When to Use:**
 
@@ -473,12 +474,23 @@ The M2M connector uses Foundry for payment channel smart contract development. C
 - Instant feedback, free gas, offline development
 - Command: `cd packages/contracts && ./deploy-local.sh`
 
-**2. Testnet Deployment (Base Sepolia)**
+**2. Testnet Deployment (Base Sepolia & Aptos Testnet)**
 
-- Deploy to public Base Sepolia testnet
+- Deploy to public Base Sepolia and Aptos testnets
 - Test with real blockchain but $0 gas costs
 - Requires `BASE_SEPOLIA_RPC_URL` and `ETHERSCAN_API_KEY` in .env
 - Command: `cd packages/contracts && ./deploy-testnet.sh`
+
+**Deployed Testnet Contracts:**
+
+| Chain         | Contract               | Address                                                                       |
+| ------------- | ---------------------- | ----------------------------------------------------------------------------- |
+| Base Sepolia  | TokenNetworkRegistry   | `0xCbf6f43A17034e733744cBCc130FfcCA3CF3252C`                                  |
+| Base Sepolia  | M2M Token              | `0x39eaF99Cd4965A28DFe8B1455DD42aB49D0836B9`                                  |
+| Base Sepolia  | TokenNetwork (M2M)     | `0x733b89888eb811174018ce49d0eac0fa52b47554`                                  |
+| Aptos Testnet | Payment Channel Module | `0xb206e544e69642e894f4eb4d2ba8b6e2b26bf1fd4b5a76cfc0d73c55ca725b6a::channel` |
+
+See `packages/contracts/deployments.json` for full deployment details including transaction hashes.
 
 **3. Mainnet Deployment (Base L2 Production)**
 
@@ -637,29 +649,47 @@ XRPL_ACCOUNT_ADDRESS=rN7n7o...               # Your account address (r-address)
 XRPL_CLAIM_SIGNER_SEED=sEdTM1...             # Optional: deterministic claim signer seed
 ```
 
-### Dual-Settlement Peer Configuration
+### Tri-Chain Settlement Peer Configuration
 
-Configure peers with settlement preferences in `config.yaml`:
+Configure peers with settlement preferences for EVM, XRP, and Aptos in `config.yaml`:
 
 ```yaml
 peers:
   - id: peer-alice
     ilpAddress: g.alice.connector
-    settlementPreference: both # 'evm' | 'xrp' | 'both'
+    settlementPreference: any # 'evm' | 'xrp' | 'aptos' | 'any'
     settlementTokens:
-      - XRP # Prefer XRP first
-      - USDC # Fallback to USDC
+      - APT # Aptos native token
+      - XRP # XRP Ledger native token
+      - USDC # ERC20 on EVM
     evmAddress: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0
     xrpAddress: rLHzPsX6oXkzU9rFkRaYT8yBqJcQwPgHWN
-    settlementThreshold: 1000000000 # 1000 XRP in drops
+    aptosAddress: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+    aptosPubkey: 'abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab'
+    settlementThreshold: 1000000000 # Token units
     settlementInterval: 3600000 # 1 hour
 ```
 
 **Settlement Routing Logic:**
 
-- `tokenId === 'XRP'` + `settlementPreference: 'xrp' | 'both'` → XRP settlement via PaymentChannelManager
-- `tokenId !== 'XRP'` (ERC20) + `settlementPreference: 'evm' | 'both'` → EVM settlement via PaymentChannelSDK
+- `tokenId === 'APT'` + `settlementPreference: 'aptos' | 'any'` → Aptos settlement via AptosChannelSDK
+- `tokenId === 'XRP'` + `settlementPreference: 'xrp' | 'any'` → XRP settlement via PaymentChannelManager
+- `tokenId !== 'XRP' && tokenId !== 'APT'` (ERC20) + `settlementPreference: 'evm' | 'any'` → EVM settlement via PaymentChannelSDK
 - Incompatible combinations throw error
+
+**Aptos Settlement Environment:**
+
+```bash
+# Enable Aptos settlement
+APTOS_ENABLED=true
+APTOS_NODE_URL=https://fullnode.testnet.aptoslabs.com/v1
+APTOS_PRIVATE_KEY=0x<your-private-key>
+APTOS_ACCOUNT_ADDRESS=0x<your-account-address>
+APTOS_CLAIM_PRIVATE_KEY=0x<your-claim-private-key>
+APTOS_MODULE_ADDRESS=0x<deployed-module-address>
+```
+
+See [Local Blockchain Development Guide](docs/guides/local-blockchain-development.md#aptos-connector-settlement-variables) for complete Aptos configuration.
 
 ### XRP Channel Lifecycle Management
 
