@@ -180,6 +180,15 @@ export class PaymentChannelSDK {
   }
 
   /**
+   * Get the signer's Ethereum address
+   *
+   * @returns Ethereum address of the signer
+   */
+  async getSignerAddress(): Promise<string> {
+    return await this.signer.getAddress();
+  }
+
+  /**
    * Open a new payment channel with another participant
    *
    * @param participant2 - Counterparty address

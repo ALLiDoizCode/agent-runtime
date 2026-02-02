@@ -397,6 +397,63 @@ export class BTPClient extends EventEmitter {
   }
 
   /**
+   * Send protocol data message without expecting a response
+   * Used for one-way messages like claim notifications
+   * @param protocolName - Protocol identifier (e.g., "payment-channel-claim")
+   * @param contentType - Content type code (e.g., 1 for JSON)
+   * @param data - Protocol-specific data as Buffer
+   */
+  async sendProtocolData(protocolName: string, contentType: number, data: Buffer): Promise<void> {
+    if (!this.isConnected) {
+      throw new BTPConnectionError('Not connected to peer');
+    }
+
+    if (!this._ws) {
+      throw new BTPConnectionError('WebSocket not available');
+    }
+
+    // Generate unique request ID
+    const requestId = this._generateRequestId();
+
+    // Create BTP MESSAGE frame with protocolData
+    const btpMessage: BTPMessage = {
+      type: BTPMessageType.MESSAGE,
+      requestId,
+      data: {
+        protocolData: [
+          {
+            protocolName,
+            contentType,
+            data,
+          },
+        ],
+        ilpPacket: Buffer.alloc(0), // Empty for protocol-data-only messages
+      } as BTPData,
+    };
+
+    // Encode BTP MESSAGE
+    const btpBuffer = serializeBTPMessage(btpMessage);
+
+    this._logger.debug(
+      {
+        event: 'btp_protocol_data_sent',
+        requestId,
+        protocolName,
+        contentType,
+      },
+      'Sending BTP protocol data message'
+    );
+
+    // Send via WebSocket (fire-and-forget, no response expected)
+    try {
+      this._ws.send(btpBuffer);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new BTPConnectionError(`Failed to send protocol data: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Handle incoming BTP message
    * @private
    */

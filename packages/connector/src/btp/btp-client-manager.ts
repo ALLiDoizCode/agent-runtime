@@ -223,6 +223,27 @@ export class BTPClientManager {
   }
 
   /**
+   * Get BTPClient instance for a specific peer
+   * @param peerId - Peer identifier
+   * @returns BTPClient instance if peer exists, undefined otherwise
+   * @remarks Used by settlement system to send off-chain claims via BTP protocolData
+   */
+  getClientForPeer(peerId: string): BTPClient | undefined {
+    return this._clients.get(peerId);
+  }
+
+  /**
+   * Check if a specific peer is currently connected
+   * @param peerId - Peer identifier
+   * @returns true if peer is connected, false otherwise
+   * @remarks Returns false if peer doesn't exist or connection is not established
+   */
+  isConnected(peerId: string): boolean {
+    const client = this._clients.get(peerId);
+    return client ? client.isConnected : false;
+  }
+
+  /**
    * Get count of currently connected peers
    * @returns Number of peers with active BTP connections
    * @remarks Used by health check system to determine connector operational status

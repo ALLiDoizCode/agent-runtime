@@ -73,6 +73,10 @@ export enum TelemetryEventType {
   SUSPICIOUS_ACTIVITY_DETECTED = 'SUSPICIOUS_ACTIVITY_DETECTED',
   /** Rate limit exceeded event - emitted when rate limit exceeded (Story 11.9) */
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  /** Claim sent event - emitted when payment channel claim sent via BTP (Story 17.2) */
+  CLAIM_SENT = 'CLAIM_SENT',
+  /** Claim received event - emitted when payment channel claim received via BTP (Story 17.3) */
+  CLAIM_RECEIVED = 'CLAIM_RECEIVED',
 }
 
 /**
@@ -1244,6 +1248,99 @@ export interface ClaimSettlementFailedEvent {
 }
 
 /**
+ * Claim Sent Telemetry Event
+ *
+ * Emitted when ClaimSender (Story 17.2) sends payment channel claim via BTP.
+ * Indicates off-chain claim transmitted to peer for redemption.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI shows claim transmission events
+ * - Settlement monitoring panel displays claim send success/failure
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimSentEvent = {
+ *   type: 'CLAIM_SENT',
+ *   nodeId: 'connector-a',
+ *   peerId: 'peer-bob',
+ *   blockchain: 'xrp',
+ *   messageId: 'xrp-a1b2c3d4-n/a-1706889600000',
+ *   amount: '1000000',
+ *   success: true,
+ *   timestamp: '2026-02-02T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimSentEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_SENT';
+  /** Connector node ID sending claim */
+  nodeId: string;
+  /** Peer identifier receiving claim */
+  peerId: string;
+  /** Blockchain type: 'xrp', 'evm', 'aptos' */
+  blockchain: string;
+  /** Unique message ID for idempotency */
+  messageId: string;
+  /** Claim amount, bigint as string */
+  amount: string;
+  /** Whether claim send was successful */
+  success: boolean;
+  /** Error message if success=false */
+  error?: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Claim Received Telemetry Event
+ *
+ * Emitted when ClaimReceiver (Story 17.3) receives payment channel claim via BTP.
+ * Indicates off-chain claim received from peer and verification result.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI shows claim reception events
+ * - Settlement monitoring panel displays claim verification success/failure
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimReceivedEvent = {
+ *   type: 'CLAIM_RECEIVED',
+ *   nodeId: 'connector-a',
+ *   peerId: 'peer-bob',
+ *   blockchain: 'xrp',
+ *   messageId: 'xrp-a1b2c3d4-n/a-1706889600000',
+ *   channelId: 'a1b2c3d4e5f6789...',
+ *   amount: '1000000',
+ *   verified: true,
+ *   timestamp: '2026-02-02T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimReceivedEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_RECEIVED';
+  /** Connector node ID receiving claim */
+  nodeId: string;
+  /** Peer identifier sending claim */
+  peerId: string;
+  /** Blockchain type: 'xrp', 'evm', 'aptos' */
+  blockchain: string;
+  /** Unique message ID for idempotency */
+  messageId: string;
+  /** Channel ID (XRP: 64-char hex, EVM: bytes32, Aptos: channelOwner) */
+  channelId: string;
+  /** Claim amount, bigint as string */
+  amount: string;
+  /** Whether claim passed verification */
+  verified: boolean;
+  /** Error message if verified=false */
+  error?: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
  * Telemetry Event Union Type
  *
  * Discriminated union of all telemetry event types.
@@ -1329,4 +1426,6 @@ export type TelemetryEvent =
   | RateLimitExceededEvent
   | ClaimSettlementInitiatedEvent
   | ClaimSettlementSuccessEvent
-  | ClaimSettlementFailedEvent;
+  | ClaimSettlementFailedEvent
+  | ClaimSentEvent
+  | ClaimReceivedEvent;

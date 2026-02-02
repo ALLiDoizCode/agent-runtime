@@ -6,6 +6,7 @@
  *
  * Source: Epic 9 Story 9.5 - Dual-Settlement Support (EVM + XRP)
  * Extended: Epic 27 Story 27.5 - Tri-Chain Settlement Integration (EVM + XRP + Aptos)
+ * Extended: Epic 17 Story 17.4 - ClaimSender Integration for Off-Chain Claim Exchange
  *
  * @module settlement/unified-settlement-executor.test
  */
@@ -21,6 +22,9 @@ import type { AptosClaim } from './aptos-claim-signer';
 import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import type { Logger } from 'pino';
 import type { UnifiedSettlementExecutorConfig, SettlementRequiredEvent } from './types';
+import type { ClaimSender, ClaimSendResult } from './claim-sender';
+import type { BTPClientManager } from '../btp/btp-client-manager';
+import type { BTPClient } from '../btp/btp-client';
 
 describe('UnifiedSettlementExecutor', () => {
   let executor: UnifiedSettlementExecutor;
@@ -28,6 +32,9 @@ describe('UnifiedSettlementExecutor', () => {
   let mockXRPChannelManager: jest.Mocked<PaymentChannelManager>;
   let mockXRPClaimSigner: jest.Mocked<ClaimSigner>;
   let mockAptosChannelSDK: jest.Mocked<IAptosChannelSDK>;
+  let mockClaimSender: jest.Mocked<ClaimSender>;
+  let mockBTPClientManager: jest.Mocked<BTPClientManager>;
+  let mockBTPClient: jest.Mocked<BTPClient>;
   let mockSettlementMonitor: jest.Mocked<SettlementMonitor>;
   let mockAccountManager: jest.Mocked<AccountManager>;
   let mockTelemetryEmitter: jest.Mocked<TelemetryEmitter>;
@@ -51,6 +58,7 @@ describe('UnifiedSettlementExecutor', () => {
     mockEVMChannelSDK = {
       openChannel: jest.fn().mockResolvedValue('0xabc123'),
       signBalanceProof: jest.fn().mockResolvedValue('0xsignature'),
+      getSignerAddress: jest.fn().mockResolvedValue('0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'),
       getChannelState: jest.fn(),
       closeChannel: jest.fn(),
       cooperativeSettle: jest.fn(),
@@ -124,6 +132,40 @@ describe('UnifiedSettlementExecutor', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
 
+    // Mock BTPClient (Epic 17)
+    mockBTPClient = {
+      sendProtocolData: jest.fn().mockResolvedValue(undefined),
+      isConnected: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    // Mock BTPClientManager (Epic 17)
+    mockBTPClientManager = {
+      getClientForPeer: jest.fn().mockReturnValue(mockBTPClient),
+      isConnected: jest.fn().mockReturnValue(true),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    // Mock ClaimSender (Epic 17)
+    const successResult: ClaimSendResult = {
+      success: true,
+      messageId: 'xrp-test-msg-123',
+      timestamp: new Date().toISOString(),
+    };
+
+    mockClaimSender = {
+      sendXRPClaim: jest.fn().mockResolvedValue(successResult),
+      sendEVMClaim: jest.fn().mockResolvedValue({
+        ...successResult,
+        messageId: 'evm-test-msg-456',
+      }),
+      sendAptosClaim: jest.fn().mockResolvedValue({
+        ...successResult,
+        messageId: 'aptos-test-msg-789',
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
     const config: UnifiedSettlementExecutorConfig = {
       peers: new Map([
         [
@@ -192,6 +234,8 @@ describe('UnifiedSettlementExecutor', () => {
       mockXRPChannelManager,
       mockXRPClaimSigner,
       mockAptosChannelSDK,
+      mockClaimSender,
+      mockBTPClientManager,
       mockSettlementMonitor,
       mockAccountManager,
       mockTelemetryEmitter,
@@ -592,6 +636,8 @@ describe('UnifiedSettlementExecutor', () => {
         mockXRPChannelManager,
         mockXRPClaimSigner,
         mockAptosChannelSDK,
+        mockClaimSender,
+        mockBTPClientManager,
         mockSettlementMonitor,
         mockAccountManager,
         mockTelemetryEmitter,
@@ -639,6 +685,8 @@ describe('UnifiedSettlementExecutor', () => {
         mockXRPChannelManager,
         mockXRPClaimSigner,
         mockAptosChannelSDK,
+        mockClaimSender,
+        mockBTPClientManager,
         mockSettlementMonitor,
         mockAccountManager,
         mockTelemetryEmitter,
@@ -685,6 +733,8 @@ describe('UnifiedSettlementExecutor', () => {
         mockXRPChannelManager,
         mockXRPClaimSigner,
         mockAptosChannelSDK,
+        mockClaimSender,
+        mockBTPClientManager,
         mockSettlementMonitor,
         mockAccountManager,
         mockTelemetryEmitter,
@@ -732,6 +782,8 @@ describe('UnifiedSettlementExecutor', () => {
         mockXRPChannelManager,
         mockXRPClaimSigner,
         mockAptosChannelSDK,
+        mockClaimSender,
+        mockBTPClientManager,
         mockSettlementMonitor,
         mockAccountManager,
         mockTelemetryEmitter,
@@ -798,6 +850,8 @@ describe('UnifiedSettlementExecutor', () => {
         mockXRPChannelManager,
         mockXRPClaimSigner,
         null, // No Aptos SDK
+        mockClaimSender,
+        mockBTPClientManager,
         mockSettlementMonitor,
         mockAccountManager,
         null, // No telemetry
@@ -847,6 +901,8 @@ describe('UnifiedSettlementExecutor', () => {
         mockXRPChannelManager,
         mockXRPClaimSigner,
         null, // No Aptos SDK
+        mockClaimSender,
+        mockBTPClientManager,
         mockSettlementMonitor,
         mockAccountManager,
         null,
@@ -1129,6 +1185,8 @@ describe('UnifiedSettlementExecutor', () => {
         mockXRPChannelManager,
         mockXRPClaimSigner,
         mockAptosChannelSDK,
+        mockClaimSender,
+        mockBTPClientManager,
         mockSettlementMonitor,
         mockAccountManager,
         null, // No telemetry
@@ -1260,6 +1318,254 @@ describe('UnifiedSettlementExecutor', () => {
         expect.objectContaining({ peerId: 'peer-aptos' }),
         'Aptos settlement completed'
       );
+    });
+  });
+
+  describe('Epic 17: Claim Sender Integration', () => {
+    describe('XRP Claim Sending', () => {
+      it('should send XRP claim via ClaimSender when settling via XRP', async () => {
+        executor.start();
+
+        const event: SettlementRequiredEvent = {
+          peerId: 'peer-bob',
+          balance: '1000000', // XRP drops
+          tokenId: 'XRP',
+          timestamp: Date.now(),
+        };
+
+        const handler = (mockSettlementMonitor.on as jest.Mock).mock.calls[0][1];
+        await handler(event);
+
+        // Verify BTPClient retrieved
+        expect(mockBTPClientManager.getClientForPeer).toHaveBeenCalledWith('peer-bob');
+        expect(mockBTPClientManager.isConnected).toHaveBeenCalledWith('peer-bob');
+
+        // Verify ClaimSender.sendXRPClaim called with correct parameters
+        expect(mockClaimSender.sendXRPClaim).toHaveBeenCalledWith(
+          'peer-bob',
+          mockBTPClient,
+          'A'.repeat(64), // channelId from mockXRPChannelManager
+          '1000000', // amount
+          'B'.repeat(128), // signature from mockXRPClaimSigner
+          'ED' + 'C'.repeat(64) // publicKey from mockXRPClaimSigner
+        );
+
+        // Verify success logged
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          expect.objectContaining({
+            peerId: 'peer-bob',
+            messageId: 'xrp-test-msg-123',
+          }),
+          'XRP claim sent to peer successfully'
+        );
+      });
+
+      it('should throw error when XRP claim send fails', async () => {
+        executor.start();
+
+        // Mock claim send failure
+        mockClaimSender.sendXRPClaim.mockResolvedValue({
+          success: false,
+          messageId: 'xrp-fail-123',
+          timestamp: new Date().toISOString(),
+          error: 'Network error',
+        });
+
+        const event: SettlementRequiredEvent = {
+          peerId: 'peer-bob',
+          balance: '1000000',
+          tokenId: 'XRP',
+          timestamp: Date.now(),
+        };
+
+        const handler = (mockSettlementMonitor.on as jest.Mock).mock.calls[0][1];
+
+        await expect(handler(event)).rejects.toThrow(
+          'Failed to send XRP claim to peer: Network error'
+        );
+
+        // Verify error logged
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.objectContaining({ peerId: 'peer-bob' }),
+          'Failed to send XRP claim'
+        );
+      });
+
+      it('should throw error when peer not connected for XRP settlement', async () => {
+        executor.start();
+
+        // Mock peer not connected
+        mockBTPClientManager.getClientForPeer.mockReturnValue(undefined);
+
+        const event: SettlementRequiredEvent = {
+          peerId: 'peer-bob',
+          balance: '1000000',
+          tokenId: 'XRP',
+          timestamp: Date.now(),
+        };
+
+        const handler = (mockSettlementMonitor.on as jest.Mock).mock.calls[0][1];
+
+        await expect(handler(event)).rejects.toThrow('No BTP connection to peer peer-bob');
+      });
+    });
+
+    describe('EVM Claim Sending', () => {
+      it('should send EVM claim via ClaimSender when settling via EVM', async () => {
+        executor.start();
+
+        const event: SettlementRequiredEvent = {
+          peerId: 'peer-alice',
+          balance: '1000000000',
+          tokenId: '0xUSDCAddress',
+          timestamp: Date.now(),
+        };
+
+        const handler = (mockSettlementMonitor.on as jest.Mock).mock.calls[0][1];
+        await handler(event);
+
+        // Verify BTPClient retrieved
+        expect(mockBTPClientManager.getClientForPeer).toHaveBeenCalledWith('peer-alice');
+        expect(mockBTPClientManager.isConnected).toHaveBeenCalledWith('peer-alice');
+
+        // Verify ClaimSender.sendEVMClaim called with correct parameters
+        expect(mockClaimSender.sendEVMClaim).toHaveBeenCalledWith(
+          'peer-alice',
+          mockBTPClient,
+          '0xabc123', // channelId from mockEVMChannelSDK
+          1, // nonce
+          '1000000000', // transferredAmount
+          '0', // lockedAmount
+          '0x0000000000000000000000000000000000000000000000000000000000000000', // locksRoot
+          '0xsignature', // signature from mockEVMChannelSDK
+          '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb' // signerAddress
+        );
+
+        // Verify success logged
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          expect.objectContaining({
+            peerId: 'peer-alice',
+            messageId: 'evm-test-msg-456',
+          }),
+          'EVM claim sent to peer successfully'
+        );
+      });
+
+      it('should throw error when EVM claim send fails', async () => {
+        executor.start();
+
+        // Mock claim send failure
+        mockClaimSender.sendEVMClaim.mockResolvedValue({
+          success: false,
+          messageId: 'evm-fail-456',
+          timestamp: new Date().toISOString(),
+          error: 'Timeout',
+        });
+
+        const event: SettlementRequiredEvent = {
+          peerId: 'peer-alice',
+          balance: '1000000000',
+          tokenId: '0xUSDCAddress',
+          timestamp: Date.now(),
+        };
+
+        const handler = (mockSettlementMonitor.on as jest.Mock).mock.calls[0][1];
+
+        await expect(handler(event)).rejects.toThrow('Failed to send EVM claim to peer: Timeout');
+      });
+    });
+
+    describe('Aptos Claim Sending', () => {
+      it('should send Aptos claim via ClaimSender when settling via Aptos', async () => {
+        executor.start();
+
+        const event: SettlementRequiredEvent = {
+          peerId: 'peer-aptos',
+          balance: '1000000000',
+          tokenId: 'APT',
+          timestamp: Date.now(),
+        };
+
+        const handler = (mockSettlementMonitor.on as jest.Mock).mock.calls[0][1];
+        await handler(event);
+
+        // Verify BTPClient retrieved
+        expect(mockBTPClientManager.getClientForPeer).toHaveBeenCalledWith('peer-aptos');
+        expect(mockBTPClientManager.isConnected).toHaveBeenCalledWith('peer-aptos');
+
+        // Verify ClaimSender.sendAptosClaim called with correct parameters
+        expect(mockClaimSender.sendAptosClaim).toHaveBeenCalledWith(
+          'peer-aptos',
+          mockBTPClient,
+          '0x' + '1'.repeat(64), // channelOwner from mockAptosChannelSDK
+          '1000000000', // amount
+          1, // nonce from mockAptosClaim
+          '0x' + 'a'.repeat(128), // signature from mockAptosClaim
+          '0x' + 'b'.repeat(64) // publicKey from mockAptosClaim
+        );
+
+        // Verify success logged
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          expect.objectContaining({
+            peerId: 'peer-aptos',
+            messageId: 'aptos-test-msg-789',
+          }),
+          'Aptos claim sent to peer successfully'
+        );
+      });
+
+      it('should throw error when Aptos claim send fails', async () => {
+        executor.start();
+
+        // Mock claim send failure
+        mockClaimSender.sendAptosClaim.mockResolvedValue({
+          success: false,
+          messageId: 'aptos-fail-789',
+          timestamp: new Date().toISOString(),
+          error: 'Connection lost',
+        });
+
+        const event: SettlementRequiredEvent = {
+          peerId: 'peer-aptos',
+          balance: '1000000000',
+          tokenId: 'APT',
+          timestamp: Date.now(),
+        };
+
+        const handler = (mockSettlementMonitor.on as jest.Mock).mock.calls[0][1];
+
+        await expect(handler(event)).rejects.toThrow(
+          'Failed to send Aptos claim to peer: Connection lost'
+        );
+      });
+    });
+
+    describe('BTP Connection State Validation', () => {
+      it('should throw error when BTP connection is not active', async () => {
+        executor.start();
+
+        // Mock connection inactive
+        mockBTPClientManager.isConnected.mockReturnValue(false);
+
+        const event: SettlementRequiredEvent = {
+          peerId: 'peer-bob',
+          balance: '1000000',
+          tokenId: 'XRP',
+          timestamp: Date.now(),
+        };
+
+        const handler = (mockSettlementMonitor.on as jest.Mock).mock.calls[0][1];
+
+        await expect(handler(event)).rejects.toThrow(
+          'BTP connection to peer peer-bob is not active'
+        );
+
+        // Verify error logged
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          expect.objectContaining({ peerId: 'peer-bob' }),
+          'BTP connection to peer peer-bob is not active'
+        );
+      });
     });
   });
 });

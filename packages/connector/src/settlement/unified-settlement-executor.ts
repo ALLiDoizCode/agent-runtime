@@ -16,6 +16,12 @@
  * - APT token + peer allows Aptos → Aptos settlement
  * - Incompatible combinations → Error
  *
+ * Epic 17 Integration (BTP Off-Chain Claim Exchange):
+ * - After signing claims, sends them to peers via BTP using ClaimSender
+ * - Retrieves BTPClient instances from BTPClientManager for peer connections
+ * - Handles claim send failures gracefully (logs error, allows retry)
+ * - Settlement completes only after claim successfully delivered to peer
+ *
  * @module settlement/unified-settlement-executor
  */
 
@@ -29,6 +35,9 @@ import type { PeerConfig, SettlementRequiredEvent, UnifiedSettlementExecutorConf
 import type { IAptosChannelSDK } from './aptos-channel-sdk';
 import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import type { AptosSettlementTelemetryEvent } from '@m2m/shared';
+import type { ClaimSender } from './claim-sender';
+import type { BTPClientManager } from '../btp/btp-client-manager';
+import type { BTPClient } from '../btp/btp-client';
 
 /**
  * Error thrown when settlement is disabled via feature flag
@@ -50,15 +59,19 @@ export class UnifiedSettlementExecutor {
   private readonly boundHandleSettlement: (event: SettlementRequiredEvent) => Promise<void>;
   private readonly _aptosChannelSDK: IAptosChannelSDK | null;
   private readonly _telemetryEmitter: TelemetryEmitter | null;
+  private readonly _claimSender: ClaimSender;
+  private readonly _btpClientManager: BTPClientManager;
 
   /**
-   * Constructor - Extended for Aptos support
+   * Constructor - Extended for Aptos support and Epic 17 claim exchange
    *
    * @param config - Unified settlement configuration with peer preferences
    * @param evmChannelSDK - PaymentChannelSDK for EVM settlements (Epic 8)
    * @param xrpChannelManager - PaymentChannelManager for XRP settlements (Epic 9)
    * @param xrpClaimSigner - ClaimSigner for XRP claim generation
    * @param aptosChannelSDK - AptosChannelSDK for Aptos settlements (Epic 27), null for backward compatibility
+   * @param claimSender - ClaimSender for off-chain claim delivery via BTP (Epic 17)
+   * @param btpClientManager - BTPClientManager for peer connection lookup (Epic 17)
    * @param settlementMonitor - Settlement monitor emitting SETTLEMENT_REQUIRED events
    * @param accountManager - TigerBeetle account manager for balance updates
    * @param telemetryEmitter - Optional TelemetryEmitter for settlement events
@@ -70,12 +83,16 @@ export class UnifiedSettlementExecutor {
     private xrpChannelManager: PaymentChannelManager,
     private xrpClaimSigner: ClaimSigner,
     aptosChannelSDK: IAptosChannelSDK | null,
+    claimSender: ClaimSender,
+    btpClientManager: BTPClientManager,
     private settlementMonitor: SettlementMonitor,
     private accountManager: AccountManager,
     telemetryEmitter: TelemetryEmitter | null,
     private logger: Logger
   ) {
     this._aptosChannelSDK = aptosChannelSDK;
+    this._claimSender = claimSender;
+    this._btpClientManager = btpClientManager;
     this._telemetryEmitter = telemetryEmitter;
     // Bind handler once in constructor (Event Listener Cleanup pattern)
     // This ensures same reference is used in both on() and off() calls
@@ -113,6 +130,33 @@ export class UnifiedSettlementExecutor {
    */
   private isAptosEnabled(): boolean {
     return process.env.APTOS_SETTLEMENT_ENABLED !== 'false';
+  }
+
+  /**
+   * Get BTPClient instance for a peer (Epic 17)
+   *
+   * Retrieves active BTP connection for peer from BTPClientManager.
+   * Validates connection state before returning client.
+   *
+   * @param peerId - Peer identifier
+   * @returns BTPClient instance for peer
+   * @throws Error if peer not connected or connection inactive
+   */
+  private getBTPClientForPeer(peerId: string): BTPClient {
+    const client = this._btpClientManager.getClientForPeer(peerId);
+    if (!client) {
+      const error = `No BTP connection to peer ${peerId}`;
+      this.logger.error({ peerId }, error);
+      throw new Error(error);
+    }
+
+    if (!this._btpClientManager.isConnected(peerId)) {
+      const error = `BTP connection to peer ${peerId} is not active`;
+      this.logger.error({ peerId }, error);
+      throw new Error(error);
+    }
+
+    return client;
   }
 
   /**
@@ -242,6 +286,51 @@ export class UnifiedSettlementExecutor {
       depositAmount
     );
 
+    // Sign balance proof for settlement amount
+    const nonce = 1; // Initial nonce for new channel
+    const signature = await this.evmChannelSDK.signBalanceProof(
+      channelId,
+      nonce,
+      depositAmount,
+      0n,
+      '0x0000000000000000000000000000000000000000000000000000000000000000'
+    );
+    const signerAddress = await this.evmChannelSDK.getSignerAddress();
+
+    // Send balance proof to peer via BTP (Epic 17)
+    try {
+      const btpClient = this.getBTPClientForPeer(peerId);
+
+      const result = await this._claimSender.sendEVMClaim(
+        peerId,
+        btpClient,
+        channelId,
+        nonce,
+        depositAmount.toString(),
+        '0',
+        '0x0000000000000000000000000000000000000000000000000000000000000000',
+        signature,
+        signerAddress
+      );
+
+      if (!result.success) {
+        throw new Error(`Failed to send EVM claim to peer: ${result.error}`);
+      }
+
+      this.logger.info(
+        {
+          peerId,
+          channelId,
+          amount,
+          messageId: result.messageId,
+        },
+        'EVM claim sent to peer successfully'
+      );
+    } catch (error) {
+      this.logger.error({ error, peerId, channelId, amount }, 'Failed to send EVM claim');
+      throw error;
+    }
+
     this.logger.info({ peerId, channelId, amount }, 'EVM settlement completed');
   }
 
@@ -269,12 +358,36 @@ export class UnifiedSettlementExecutor {
     const signature = await this.xrpClaimSigner.signClaim(channelId, amount);
     const publicKey = await this.xrpClaimSigner.getPublicKey();
 
-    // Send claim to peer off-chain (peer submits to ledger)
-    // TODO: Implement off-chain claim delivery mechanism (Story 9.6+)
-    this.logger.info(
-      { peerId, channelId, amount, signature, publicKey },
-      'XRP claim signed and ready for delivery'
-    );
+    // Send claim to peer via BTP (Epic 17)
+    try {
+      const btpClient = this.getBTPClientForPeer(peerId);
+
+      const result = await this._claimSender.sendXRPClaim(
+        peerId,
+        btpClient,
+        channelId,
+        amount,
+        signature,
+        publicKey
+      );
+
+      if (!result.success) {
+        throw new Error(`Failed to send XRP claim to peer: ${result.error}`);
+      }
+
+      this.logger.info(
+        {
+          peerId,
+          channelId,
+          amount,
+          messageId: result.messageId,
+        },
+        'XRP claim sent to peer successfully'
+      );
+    } catch (error) {
+      this.logger.error({ error, peerId, channelId, amount }, 'Failed to send XRP claim');
+      throw error;
+    }
 
     this.logger.info({ peerId, channelId, amount }, 'XRP settlement completed');
   }
@@ -336,10 +449,32 @@ export class UnifiedSettlementExecutor {
       // Sign claim for amount
       const claim = this._aptosChannelSDK!.signClaim(channelOwner, BigInt(amount));
 
-      // Log claim signed and ready for delivery
+      // Send claim to peer via BTP (Epic 17)
+      const btpClient = this.getBTPClientForPeer(peerId);
+
+      const result = await this._claimSender.sendAptosClaim(
+        peerId,
+        btpClient,
+        channelOwner,
+        amount,
+        claim.nonce,
+        claim.signature,
+        claim.publicKey
+      );
+
+      if (!result.success) {
+        throw new Error(`Failed to send Aptos claim to peer: ${result.error}`);
+      }
+
       this.logger.info(
-        { peerId, channelOwner, amount, nonce: claim.nonce },
-        'Aptos claim signed and ready for delivery'
+        {
+          peerId,
+          channelOwner,
+          amount,
+          nonce: claim.nonce,
+          messageId: result.messageId,
+        },
+        'Aptos claim sent to peer successfully'
       );
 
       // Emit telemetry for claim signed
