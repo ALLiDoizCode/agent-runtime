@@ -5,6 +5,13 @@ import {
   EVENT_TYPE_COLORS,
   PACKET_TYPE_COLORS,
   formatRelativeTime,
+  getClaimBlockchain,
+  getClaimAmount,
+  getClaimSuccess,
+  getClaimVerified,
+  getClaimMessageId,
+  formatClaimAmount,
+  getBlockchainBadgeColor,
 } from '../lib/event-types';
 import { Badge } from '@/components/ui/badge';
 import { useKeyboardNavigation } from '../hooks/useKeyboardNavigation';
@@ -31,6 +38,17 @@ const ROW_HEIGHT = 48;
  */
 function isPacketEvent(event: TelemetryEvent): boolean {
   return event.type === 'AGENT_CHANNEL_PAYMENT_SENT' && 'packetType' in event;
+}
+
+/**
+ * Check if event is a claim event (Story 17.6)
+ */
+function isClaimEvent(event: TelemetryEvent): boolean {
+  return (
+    event.type === 'CLAIM_SENT' ||
+    event.type === 'CLAIM_RECEIVED' ||
+    event.type === 'CLAIM_REDEEMED'
+  );
 }
 
 /**
@@ -243,6 +261,22 @@ function getEventStatus(
     }
   }
 
+  // For claim events, status is based on success/verified fields (Story 17.6)
+  if (isClaimEvent(event)) {
+    if (type === 'CLAIM_SENT') {
+      const success = getClaimSuccess(event);
+      return success === true ? 'success' : success === false ? 'failure' : 'neutral';
+    }
+    if (type === 'CLAIM_RECEIVED') {
+      const verified = getClaimVerified(event);
+      return verified === true ? 'success' : verified === false ? 'failure' : 'neutral';
+    }
+    if (type === 'CLAIM_REDEEMED') {
+      const success = getClaimSuccess(event);
+      return success === true ? 'success' : success === false ? 'failure' : 'neutral';
+    }
+  }
+
   const successTypes = [
     'PACKET_FORWARDED',
     'SETTLEMENT_COMPLETED',
@@ -350,6 +384,12 @@ const EventRow = React.memo(function EventRow({
   const status = getEventStatus(event, resolvedStatus);
   const statusDisplay = getStatusDisplay(status);
 
+  // Claim event specific data (Story 17.6)
+  const isClaim = isClaimEvent(event);
+  const claimBlockchain = isClaim ? getClaimBlockchain(event) : null;
+  const claimMessageId = isClaim ? getClaimMessageId(event) : null;
+  const claimAmount = isClaim ? getClaimAmount(event) : null;
+
   return (
     <div
       className={`flex items-center border-b border-border cursor-pointer hover:bg-muted/50 ${isSelected ? 'bg-muted/50 ring-1 ring-primary' : ''} ${isNew ? 'animate-fadeIn' : ''}`}
@@ -359,7 +399,7 @@ const EventRow = React.memo(function EventRow({
       <div className="w-[12%] min-w-[80px] px-3 font-mono text-sm text-muted-foreground truncate">
         {formatRelativeTime(timestamp)}
       </div>
-      <div className="w-[14%] min-w-[100px] px-3">
+      <div className="w-[14%] min-w-[100px] px-3 flex items-center gap-1">
         <Badge
           variant="secondary"
           className={`${displayType.colorClass} text-white text-xs max-w-full truncate`}
@@ -367,6 +407,16 @@ const EventRow = React.memo(function EventRow({
         >
           {displayType.label}
         </Badge>
+        {/* Blockchain badge for claim events */}
+        {isClaim && claimBlockchain && (
+          <Badge
+            variant="outline"
+            className={`text-xs border ${getBlockchainBadgeColor(claimBlockchain)}`}
+            title={`Blockchain: ${claimBlockchain.toUpperCase()}`}
+          >
+            {claimBlockchain.toUpperCase()}
+          </Badge>
+        )}
       </div>
       <div className="w-[16%] min-w-[100px] px-3 font-mono text-sm truncate">
         <PeerLink peerId={from} />
@@ -376,12 +426,22 @@ const EventRow = React.memo(function EventRow({
       </div>
       <div
         className="hidden lg:block w-[20%] min-w-[150px] px-3 font-mono text-sm truncate"
-        title={destination || undefined}
+        title={isClaim && claimMessageId ? claimMessageId : destination || undefined}
       >
-        {destination ? formatDestination(destination) : '-'}
+        {/* Show messageId for claim events, destination for others */}
+        {isClaim && claimMessageId
+          ? `msg:${claimMessageId.slice(0, 8)}...`
+          : destination
+            ? formatDestination(destination)
+            : '-'}
       </div>
       <div className="hidden md:block w-[10%] min-w-[80px] px-3 font-mono text-sm truncate">
-        {amount ? formatAmount(amount) : '-'}
+        {/* Use claim-specific formatting for claim events */}
+        {isClaim && claimAmount && claimBlockchain
+          ? formatClaimAmount(claimAmount, claimBlockchain)
+          : amount
+            ? formatAmount(amount)
+            : '-'}
       </div>
       <div className={`w-[12%] min-w-[80px] px-3 text-sm ${statusDisplay.className}`}>
         <span title={statusDisplay.text}>

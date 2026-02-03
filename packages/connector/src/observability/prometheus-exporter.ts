@@ -18,6 +18,7 @@ import {
   ChannelMetricsOptions,
   ErrorMetricsOptions,
   SLAMetrics,
+  ClaimMetricsOptions,
 } from './types';
 
 /**
@@ -41,6 +42,12 @@ const PACKET_LATENCY_BUCKETS = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1];
  * Covers 1s to 60s range for blockchain operations
  */
 const SETTLEMENT_LATENCY_BUCKETS = [1, 3, 5, 10, 30, 60];
+
+/**
+ * Default histogram buckets for claim redemption latency (in seconds)
+ * Covers 1s to 30min range for claim processing
+ */
+const CLAIM_REDEMPTION_LATENCY_BUCKETS = [1, 5, 10, 30, 60, 300, 600, 1800];
 
 /**
  * PrometheusExporter collects and exports ILP connector metrics
@@ -81,6 +88,14 @@ export class PrometheusExporter {
   // Error metrics
   private readonly _errorsTotal: client.Counter;
   private readonly _lastErrorTimestamp: client.Gauge;
+
+  // Claim metrics
+  private readonly _claimsSentTotal: client.Counter;
+  private readonly _claimsReceivedTotal: client.Counter;
+  private readonly _claimsRedeemedTotal: client.Counter;
+  private readonly _claimRedemptionLatencySeconds: client.Histogram;
+  private readonly _claimVerificationFailuresTotal: client.Counter;
+  private readonly _claimLastRedemptionTimestampSeconds: client.Gauge;
 
   // SLA tracking (internal counters for rate calculation)
   private _packetSuccessCount: number = 0;
@@ -219,6 +234,50 @@ export class PrometheusExporter {
     this._lastErrorTimestamp = new client.Gauge({
       name: 'connector_last_error_timestamp',
       help: 'Timestamp of the last error',
+      registers: [this._registry],
+    });
+
+    // Initialize claim metrics
+    this._claimsSentTotal = new client.Counter({
+      name: 'claims_sent_total',
+      help: 'Total claims sent to peers',
+      labelNames: ['peer_id', 'blockchain', 'success'],
+      registers: [this._registry],
+    });
+
+    this._claimsReceivedTotal = new client.Counter({
+      name: 'claims_received_total',
+      help: 'Total claims received from peers',
+      labelNames: ['peer_id', 'blockchain', 'verified'],
+      registers: [this._registry],
+    });
+
+    this._claimsRedeemedTotal = new client.Counter({
+      name: 'claims_redeemed_total',
+      help: 'Total claims redeemed on-chain',
+      labelNames: ['blockchain', 'success'],
+      registers: [this._registry],
+    });
+
+    this._claimRedemptionLatencySeconds = new client.Histogram({
+      name: 'claim_redemption_latency_seconds',
+      help: 'Time from claim receipt to on-chain redemption',
+      labelNames: ['blockchain'],
+      buckets: CLAIM_REDEMPTION_LATENCY_BUCKETS,
+      registers: [this._registry],
+    });
+
+    this._claimVerificationFailuresTotal = new client.Counter({
+      name: 'claim_verification_failures_total',
+      help: 'Total claim verification failures',
+      labelNames: ['peer_id', 'blockchain', 'error_type'],
+      registers: [this._registry],
+    });
+
+    this._claimLastRedemptionTimestampSeconds = new client.Gauge({
+      name: 'claim_last_redemption_timestamp_seconds',
+      help: 'Unix timestamp of last successful claim redemption',
+      labelNames: ['blockchain'],
       registers: [this._registry],
     });
 
@@ -388,6 +447,160 @@ export class PrometheusExporter {
     this._lastErrorTimestamp.set(Date.now() / 1000);
 
     this._logger.trace({ type, severity }, 'Error metrics recorded');
+  }
+
+  /**
+   * Record a claim sent event for Prometheus metrics
+   *
+   * @param options - Claim metrics options
+   * @param options.blockchain - Blockchain type ('xrp', 'evm', 'aptos')
+   * @param options.peerId - Peer identifier
+   * @param options.success - Whether claim send was successful
+   *
+   * @example
+   * ```typescript
+   * exporter.recordClaimSent({
+   *   blockchain: 'xrp',
+   *   peerId: 'peer-bob',
+   *   success: true
+   * });
+   * ```
+   */
+  recordClaimSent(options: ClaimMetricsOptions): void {
+    const { blockchain, peerId, success } = options;
+
+    if (success === undefined) {
+      this._logger.warn({ blockchain, peerId }, 'recordClaimSent called without success field');
+      return;
+    }
+
+    this._claimsSentTotal.inc({
+      peer_id: peerId,
+      blockchain,
+      success: success.toString(),
+    });
+
+    this._logger.trace({ blockchain, peerId, success }, 'Claim sent metrics recorded');
+  }
+
+  /**
+   * Record a claim received event for Prometheus metrics
+   *
+   * @param options - Claim metrics options
+   * @param options.blockchain - Blockchain type ('xrp', 'evm', 'aptos')
+   * @param options.peerId - Peer identifier
+   * @param options.verified - Whether claim was verified successfully
+   *
+   * @example
+   * ```typescript
+   * exporter.recordClaimReceived({
+   *   blockchain: 'xrp',
+   *   peerId: 'peer-alice',
+   *   verified: true
+   * });
+   * ```
+   */
+  recordClaimReceived(options: ClaimMetricsOptions): void {
+    const { blockchain, peerId, verified } = options;
+
+    if (verified === undefined) {
+      this._logger.warn(
+        { blockchain, peerId },
+        'recordClaimReceived called without verified field'
+      );
+      return;
+    }
+
+    this._claimsReceivedTotal.inc({
+      peer_id: peerId,
+      blockchain,
+      verified: verified.toString(),
+    });
+
+    this._logger.trace({ blockchain, peerId, verified }, 'Claim received metrics recorded');
+  }
+
+  /**
+   * Record a claim redeemed event for Prometheus metrics
+   *
+   * @param options - Claim metrics options
+   * @param options.blockchain - Blockchain type ('xrp', 'evm', 'aptos')
+   * @param options.peerId - Peer identifier
+   * @param options.success - Whether redemption was successful
+   * @param options.latencyMs - Time from claim receipt to redemption in milliseconds (optional)
+   *
+   * @example
+   * ```typescript
+   * exporter.recordClaimRedeemed({
+   *   blockchain: 'xrp',
+   *   peerId: 'peer-alice',
+   *   success: true,
+   *   latencyMs: 15000
+   * });
+   * ```
+   */
+  recordClaimRedeemed(options: ClaimMetricsOptions): void {
+    const { blockchain, success, latencyMs } = options;
+
+    if (success === undefined) {
+      this._logger.warn({ blockchain }, 'recordClaimRedeemed called without success field');
+      return;
+    }
+
+    this._claimsRedeemedTotal.inc({
+      blockchain,
+      success: success.toString(),
+    });
+
+    // Record latency if provided
+    if (latencyMs !== undefined) {
+      const latencySeconds = latencyMs / 1000;
+      this._claimRedemptionLatencySeconds.observe({ blockchain }, latencySeconds);
+    }
+
+    // Update last redemption timestamp on successful redemption
+    if (success) {
+      this._claimLastRedemptionTimestampSeconds.set({ blockchain }, Date.now() / 1000);
+    }
+
+    this._logger.trace({ blockchain, success, latencyMs }, 'Claim redeemed metrics recorded');
+  }
+
+  /**
+   * Record a claim verification failure for Prometheus metrics
+   *
+   * @param options - Claim metrics options
+   * @param options.blockchain - Blockchain type ('xrp', 'evm', 'aptos')
+   * @param options.peerId - Peer identifier
+   * @param options.errorType - Error type ('invalid_signature', 'non_monotonic_nonce', 'unknown')
+   *
+   * @example
+   * ```typescript
+   * exporter.recordClaimVerificationFailure({
+   *   blockchain: 'xrp',
+   *   peerId: 'peer-alice',
+   *   errorType: 'invalid_signature'
+   * });
+   * ```
+   */
+  recordClaimVerificationFailure(options: ClaimMetricsOptions): void {
+    const { blockchain, peerId, errorType } = options;
+
+    if (!errorType) {
+      this._logger.warn(
+        { blockchain, peerId },
+        'recordClaimVerificationFailure called without errorType'
+      );
+      return;
+    }
+
+    this._claimVerificationFailuresTotal.inc({
+      peer_id: peerId,
+      blockchain,
+      error_type: errorType,
+    });
+
+    this._logger.trace({ blockchain, peerId, errorType }, 'Claim verification failure recorded');
   }
 
   /**

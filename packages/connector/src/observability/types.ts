@@ -184,3 +184,20 @@ export interface ErrorMetricsOptions {
   severity: ErrorSeverity;
   message?: string;
 }
+
+/**
+ * Blockchain type for claim metrics
+ */
+export type ClaimBlockchain = 'xrp' | 'evm' | 'aptos';
+
+/**
+ * Metrics recording options for claim operations
+ */
+export interface ClaimMetricsOptions {
+  blockchain: ClaimBlockchain;
+  peerId: string;
+  success?: boolean;
+  verified?: boolean;
+  errorType?: string;
+  latencyMs?: number;
+}

@@ -38,6 +38,10 @@ export type TelemetryEventType =
   | 'AGENT_CHANNEL_PAYMENT_SENT'
   | 'AGENT_CHANNEL_BALANCE_UPDATE'
   | 'AGENT_CHANNEL_CLOSED'
+  // Claim exchange events (Epic 17)
+  | 'CLAIM_SENT'
+  | 'CLAIM_RECEIVED'
+  | 'CLAIM_REDEEMED'
   // Security events
   | 'WALLET_BALANCE_MISMATCH'
   | 'SUSPICIOUS_ACTIVITY_DETECTED'
@@ -146,6 +150,10 @@ export const EVENT_TYPE_COLORS: Record<string, string> = {
   AGENT_CHANNEL_PAYMENT_SENT: 'bg-violet-400',
   AGENT_CHANNEL_BALANCE_UPDATE: 'bg-violet-500',
   AGENT_CHANNEL_CLOSED: 'bg-violet-600',
+  // Claim exchange events - pink/fuchsia theme (Epic 17)
+  CLAIM_SENT: 'bg-fuchsia-500',
+  CLAIM_RECEIVED: 'bg-fuchsia-400',
+  CLAIM_REDEEMED: 'bg-fuchsia-600',
   // Security events - red shades
   WALLET_BALANCE_MISMATCH: 'bg-red-500',
   SUSPICIOUS_ACTIVITY_DETECTED: 'bg-red-600',
@@ -251,6 +259,9 @@ export const SETTLEMENT_EVENT_TYPES = [
   'AGENT_CHANNEL_OPENED',
   'AGENT_CHANNEL_BALANCE_UPDATE',
   'AGENT_CHANNEL_CLOSED',
+  'CLAIM_SENT',
+  'CLAIM_RECEIVED',
+  'CLAIM_REDEEMED',
 ] as const;
 
 /**
@@ -312,4 +323,97 @@ export interface WalletBalances {
   evmChannels: WalletEvmChannel[];
   xrpChannels: WalletXrpChannel[];
   aptosChannels: WalletAptosChannel[];
+}
+
+// ============================================================================
+// Story 17.6: Claim Exchange Event Helpers
+// ============================================================================
+
+/**
+ * Blockchain type for claim events
+ */
+export type ClaimBlockchain = 'xrp' | 'evm' | 'aptos';
+
+/**
+ * Extract blockchain type from claim event
+ */
+export function getClaimBlockchain(event: TelemetryEvent): ClaimBlockchain | null {
+  if (typeof event.blockchain === 'string') {
+    const blockchain = event.blockchain.toLowerCase();
+    if (blockchain === 'xrp' || blockchain === 'evm' || blockchain === 'aptos') {
+      return blockchain as ClaimBlockchain;
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract amount from claim event
+ */
+export function getClaimAmount(event: TelemetryEvent): string | null {
+  return typeof event.amount === 'string' ? event.amount : null;
+}
+
+/**
+ * Extract success status from claim event (CLAIM_SENT, CLAIM_REDEEMED)
+ */
+export function getClaimSuccess(event: TelemetryEvent): boolean | null {
+  return typeof event.success === 'boolean' ? event.success : null;
+}
+
+/**
+ * Extract verified status from claim event (CLAIM_RECEIVED)
+ */
+export function getClaimVerified(event: TelemetryEvent): boolean | null {
+  return typeof event.verified === 'boolean' ? event.verified : null;
+}
+
+/**
+ * Extract messageId from claim event (for correlation)
+ */
+export function getClaimMessageId(event: TelemetryEvent): string | null {
+  return typeof event.messageId === 'string' ? event.messageId : null;
+}
+
+/**
+ * Extract channelId from claim event (available in CLAIM_RECEIVED and CLAIM_REDEEMED)
+ */
+export function getClaimChannelId(event: TelemetryEvent): string | null {
+  return typeof event.channelId === 'string' ? event.channelId : null;
+}
+
+/**
+ * Format claim amount based on blockchain
+ * - XRP: drops
+ * - EVM: wei
+ * - Aptos: octas
+ */
+export function formatClaimAmount(amount: string, blockchain: ClaimBlockchain): string {
+  const value = BigInt(amount);
+
+  switch (blockchain) {
+    case 'xrp':
+      // Convert drops to XRP (1 XRP = 1,000,000 drops)
+      return `${(Number(value) / 1_000_000).toFixed(6)} XRP`;
+    case 'evm':
+      // Convert wei to ETH (1 ETH = 10^18 wei)
+      return `${(Number(value) / 1e18).toFixed(6)} ETH`;
+    case 'aptos':
+      // Convert octas to APT (1 APT = 10^8 octas)
+      return `${(Number(value) / 1e8).toFixed(6)} APT`;
+  }
+}
+
+/**
+ * Get blockchain badge color
+ */
+export function getBlockchainBadgeColor(blockchain: ClaimBlockchain): string {
+  switch (blockchain) {
+    case 'xrp':
+      return 'bg-orange-100 text-orange-800 border-orange-300';
+    case 'evm':
+      return 'bg-blue-100 text-blue-800 border-blue-300';
+    case 'aptos':
+      return 'bg-green-100 text-green-800 border-green-300';
+  }
 }
