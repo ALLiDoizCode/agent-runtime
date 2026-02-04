@@ -435,7 +435,7 @@ describe('BTPServer', () => {
       );
     });
 
-    it('should reject BTP MESSAGE without ILP packet', async () => {
+    it('should handle BTP MESSAGE without ILP packet as protocol-data message', async () => {
       // Arrange
       const peerId = 'connector-e';
       const secret = 'test-secret-3';
@@ -452,26 +452,26 @@ describe('BTPServer', () => {
       mockWs.emit('message', serializeBTPMessage(createAuthMessage(peerId, secret)));
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      // Send MESSAGE without ILP packet
-      const invalidMessage: BTPMessage = {
+      // Send MESSAGE without ILP packet (protocol-data only, like payment channel claims)
+      const protocolDataMessage: BTPMessage = {
         type: BTPMessageType.MESSAGE,
         requestId: 4,
         data: {
           protocolData: [],
-          // Missing ilpPacket
+          // No ilpPacket - valid for protocol-data-only messages
         },
       };
 
       mockWs.sentMessages = [];
 
       // Act
-      mockWs.emit('message', serializeBTPMessage(invalidMessage));
+      mockWs.emit('message', serializeBTPMessage(protocolDataMessage));
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      // Assert
-      expect(mockLogger.error).toHaveBeenCalledWith(
+      // Assert - should log debug message, not error (protocol-data messages are valid)
+      expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.objectContaining({
-          event: 'btp_message_processing_error',
+          event: 'btp_protocol_data_received',
           peerId,
         }),
         expect.any(String)

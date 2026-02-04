@@ -629,8 +629,11 @@ export class BTPServer {
         throw new BTPError('F00', `Expected ILP PREPARE packet, got type ${ilpPacket.type}`);
       }
 
-      // Process packet through PacketHandler
-      const response = await this.packetHandler.handlePreparePacket(ilpPacket as ILPPreparePacket);
+      // Process packet through PacketHandler (pass peer ID for settlement tracking)
+      const response = await this.packetHandler.handlePreparePacket(
+        ilpPacket as ILPPreparePacket,
+        peerConn.peerId
+      );
 
       // Serialize ILP response
       const responseBuffer = serializePacket(response);

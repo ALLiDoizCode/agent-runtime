@@ -21,6 +21,8 @@ import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { AccountManager } from '../settlement/account-manager';
 import { SettlementConfig } from '../config/types';
 import { AccountLedgerCodes } from '../settlement/types';
+import { EventStore } from '../explorer/event-store';
+import { EventBroadcaster } from '../explorer/event-broadcaster';
 
 /**
  * Packet validation result
@@ -88,20 +90,32 @@ export class PacketHandler {
   private readonly telemetryEmitter: TelemetryEmitter | null;
 
   /**
+   * Event store for direct event emission in standalone mode (optional)
+   */
+  private eventStore: EventStore | null = null;
+
+  /**
+   * Event broadcaster for real-time WebSocket event streaming (optional)
+   */
+  private eventBroadcaster: EventBroadcaster | null = null;
+
+  /**
    * Account manager for settlement recording (optional)
    * @remarks
    * When provided, enables settlement recording for packet forwarding.
    * Null if settlement is disabled (backward compatibility).
+   * Not readonly to support late initialization via setSettlement().
    */
-  private readonly accountManager: AccountManager | null;
+  private accountManager: AccountManager | null;
 
   /**
    * Settlement configuration (optional)
    * @remarks
    * Contains connector fee percentage and TigerBeetle connection settings.
    * Null if settlement is disabled.
+   * Not readonly to support late initialization via setSettlement().
    */
-  private readonly settlementConfig: SettlementConfig | null;
+  private settlementConfig: SettlementConfig | null;
 
   /**
    * Creates a new PacketHandler instance
@@ -156,6 +170,60 @@ export class PacketHandler {
   }
 
   /**
+   * Set EventStore reference for direct event emission in standalone mode
+   * @param eventStore - EventStore instance for storing packet events
+   * @remarks
+   * Called by ConnectorNode when running in standalone mode (telemetryEmitter is null).
+   * Allows PacketHandler to emit events directly to EventStore instead of via telemetry.
+   */
+  setEventStore(eventStore: EventStore | null): void {
+    this.eventStore = eventStore;
+    this.logger.info(
+      { hasEventStore: eventStore !== null },
+      'EventStore reference set for standalone event emission'
+    );
+  }
+
+  /**
+   * Set EventBroadcaster reference for real-time WebSocket event streaming
+   * @param broadcaster - EventBroadcaster instance for live event streaming
+   * @remarks
+   * Called by ConnectorNode in standalone mode to enable real-time event broadcasting.
+   * When set, PacketHandler will broadcast events to WebSocket clients in addition to storing them.
+   */
+  setEventBroadcaster(broadcaster: EventBroadcaster | null): void {
+    this.eventBroadcaster = broadcaster;
+    this.logger.info(
+      { hasBroadcaster: broadcaster !== null },
+      'EventBroadcaster reference set for live event streaming'
+    );
+  }
+
+  /**
+   * Set AccountManager and SettlementConfig for late initialization
+   * @param accountManager - AccountManager instance for settlement recording
+   * @param settlementConfig - Settlement configuration with fee and TigerBeetle settings
+   * @remarks
+   * Called after TigerBeetle initialization completes. Allows PacketHandler
+   * to be created in constructor while settlement is initialized asynchronously.
+   */
+  setSettlement(accountManager: AccountManager, settlementConfig: SettlementConfig): void {
+    this.accountManager = accountManager;
+    this.settlementConfig = settlementConfig;
+
+    if (this.isSettlementEnabled()) {
+      this.logger.info(
+        {
+          event: 'settlement_enabled',
+          connectorFeePercentage: settlementConfig.connectorFeePercentage,
+          tigerBeetleClusterId: settlementConfig.tigerBeetleClusterId,
+        },
+        'Settlement recording enabled via late initialization'
+      );
+    }
+  }
+
+  /**
    * Check if settlement recording is enabled
    * @returns True if settlement recording is enabled, false otherwise
    * @remarks
@@ -188,16 +256,27 @@ export class PacketHandler {
     executionCondition: Buffer,
     direction: 'incoming' | 'outgoing'
   ): bigint {
-    // Use first 16 bytes of execution condition for base ID
-    // XOR with direction byte to differentiate incoming vs outgoing
+    // Generate unique transfer IDs per connector by incorporating nodeId
+    // This ensures each connector in a multi-hop chain has unique transfer IDs
     const directionByte = direction === 'incoming' ? 0x01 : 0x02;
 
-    // Read first 16 bytes as two 64-bit values
+    // Hash nodeId to get a consistent numeric value
+    const nodeIdHash = Buffer.alloc(8);
+    let hash = 0;
+    for (let i = 0; i < this.nodeId.length; i++) {
+      hash = ((hash << 5) - hash + this.nodeId.charCodeAt(i)) | 0;
+    }
+    nodeIdHash.writeBigUInt64BE((BigInt(hash >>> 0) << 32n) | BigInt(hash >>> 0), 0);
+
+    // Read first 16 bytes of execution condition as two 64-bit values
     const high = executionCondition.readBigUInt64BE(0);
     const low = executionCondition.readBigUInt64BE(8);
 
-    // Combine into 128-bit value and XOR direction into lowest byte
-    const transferId = (high << 64n) | low;
+    // XOR with nodeId hash to make unique per connector
+    const nodeIdValue = nodeIdHash.readBigUInt64BE(0);
+
+    // Combine into 128-bit value with nodeId and direction differentiation
+    const transferId = ((high ^ nodeIdValue) << 64n) | low;
     return transferId ^ BigInt(directionByte);
   }
 
@@ -653,8 +732,12 @@ export class PacketHandler {
    *
    * Generates correlation ID for packet tracking across logs.
    */
-  async handlePreparePacket(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket> {
+  async handlePreparePacket(
+    packet: ILPPreparePacket,
+    fromPeerId?: string
+  ): Promise<ILPFulfillPacket | ILPRejectPacket> {
     const correlationId = generateCorrelationId();
+    const sourcePeerId = fromPeerId || 'unknown';
 
     this.logger.info(
       {
@@ -662,6 +745,7 @@ export class PacketHandler {
         packetType: 'PREPARE',
         destination: packet.destination,
         amount: packet.amount.toString(),
+        fromPeerId: sourcePeerId,
         timestamp: Date.now(),
       },
       'Packet received'
@@ -669,7 +753,29 @@ export class PacketHandler {
 
     // Emit PACKET_RECEIVED telemetry
     if (this.telemetryEmitter) {
-      this.telemetryEmitter.emitPacketReceived(packet, 'unknown');
+      this.telemetryEmitter.emitPacketReceived(packet, sourcePeerId);
+    } else if (this.eventStore) {
+      // Standalone mode: emit event directly to EventStore
+      // Convert peer ID to full ILP address for UI display
+      const fromAddress = sourcePeerId.startsWith('g.') ? sourcePeerId : `g.${sourcePeerId}`;
+
+      const event = {
+        type: 'PACKET_RECEIVED' as const,
+        nodeId: this.nodeId,
+        packetId: packet.executionCondition.toString('hex'),
+        destination: packet.destination,
+        amount: packet.amount.toString(),
+        from: fromAddress,
+        timestamp: Date.now(),
+      };
+      this.eventStore.storeEvent(event).catch((err) => {
+        this.logger.warn(
+          { error: err.message, packetId: event.packetId },
+          'Failed to store PACKET_RECEIVED event'
+        );
+      });
+      // Broadcast event to WebSocket clients for real-time UI updates
+      this.eventBroadcaster?.broadcast(event);
     }
 
     // Validate packet
@@ -855,12 +961,10 @@ export class PacketHandler {
       }
 
       // Record settlement transfers atomically BEFORE forwarding packet
-      // NOTE: fromPeerId is 'unknown' for MVP - will be enhanced in future story
-      // to pass actual peer context through handlePreparePacket signature
       try {
         await this.recordPacketTransfers(
           packet,
-          'unknown', // TODO: Pass actual incoming peer ID in future enhancement
+          sourcePeerId,
           nextHop,
           forwardedAmount,
           connectorFee,
@@ -904,10 +1008,34 @@ export class PacketHandler {
     // Forward to next hop via BTP and return response
     const response = await this.forwardToNextHop(forwardingPacket, nextHop, correlationId);
 
-    // Emit PACKET_SENT telemetry after successful forward
+    // Emit PACKET_FORWARDED telemetry after successful forward
     if (this.telemetryEmitter) {
       const packetId = packet.executionCondition.toString('hex');
       this.telemetryEmitter.emitPacketSent(packetId, nextHop);
+    } else if (this.eventStore) {
+      // Standalone mode: emit PACKET_FORWARDED event directly to EventStore
+      // Convert peer IDs to full ILP addresses for UI display
+      const fromAddress = sourcePeerId.startsWith('g.') ? sourcePeerId : `g.${sourcePeerId}`;
+      const toAddress = nextHop.startsWith('g.') ? nextHop : `g.${nextHop}`;
+
+      const event = {
+        type: 'PACKET_FORWARDED' as const,
+        nodeId: this.nodeId,
+        packetId: packet.executionCondition.toString('hex'),
+        destination: packet.destination,
+        amount: forwardingPacket.amount.toString(),
+        from: fromAddress,
+        to: toAddress,
+        timestamp: Date.now(),
+      };
+      this.eventStore.storeEvent(event).catch((err) => {
+        this.logger.warn(
+          { error: err.message, packetId: event.packetId },
+          'Failed to store PACKET_FORWARDED event'
+        );
+      });
+      // Broadcast event to WebSocket clients for real-time UI updates
+      this.eventBroadcaster?.broadcast(event);
     }
 
     this.logger.info(

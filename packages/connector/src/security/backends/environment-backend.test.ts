@@ -68,12 +68,13 @@ describe('EnvironmentVariableBackend', () => {
       process.env.EVM_PRIVATE_KEY = testPrivateKey;
 
       const backend = new EnvironmentVariableBackend(logger);
-      const testMessage = Buffer.from('test-message-for-evm-signing');
+      // signingKey.sign() requires a 32-byte hash, not raw message
+      const testMessage = Buffer.from('0'.repeat(64), 'hex'); // 32-byte hash
 
       const signature = await backend.sign(testMessage, 'evm-key');
 
       expect(Buffer.isBuffer(signature)).toBe(true);
-      expect(signature.length).toBeGreaterThan(0);
+      expect(signature.length).toBe(65); // r + s + v = 65 bytes
 
       // Verify signature is valid by recovering the address
       const wallet = new Wallet(testPrivateKey);
@@ -98,11 +99,13 @@ describe('EnvironmentVariableBackend', () => {
       process.env.EVM_PRIVATE_KEY = testPrivateKey;
 
       const backend = new EnvironmentVariableBackend(logger);
-      const testMessage = Buffer.from('test-message');
+      // signingKey.sign() requires a 32-byte hash
+      const testMessage = Buffer.from('0'.repeat(64), 'hex'); // 32-byte hash
 
       const signature = await backend.sign(testMessage, 'my-evm-signing-key');
 
       expect(Buffer.isBuffer(signature)).toBe(true);
+      expect(signature.length).toBe(65); // r + s + v = 65 bytes
     });
 
     it('should detect XRP key type from keyId containing "xrp"', async () => {

@@ -84,12 +84,12 @@ export type IlpPacketType = 'prepare' | 'fulfill' | 'reject';
 
 /**
  * Packet type color mapping for ILP packet types
- * Uses ILP terminology: prepare (blue), fulfill (green), reject (red)
+ * NOC aesthetic: prepare (cyan), fulfill (emerald), reject (rose)
  */
 export const PACKET_TYPE_COLORS: Record<string, string> = {
-  prepare: 'bg-blue-500',
-  fulfill: 'bg-green-500',
-  reject: 'bg-red-500',
+  prepare: 'bg-cyan-500',
+  fulfill: 'bg-emerald-500',
+  reject: 'bg-rose-500',
 };
 
 /**
@@ -128,6 +128,16 @@ export function getIlpPacketType(event: TelemetryEvent | StoredEvent): IlpPacket
 export function isIlpPacketEvent(event: TelemetryEvent | StoredEvent): boolean {
   return getIlpPacketType(event) !== null;
 }
+
+/**
+ * ILP Packet event types for filtering (Story 18.3 AC 5)
+ * Used by FilterBar "ILP Packets" quick filter preset
+ */
+export const ILP_PACKET_EVENT_TYPES = [
+  'PACKET_RECEIVED',
+  'PACKET_FORWARDED',
+  'AGENT_CHANNEL_PAYMENT_SENT',
+] as const;
 
 /**
  * Response from GET /api/events
@@ -454,4 +464,49 @@ export function getBlockchainBadgeColor(blockchain: ClaimBlockchain): string {
     case 'aptos':
       return 'bg-green-100 text-green-800 border-green-300';
   }
+}
+
+// ============================================================================
+// Block Explorer Link Utilities
+// ============================================================================
+
+/**
+ * Base Sepolia block explorer URL
+ */
+export const BASE_SEPOLIA_EXPLORER = 'https://sepolia.basescan.org';
+
+/**
+ * Check if a string is a valid Ethereum address (0x followed by 40 hex chars)
+ */
+export function isEthereumAddress(value: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+/**
+ * Check if a string is a valid transaction hash (0x followed by 64 hex chars)
+ */
+export function isTransactionHash(value: string): boolean {
+  return /^0x[a-fA-F0-9]{64}$/.test(value);
+}
+
+/**
+ * Get block explorer URL for an Ethereum address
+ */
+export function getAddressExplorerUrl(address: string): string {
+  return `${BASE_SEPOLIA_EXPLORER}/address/${address}`;
+}
+
+/**
+ * Get block explorer URL for a transaction hash
+ */
+export function getTransactionExplorerUrl(txHash: string): string {
+  return `${BASE_SEPOLIA_EXPLORER}/tx/${txHash}`;
+}
+
+/**
+ * Truncate an Ethereum address or hash for display
+ */
+export function truncateHash(value: string, startChars = 6, endChars = 4): string {
+  if (value.length <= startChars + endChars + 2) return value;
+  return `${value.slice(0, startChars)}...${value.slice(-endChars)}`;
 }

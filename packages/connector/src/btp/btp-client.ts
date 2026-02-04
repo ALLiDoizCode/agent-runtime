@@ -574,9 +574,10 @@ export class BTPClient extends EventEmitter {
             'Received incoming prepare packet from server'
           );
 
-          // Route packet through PacketHandler
+          // Route packet through PacketHandler (pass peer ID for settlement tracking)
           const response = await this._packetHandler.handlePreparePacket(
-            preparePacket as ILPPreparePacket
+            preparePacket as ILPPreparePacket,
+            this._peer.id
           );
 
           // Send response back

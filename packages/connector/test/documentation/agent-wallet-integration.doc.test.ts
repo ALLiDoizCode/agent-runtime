@@ -3,8 +3,13 @@
  *
  * These tests verify that code examples in documentation are correct and compile.
  * Tests extract code snippets from documentation and validate they work as expected.
+ *
+ * DISABLED: Epic 16 (AI Agent Infrastructure) was deferred.
+ * The agent wallet infrastructure was removed from the codebase as part of Epic 16 reorganization.
+ * These tests are skipped until Epic 16 is resumed.
  */
 
+/*
 import { AgentWalletLifecycle } from '../../src/wallet/agent-wallet-lifecycle';
 import { AgentBalanceTracker } from '../../src/wallet/agent-balance-tracker';
 import { AgentWalletDerivation } from '../../src/wallet/agent-wallet-derivation';
@@ -21,9 +26,14 @@ import {
   TEST_EVM_ADDRESS,
   TEST_XRP_ADDRESS,
 } from '../../src/test-utils';
+*/
+
+import { pino } from 'pino';
+import { TEST_EVM_ADDRESS, TEST_XRP_ADDRESS } from '../../src/test-utils';
 
 const logger = pino({ level: 'silent' }); // Suppress logs in tests
 
+/*
 // Global mocks for use in tests
 let mockWalletDerivation: jest.Mocked<AgentWalletDerivation>;
 let mockWalletFunder: jest.Mocked<AgentWalletFunder>;
@@ -65,8 +75,9 @@ afterEach(() => {
   });
   lifecycleInstances.length = 0;
 });
+*/
 
-describe('Documentation Examples - Integration Guide', () => {
+describe.skip('Documentation Examples - Integration Guide', () => {
   describe('Quick Start Examples', () => {
     test('should create agent wallet (Quick Start Step 1)', async () => {
       // Example from: docs/guides/agent-wallet-integration.md - Step 1
@@ -280,7 +291,7 @@ describe('Documentation Examples - Integration Guide', () => {
   });
 });
 
-describe('Documentation Examples - API Reference', () => {
+describe.skip('Documentation Examples - API Reference', () => {
   describe('AgentWalletLifecycle API', () => {
     test('should match API signature for createAgentWallet', async () => {
       // Verify API signature matches documentation
@@ -339,7 +350,7 @@ describe('Documentation Examples - API Reference', () => {
   });
 });
 
-describe('Documentation Examples - Security Best Practices', () => {
+describe.skip('Documentation Examples - Security Best Practices', () => {
   test('should sanitize wallet data for logging', () => {
     // Example from: docs/security/agent-wallet-security.md
     const wallet = {
@@ -365,7 +376,7 @@ describe('Documentation Examples - Security Best Practices', () => {
   });
 });
 
-describe('Documentation Test Data Consistency', () => {
+describe.skip('Documentation Test Data Consistency', () => {
   test('should use consistent test data from Dev Notes', () => {
     // Verify test data matches Story 11.10 Dev Notes > Testing subsection
     const testData = {
