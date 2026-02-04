@@ -306,6 +306,22 @@ export interface ConnectorConfig {
   mode?: 'connector' | 'gateway';
 
   /**
+   * Optional admin API configuration for dynamic peer and route management
+   * When enabled, provides REST endpoints for runtime configuration
+   * Defaults to admin API disabled if not specified
+   *
+   * **Security Note:** The admin API should only be accessible within
+   * trusted networks (Docker Compose internal network, Kubernetes pod network).
+   * Do NOT expose to public internet.
+   *
+   * Environment variables:
+   * - ADMIN_API_ENABLED: Enable/disable admin API (default: false)
+   * - ADMIN_API_PORT: HTTP port (default: 8081)
+   * - ADMIN_API_KEY: Optional API key for authentication
+   */
+  adminApi?: AdminApiConfig;
+
+  /**
    * BTP URL of the first-hop connector (gateway mode only)
    * Used when mode='gateway' to establish BTP client connection
    *
@@ -1420,4 +1436,77 @@ export interface ObservabilityConfig {
     settlementSuccessRateThreshold?: number;
     p99LatencyThresholdMs?: number;
   };
+}
+
+/**
+ * Admin API Configuration Interface
+ *
+ * Configures the admin API for dynamic peer and route management at runtime.
+ * Enables agents to programmatically add/remove peers and routes without
+ * restarting the connector.
+ *
+ * **Security Considerations:**
+ * - Default: Disabled (must explicitly enable)
+ * - Designed for internal network access only (Docker Compose, K8s)
+ * - Optional API key authentication
+ * - Should NOT be exposed to public internet
+ *
+ * @property enabled - Enable/disable admin API (default: false)
+ * @property port - HTTP port to listen on (default: 8081)
+ * @property host - Host to bind to (default: '0.0.0.0')
+ * @property apiKey - Optional API key for authentication
+ *
+ * @example
+ * ```typescript
+ * const adminApi: AdminApiConfig = {
+ *   enabled: true,
+ *   port: 8081,
+ *   host: '0.0.0.0',
+ *   apiKey: 'my-secret-admin-key'
+ * };
+ * ```
+ *
+ * @example
+ * ```yaml
+ * # YAML configuration
+ * adminApi:
+ *   enabled: true
+ *   port: 8081
+ *   apiKey: ${ADMIN_API_KEY}  # From environment variable
+ * ```
+ */
+export interface AdminApiConfig {
+  /**
+   * Enable/disable admin API
+   * When false, admin API server is not started
+   * Environment variable: ADMIN_API_ENABLED (default: 'false')
+   * Default: false
+   */
+  enabled?: boolean;
+
+  /**
+   * Port for admin API HTTP server
+   * Must not conflict with BTP server port or health port
+   * Environment variable: ADMIN_API_PORT (default: '8081')
+   * Valid range: 1-65535
+   * Default: 8081
+   */
+  port?: number;
+
+  /**
+   * Host to bind the admin API server
+   * Use '0.0.0.0' for Docker containers (accessible from other containers)
+   * Use '127.0.0.1' for local-only access
+   * Environment variable: ADMIN_API_HOST (default: '0.0.0.0')
+   * Default: '0.0.0.0'
+   */
+  host?: string;
+
+  /**
+   * Optional API key for authentication
+   * When set, all requests must include X-Api-Key header or apiKey query param
+   * Environment variable: ADMIN_API_KEY (no default)
+   * Recommended for production use
+   */
+  apiKey?: string;
 }

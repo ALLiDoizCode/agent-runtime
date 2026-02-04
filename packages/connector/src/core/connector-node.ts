@@ -13,6 +13,7 @@ import { RoutingTableEntry, ILPAddress } from '@m2m/shared';
 import { ConnectorConfig, SettlementConfig } from '../config/types';
 import { ConfigLoader, ConfigurationError } from '../config/config-loader';
 import { HealthServer } from '../http/health-server';
+import { AdminServer } from '../http/admin-server';
 import { HealthStatus, HealthStatusProvider } from '../http/types';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { PeerStatus } from '../telemetry/types';
@@ -45,6 +46,7 @@ export class ConnectorNode implements HealthStatusProvider {
   private readonly _packetHandler: PacketHandler;
   private readonly _btpServer: BTPServer;
   private readonly _healthServer: HealthServer;
+  private _adminServer: AdminServer | null = null;
   private readonly _telemetryEmitter: TelemetryEmitter | null;
   private _eventStore: EventStore | null = null;
   private _explorerServer: ExplorerServer | null = null;
@@ -535,6 +537,42 @@ export class ConnectorNode implements HealthStatusProvider {
         'Health server started'
       );
 
+      // Start admin API server if enabled
+      const adminApiEnabled =
+        this._config.adminApi?.enabled || process.env.ADMIN_API_ENABLED === 'true';
+      if (adminApiEnabled) {
+        const adminConfig = {
+          enabled: true,
+          port: this._config.adminApi?.port ?? parseInt(process.env.ADMIN_API_PORT || '8081', 10),
+          host: this._config.adminApi?.host ?? process.env.ADMIN_API_HOST ?? '0.0.0.0',
+          apiKey: this._config.adminApi?.apiKey ?? process.env.ADMIN_API_KEY,
+        };
+
+        this._adminServer = new AdminServer({
+          routingTable: this._routingTable,
+          btpClientManager: this._btpClientManager,
+          nodeId: this._config.nodeId,
+          config: adminConfig,
+          logger: this._logger,
+        });
+
+        await this._adminServer.start();
+        this._logger.info(
+          {
+            event: 'admin_server_started',
+            port: adminConfig.port,
+            host: adminConfig.host,
+            apiKeyConfigured: !!adminConfig.apiKey,
+          },
+          'Admin API server started'
+        );
+      } else {
+        this._logger.debug(
+          { event: 'admin_api_disabled' },
+          'Admin API disabled (set ADMIN_API_ENABLED=true or adminApi.enabled=true to enable)'
+        );
+      }
+
       // Start explorer if enabled (default: true)
       if (this._config.explorer?.enabled !== false) {
         try {
@@ -874,6 +912,13 @@ export class ConnectorNode implements HealthStatusProvider {
       const peerIds = this._btpClientManager.getPeerIds();
       for (const peerId of peerIds) {
         await this._btpClientManager.removePeer(peerId);
+      }
+
+      // Stop admin server if running
+      if (this._adminServer) {
+        await this._adminServer.stop();
+        this._logger.info({ event: 'admin_server_stopped' }, 'Admin API server stopped');
+        this._adminServer = null;
       }
 
       // Stop health server
