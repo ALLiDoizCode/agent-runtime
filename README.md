@@ -295,18 +295,51 @@ AZURE_EVM_KEY_NAME=evm-signing-key
 
 #### 3. Configure Blockchain Networks
 
+Use `NETWORK_MODE` to quickly switch between testnet and mainnet for all chains:
+
 ```env
-# Base L2 (EVM)
-BASE_L2_RPC_URL=https://sepolia.base.org      # Testnet
-# BASE_L2_RPC_URL=https://mainnet.base.org    # Mainnet
+# Set network mode: 'testnet' (default) or 'mainnet'
+NETWORK_MODE=testnet
+```
 
-# XRP Ledger
-XRPL_WSS_URL=wss://s.altnet.rippletest.net:51233  # Testnet
-# XRPL_WSS_URL=wss://xrplcluster.com              # Mainnet
+**Network Mode URL Mappings:**
 
-# Aptos
-APTOS_NODE_URL=https://fullnode.testnet.aptoslabs.com/v1  # Testnet
-# APTOS_NODE_URL=https://fullnode.mainnet.aptoslabs.com/v1 # Mainnet
+| Chain   | Testnet                                     | Mainnet                                     |
+| ------- | ------------------------------------------- | ------------------------------------------- |
+| Base L2 | `https://sepolia.base.org`                  | `https://mainnet.base.org`                  |
+| XRP     | `wss://s.altnet.rippletest.net:51233`       | `wss://xrplcluster.com`                     |
+| Aptos   | `https://fullnode.testnet.aptoslabs.com/v1` | `https://fullnode.mainnet.aptoslabs.com/v1` |
+
+**Using the deploy script (recommended):**
+
+```bash
+# Testnet deployment (default)
+./scripts/deploy-5-peer-multihop.sh
+
+# Mainnet deployment
+NETWORK_MODE=mainnet ./scripts/deploy-5-peer-multihop.sh
+```
+
+**Using docker-compose directly:**
+
+```bash
+# Source the network mode helper first
+source scripts/set-network-mode.sh
+
+# Or for mainnet
+NETWORK_MODE=mainnet source scripts/set-network-mode.sh
+
+# Then run docker-compose
+docker-compose -f docker-compose-5-peer-multihop.yml up -d
+```
+
+**Override individual URLs** (optional):
+
+```env
+# Override specific URLs while using NETWORK_MODE for others
+NETWORK_MODE=mainnet
+BASE_L2_RPC_URL=https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY  # Custom RPC
+# XRPL_WSS_URL and APTOS_NODE_URL will use mainnet defaults
 ```
 
 #### 4. Configure Custom Token (Base/EVM)
@@ -449,30 +482,37 @@ spec:
         key: m2m/connector/token-address
 ```
 
-#### 4. Configure Blockchain Networks
+#### 4. Configure Blockchain Networks (Testnet vs Mainnet)
 
-Edit the ConfigMap for your environment:
+Kubernetes uses **overlays** to switch between testnet and mainnet. Choose the appropriate overlay:
 
-**Staging (testnet):**
+| Overlay      | Network Mode | Base    | XRP     | Aptos   |
+| ------------ | ------------ | ------- | ------- | ------- |
+| `staging`    | **Testnet**  | Sepolia | Testnet | Testnet |
+| `production` | **Mainnet**  | Mainnet | Mainnet | Mainnet |
+
+**Testnet Deployment:**
 
 ```bash
 kubectl apply -k k8s/connector/overlays/staging
 ```
 
-The staging overlay configures:
+Configures:
 
+- `NETWORK_MODE: testnet`
 - `BASE_L2_RPC_URL: https://sepolia.base.org`
 - `XRPL_WSS_URL: wss://s.altnet.rippletest.net:51233`
 - `APTOS_NODE_URL: https://fullnode.testnet.aptoslabs.com/v1`
 
-**Production (mainnet):**
+**Mainnet Deployment:**
 
 ```bash
 kubectl apply -k k8s/connector/overlays/production
 ```
 
-The production overlay configures:
+Configures:
 
+- `NETWORK_MODE: mainnet`
 - `BASE_L2_RPC_URL: https://mainnet.base.org`
 - `XRPL_WSS_URL: wss://xrplcluster.com`
 - `APTOS_NODE_URL: https://fullnode.mainnet.aptoslabs.com/v1`
@@ -571,14 +611,17 @@ EOF
 | `NODE_ID`               | Unique connector identifier           | `m2m-connector` |
 | `LOG_LEVEL`             | Logging level (debug/info/warn/error) | `info`          |
 | `SETTLEMENT_PREFERENCE` | Settlement chain (evm/xrp/aptos/both) | `evm`           |
+| `NETWORK_MODE`          | Network selection (testnet/mainnet)   | `testnet`       |
 
 #### Blockchain Networks
 
-| Variable          | Description          | Example                                     |
-| ----------------- | -------------------- | ------------------------------------------- |
-| `BASE_L2_RPC_URL` | Base L2 RPC endpoint | `https://mainnet.base.org`                  |
-| `XRPL_WSS_URL`    | XRP Ledger WebSocket | `wss://xrplcluster.com`                     |
-| `APTOS_NODE_URL`  | Aptos fullnode URL   | `https://fullnode.mainnet.aptoslabs.com/v1` |
+URLs are auto-configured based on `NETWORK_MODE`. Override individually if needed:
+
+| Variable          | Description          | Testnet Default                             | Mainnet Default                             |
+| ----------------- | -------------------- | ------------------------------------------- | ------------------------------------------- |
+| `BASE_L2_RPC_URL` | Base L2 RPC endpoint | `https://sepolia.base.org`                  | `https://mainnet.base.org`                  |
+| `XRPL_WSS_URL`    | XRP Ledger WebSocket | `wss://s.altnet.rippletest.net:51233`       | `wss://xrplcluster.com`                     |
+| `APTOS_NODE_URL`  | Aptos fullnode URL   | `https://fullnode.testnet.aptoslabs.com/v1` | `https://fullnode.mainnet.aptoslabs.com/v1` |
 
 #### Token & Contract Addresses
 

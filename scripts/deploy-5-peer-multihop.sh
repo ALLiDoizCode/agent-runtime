@@ -36,6 +36,47 @@ COMPOSE_FILE="${PROJECT_ROOT}/docker-compose-5-peer-multihop.yml"
 FUNDING_SCRIPT="${PROJECT_ROOT}/tools/fund-peers/dist/index.js"
 COMPOSE_CMD="docker compose"
 
+# -----------------------------------------------------------------------------
+# Network Mode Configuration
+# -----------------------------------------------------------------------------
+# Resolve blockchain RPC URLs based on NETWORK_MODE
+# This allows easy switching between testnet and mainnet deployments
+
+resolve_network_urls() {
+  # Load .env file if it exists
+  if [ -f "${PROJECT_ROOT}/.env" ]; then
+    set -a
+    source "${PROJECT_ROOT}/.env"
+    set +a
+  fi
+
+  # Default to testnet if not specified
+  NETWORK_MODE="${NETWORK_MODE:-testnet}"
+
+  echo -e "${BLUE}Network Mode:${NC} ${NETWORK_MODE}"
+
+  # Set URLs based on NETWORK_MODE (only if not already set)
+  if [ "${NETWORK_MODE}" = "mainnet" ]; then
+    export BASE_L2_RPC_URL="${BASE_L2_RPC_URL:-https://mainnet.base.org}"
+    export BASE_RPC_URL="${BASE_RPC_URL:-https://mainnet.base.org}"
+    export XRPL_WSS_URL="${XRPL_WSS_URL:-wss://xrplcluster.com}"
+    export APTOS_NODE_URL="${APTOS_NODE_URL:-https://fullnode.mainnet.aptoslabs.com/v1}"
+    echo -e "${YELLOW}⚠️  MAINNET MODE - Using production blockchain networks${NC}"
+  else
+    export BASE_L2_RPC_URL="${BASE_L2_RPC_URL:-https://sepolia.base.org}"
+    export BASE_RPC_URL="${BASE_RPC_URL:-https://sepolia.base.org}"
+    export XRPL_WSS_URL="${XRPL_WSS_URL:-wss://s.altnet.rippletest.net:51233}"
+    export APTOS_NODE_URL="${APTOS_NODE_URL:-https://fullnode.testnet.aptoslabs.com/v1}"
+    echo -e "${GREEN}✓ TESTNET MODE - Using test blockchain networks${NC}"
+  fi
+
+  echo ""
+  echo "  Base L2:  ${BASE_L2_RPC_URL}"
+  echo "  XRP:      ${XRPL_WSS_URL}"
+  echo "  Aptos:    ${APTOS_NODE_URL}"
+  echo ""
+}
+
 # TigerBeetle initialization function
 initialize_tigerbeetle() {
   echo "Initializing TigerBeetle cluster..."
@@ -72,6 +113,11 @@ echo "======================================"
 echo "  5-Peer Multi-Hop Deployment"
 echo "======================================"
 echo ""
+
+# Step 0: Resolve network configuration
+echo -e "${BLUE}[0/7]${NC} Resolving network configuration..."
+echo ""
+resolve_network_urls
 
 # Step 1: Check prerequisites
 echo -e "${BLUE}[1/7]${NC} Checking prerequisites..."

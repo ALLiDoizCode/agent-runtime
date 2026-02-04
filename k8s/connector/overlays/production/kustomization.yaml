@@ -1,4 +1,15 @@
-# Production Overlay for M2M Connector
+# Production Overlay for M2M Connector (MAINNET)
+#
+# This overlay configures the connector for MAINNET deployment with:
+#   - Base Mainnet (chainId 8453)
+#   - XRP Mainnet
+#   - Aptos Mainnet
+#   - HA configuration (2 replicas)
+#   - Production resource limits
+#
+# Usage:
+#   kubectl apply -k k8s/connector/overlays/production
+#
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -33,13 +44,21 @@ patches:
       kind: Deployment
       name: connector
 
-  # Production ConfigMap patches
+  # Production ConfigMap patches - MAINNET URLs
   - patch: |
       apiVersion: v1
       kind: ConfigMap
       metadata:
         name: connector-config
       data:
+        # Network Mode
+        NETWORK_MODE: "mainnet"
+        # Mainnet RPC URLs
+        BASE_L2_RPC_URL: "https://mainnet.base.org"
+        BASE_RPC_URL: "https://mainnet.base.org"
+        XRPL_WSS_URL: "wss://xrplcluster.com"
+        APTOS_NODE_URL: "https://fullnode.mainnet.aptoslabs.com/v1"
+        # Production settings
         LOG_LEVEL: "info"
         SETTLEMENT_ENABLED: "true"
         PROMETHEUS_ENABLED: "true"
@@ -54,3 +73,4 @@ images:
 
 commonAnnotations:
   environment: production
+  network-mode: mainnet

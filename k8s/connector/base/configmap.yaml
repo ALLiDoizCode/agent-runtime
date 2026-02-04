@@ -1,5 +1,10 @@
 # M2M Connector Configuration
 # Non-sensitive configuration values
+#
+# This is the base ConfigMap. Use overlays to configure for different environments:
+#   - overlays/staging    -> TESTNET (Base Sepolia, XRP Testnet, Aptos Testnet)
+#   - overlays/production -> MAINNET (Base Mainnet, XRP Mainnet, Aptos Mainnet)
+#
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -12,6 +17,10 @@ data:
   # Core Settings
   NODE_ID: "m2m-connector"
   LOG_LEVEL: "info"
+
+  # Network Mode: 'testnet' | 'mainnet'
+  # This is a label for documentation; actual URLs are set below
+  NETWORK_MODE: "mainnet"
 
   # Network Ports
   BTP_SERVER_PORT: "4000"
@@ -28,10 +37,14 @@ data:
   TIGERBEETLE_CLUSTER_ID: "0"
   TIGERBEETLE_REPLICAS: "tigerbeetle.tigerbeetle.svc.cluster.local:3000"
 
-  # Blockchain RPC URLs (can be overridden in overlays)
+  # Blockchain RPC URLs
+  # Default: MAINNET (override in staging overlay for testnet)
+  # Base L2 (EVM)
   BASE_RPC_URL: "https://mainnet.base.org"
   BASE_L2_RPC_URL: "https://mainnet.base.org"
+  # XRP Ledger
   XRPL_WSS_URL: "wss://xrplcluster.com"
+  # Aptos
   APTOS_NODE_URL: "https://fullnode.mainnet.aptoslabs.com/v1"
 
   # Monitoring
