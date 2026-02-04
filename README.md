@@ -228,6 +228,405 @@ npm run test:integration
 
 ---
 
+## Deployment Guide
+
+This section covers deploying the ILP Connector with Docker Compose and Kubernetes, including configuration for secrets and custom tokens.
+
+### Quick Reference
+
+| Environment        | Command             | Secrets     | Token Config     |
+| ------------------ | ------------------- | ----------- | ---------------- |
+| **Local Dev**      | `npm run dev`       | `.env` file | Local Anvil      |
+| **Docker Compose** | `docker-compose up` | `.env` file | Testnet/Mainnet  |
+| **Kubernetes**     | `kubectl apply -k`  | K8s Secrets | ConfigMap/Secret |
+
+---
+
+### Docker Compose Deployment
+
+#### 1. Prepare Environment File
+
+```bash
+# Copy the example configuration
+cp .env.example .env
+
+# Edit with your values
+nano .env
+```
+
+#### 2. Configure Secrets
+
+**Development (local testing):**
+
+```env
+# Key management - env backend for development only
+KEY_BACKEND=env
+
+# EVM private key (hex format)
+EVM_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# XRP seed (optional, for XRP settlement)
+XRP_SEED=sEdTM1JVyAnDtG7pKF4AeTJrWLWr9oF
+
+# Aptos private key (optional, for Aptos settlement)
+APTOS_PRIVATE_KEY=0x...
+```
+
+**Production (KMS required):**
+
+```env
+# AWS KMS
+KEY_BACKEND=aws-kms
+AWS_REGION=us-east-1
+AWS_KMS_EVM_KEY_ID=arn:aws:kms:us-east-1:123456789012:key/xxxxx
+
+# GCP KMS
+KEY_BACKEND=gcp-kms
+GCP_PROJECT_ID=my-project
+GCP_LOCATION_ID=us-east1
+GCP_KEY_RING_ID=connector-keyring
+GCP_KMS_EVM_KEY_ID=evm-signing-key
+
+# Azure Key Vault
+KEY_BACKEND=azure-keyvault
+AZURE_VAULT_URL=https://my-vault.vault.azure.net
+AZURE_EVM_KEY_NAME=evm-signing-key
+```
+
+#### 3. Configure Blockchain Networks
+
+```env
+# Base L2 (EVM)
+BASE_L2_RPC_URL=https://sepolia.base.org      # Testnet
+# BASE_L2_RPC_URL=https://mainnet.base.org    # Mainnet
+
+# XRP Ledger
+XRPL_WSS_URL=wss://s.altnet.rippletest.net:51233  # Testnet
+# XRPL_WSS_URL=wss://xrplcluster.com              # Mainnet
+
+# Aptos
+APTOS_NODE_URL=https://fullnode.testnet.aptoslabs.com/v1  # Testnet
+# APTOS_NODE_URL=https://fullnode.mainnet.aptoslabs.com/v1 # Mainnet
+```
+
+#### 4. Configure Custom Token (Base/EVM)
+
+To use your own ERC-20 token instead of the default M2M token:
+
+```env
+# Your custom ERC-20 token contract address
+M2M_TOKEN_ADDRESS=0xYourTokenContractAddress
+
+# Token Network Registry (Raiden-style payment channels)
+# Deploy your own or use existing registry
+TOKEN_NETWORK_REGISTRY=0xYourRegistryContractAddress
+
+# Settlement configuration
+SETTLEMENT_ENABLED=true
+SETTLEMENT_THRESHOLD=1000000  # In token base units (e.g., 1 token with 6 decimals)
+```
+
+**Deploying Custom Contracts:**
+
+```bash
+# Navigate to contracts package
+cd packages/contracts
+
+# Deploy M2M token (or use existing ERC-20)
+npx hardhat run scripts/deploy-token.ts --network base-sepolia
+
+# Deploy Token Network Registry
+npx hardhat run scripts/deploy-registry.ts --network base-sepolia
+
+# Copy addresses to .env
+```
+
+#### 5. Configure Custom Token (Aptos)
+
+For Aptos settlement with a custom Move token:
+
+```env
+# Aptos module address (where your payment channel module is deployed)
+APTOS_MODULE_ADDRESS=0xYourModuleAddress
+
+# Your Aptos account address
+APTOS_ADDRESS=0xYourAptosAddress
+
+# Aptos private key
+APTOS_PRIVATE_KEY=0xYourPrivateKey
+```
+
+#### 6. Start Services
+
+```bash
+# Single connector
+docker-compose up -d
+
+# 5-peer multi-hop network
+docker-compose -f docker-compose-5-peer-multihop.yml up -d --build
+
+# View logs
+docker-compose logs -f
+```
+
+#### 7. Verify Deployment
+
+```bash
+# Check health endpoints
+curl http://localhost:9080/health  # Peer 1
+curl http://localhost:9081/health  # Peer 2
+
+# Access Explorer UI
+open http://localhost:5173  # Peer 1 Explorer
+```
+
+---
+
+### Kubernetes Deployment
+
+#### 1. Prerequisites
+
+- Kubernetes cluster (1.25+)
+- kubectl configured
+- kustomize (built into kubectl)
+
+#### 2. Deploy TigerBeetle
+
+```bash
+# Create namespace and deploy TigerBeetle
+kubectl apply -k k8s/tigerbeetle/base
+
+# Verify TigerBeetle is running
+kubectl -n tigerbeetle get pods
+```
+
+#### 3. Create Secrets
+
+**Option A: Direct kubectl (development):**
+
+```bash
+kubectl -n m2m-connector create secret generic connector-secrets \
+  --from-literal=EVM_PRIVATE_KEY=0xYourPrivateKey \
+  --from-literal=XRP_SEED=sYourXRPSeed \
+  --from-literal=APTOS_PRIVATE_KEY=0xYourAptosKey \
+  --from-literal=M2M_TOKEN_ADDRESS=0xYourTokenAddress \
+  --from-literal=TOKEN_NETWORK_REGISTRY=0xYourRegistryAddress
+```
+
+**Option B: Sealed Secrets (production):**
+
+```bash
+# Install Sealed Secrets controller
+kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.24.0/controller.yaml
+
+# Create sealed secret
+kubeseal --format=yaml < k8s/connector/base/secret.yaml > sealed-secret.yaml
+kubectl apply -f sealed-secret.yaml
+```
+
+**Option C: External Secrets Operator (production):**
+
+```yaml
+# external-secret.yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: connector-secrets
+  namespace: m2m-connector
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: connector-secrets
+  data:
+    - secretKey: EVM_PRIVATE_KEY
+      remoteRef:
+        key: m2m/connector/evm-key
+    - secretKey: M2M_TOKEN_ADDRESS
+      remoteRef:
+        key: m2m/connector/token-address
+```
+
+#### 4. Configure Blockchain Networks
+
+Edit the ConfigMap for your environment:
+
+**Staging (testnet):**
+
+```bash
+kubectl apply -k k8s/connector/overlays/staging
+```
+
+The staging overlay configures:
+
+- `BASE_L2_RPC_URL: https://sepolia.base.org`
+- `XRPL_WSS_URL: wss://s.altnet.rippletest.net:51233`
+- `APTOS_NODE_URL: https://fullnode.testnet.aptoslabs.com/v1`
+
+**Production (mainnet):**
+
+```bash
+kubectl apply -k k8s/connector/overlays/production
+```
+
+The production overlay configures:
+
+- `BASE_L2_RPC_URL: https://mainnet.base.org`
+- `XRPL_WSS_URL: wss://xrplcluster.com`
+- `APTOS_NODE_URL: https://fullnode.mainnet.aptoslabs.com/v1`
+
+#### 5. Custom Token Configuration
+
+**Via ConfigMap patch:**
+
+```yaml
+# k8s/connector/overlays/custom/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: m2m-connector
+
+resources:
+  - ../../base
+
+patches:
+  - patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: connector-config
+      data:
+        # Custom blockchain RPC
+        BASE_L2_RPC_URL: "https://your-rpc-endpoint.com"
+        # Settlement settings
+        SETTLEMENT_ENABLED: "true"
+        SETTLEMENT_THRESHOLD: "5000000"
+    target:
+      kind: ConfigMap
+      name: connector-config
+```
+
+**Via Secret for token addresses:**
+
+```bash
+kubectl -n m2m-connector create secret generic connector-secrets \
+  --from-literal=M2M_TOKEN_ADDRESS=0xYourCustomToken \
+  --from-literal=TOKEN_NETWORK_REGISTRY=0xYourCustomRegistry \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+#### 6. Deploy Connector
+
+```bash
+# Staging deployment
+kubectl apply -k k8s/connector/overlays/staging
+
+# Production deployment
+kubectl apply -k k8s/connector/overlays/production
+
+# Verify deployment
+kubectl -n m2m-connector get pods
+kubectl -n m2m-connector logs -f deployment/connector
+```
+
+#### 7. Expose Services
+
+```bash
+# Port-forward for local access
+kubectl -n m2m-connector port-forward svc/connector 4000:4000  # BTP
+kubectl -n m2m-connector port-forward svc/connector 5173:5173  # Explorer
+
+# Or create Ingress for external access
+kubectl apply -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: connector-ingress
+  namespace: m2m-connector
+spec:
+  rules:
+    - host: connector.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: connector
+                port:
+                  number: 4000
+EOF
+```
+
+---
+
+### Environment Variables Reference
+
+#### Core Settings
+
+| Variable                | Description                           | Default         |
+| ----------------------- | ------------------------------------- | --------------- |
+| `NODE_ID`               | Unique connector identifier           | `m2m-connector` |
+| `LOG_LEVEL`             | Logging level (debug/info/warn/error) | `info`          |
+| `SETTLEMENT_PREFERENCE` | Settlement chain (evm/xrp/aptos/both) | `evm`           |
+
+#### Blockchain Networks
+
+| Variable          | Description          | Example                                     |
+| ----------------- | -------------------- | ------------------------------------------- |
+| `BASE_L2_RPC_URL` | Base L2 RPC endpoint | `https://mainnet.base.org`                  |
+| `XRPL_WSS_URL`    | XRP Ledger WebSocket | `wss://xrplcluster.com`                     |
+| `APTOS_NODE_URL`  | Aptos fullnode URL   | `https://fullnode.mainnet.aptoslabs.com/v1` |
+
+#### Token & Contract Addresses
+
+| Variable                 | Description               | Required For     |
+| ------------------------ | ------------------------- | ---------------- |
+| `M2M_TOKEN_ADDRESS`      | ERC-20 token contract     | EVM settlement   |
+| `TOKEN_NETWORK_REGISTRY` | Payment channel registry  | EVM settlement   |
+| `APTOS_MODULE_ADDRESS`   | Aptos Move module address | Aptos settlement |
+
+#### Key Management
+
+| Variable            | Description                     | Values                                        |
+| ------------------- | ------------------------------- | --------------------------------------------- |
+| `KEY_BACKEND`       | Secret storage backend          | `env`, `aws-kms`, `gcp-kms`, `azure-keyvault` |
+| `EVM_PRIVATE_KEY`   | EVM signing key (env backend)   | `0x...`                                       |
+| `XRP_SEED`          | XRP seed (env backend)          | `s...`                                        |
+| `APTOS_PRIVATE_KEY` | Aptos signing key (env backend) | `0x...`                                       |
+
+#### Settlement
+
+| Variable               | Description                      | Default   |
+| ---------------------- | -------------------------------- | --------- |
+| `SETTLEMENT_ENABLED`   | Enable automatic settlement      | `true`    |
+| `SETTLEMENT_THRESHOLD` | Balance threshold for settlement | `1000000` |
+
+---
+
+### Production Checklist
+
+Before deploying to production:
+
+- [ ] `KEY_BACKEND` is NOT `env` (use KMS)
+- [ ] `GRAFANA_PASSWORD` changed from default
+- [ ] Using HTTPS RPC endpoints
+- [ ] Secrets managed via KMS/Vault
+- [ ] TigerBeetle has 3+ replicas
+- [ ] Network policies configured
+- [ ] Resource limits set appropriately
+- [ ] Monitoring/alerting configured
+
+Run the preflight validation:
+
+```bash
+./scripts/production-preflight.sh
+```
+
+---
+
 ## Project Status
 
 See [Epic List](docs/prd/epic-list.md) for the complete list of features.
