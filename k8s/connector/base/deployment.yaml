@@ -71,6 +71,11 @@ spec:
                 secretKeyRef:
                   name: connector-secrets
                   key: EVM_PRIVATE_KEY
+            - name: TREASURY_EVM_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: connector-secrets
+                  key: EVM_PRIVATE_KEY
             - name: XRP_SEED
               valueFrom:
                 secretKeyRef:
