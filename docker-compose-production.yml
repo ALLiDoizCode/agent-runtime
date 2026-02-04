@@ -17,7 +17,8 @@
 # Prerequisites:
 #   1. Build connector image: docker build -t m2m/connector:latest .
 #   2. Initialize TigerBeetle (one-time):
-#      docker run --rm -v tigerbeetle-data:/data tigerbeetle/tigerbeetle \
+#      docker run --rm --security-opt seccomp=unconfined -v tigerbeetle-data:/data \
+#        ghcr.io/tigerbeetle/tigerbeetle:0.16.68 \
 #        format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
 #   3. Create .env from template: cp .env.example .env
 #   4. Configure .env with your settings (including Aptos credentials)
@@ -32,6 +33,7 @@
 #   - Connector BTP:     ws://localhost:4000
 #   - Connector Health:  http://localhost:8080/health
 #   - Connector Metrics: http://localhost:8080/metrics
+#   - Explorer UI:       http://localhost:5173
 #   - Prometheus:        http://localhost:9090
 #   - Grafana:           http://localhost:3001 (admin/admin)
 #   - Jaeger UI:         http://localhost:16686 (if enabled)
@@ -43,12 +45,27 @@ services:
   # TigerBeetle - High-Performance Accounting Database
   # ===========================================================================
   # IMPORTANT: Must initialize data file before first start:
-  # docker run --rm -v tigerbeetle-data:/data tigerbeetle/tigerbeetle \
+  # docker run --rm --security-opt seccomp=unconfined -v tigerbeetle-data:/data \
+  #   ghcr.io/tigerbeetle/tigerbeetle:0.16.68 \
   #   format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
+  #
+  # PRODUCTION NOTE: For true high availability, deploy 3+ replicas:
+  #   - Format each replica with --replica=N --replica-count=3
+  #   - Start with --addresses=replica0:3000,replica1:3000,replica2:3000
+  #   - See TigerBeetle docs: https://docs.tigerbeetle.com/operating/deploy
   tigerbeetle:
-    image: tigerbeetle/tigerbeetle:latest
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.68
     container_name: m2m-tigerbeetle
     command: start --addresses=0.0.0.0:3000 /data/0_0.tigerbeetle
+    # Required for TigerBeetle's io_uring and direct I/O operations
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - IPC_LOCK
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     volumes:
       - tigerbeetle-data:/data
     networks:
@@ -56,13 +73,16 @@ services:
     restart: unless-stopped
     healthcheck:
       # TigerBeetle doesn't have HTTP endpoint; use TCP check
+      # Note: This only verifies port is listening, not full health
       test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
-    mem_limit: 512m
-    cpus: '0.5'
+      start_period: 30s
+    # TigerBeetle allocates ~3GB during replica initialization
+    # and requires sufficient memory for optimal performance
+    mem_limit: 4g
+    cpus: '1.0'
 
   # ===========================================================================
   # M2M ILP Connector - Core Payment Processing
@@ -82,14 +102,22 @@ services:
       # Network Ports
       BTP_SERVER_PORT: 4000
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5173
 
       # Settlement Configuration
-      SETTLEMENT_PREFERENCE: ${SETTLEMENT_PREFERENCE:-both}
+      SETTLEMENT_PREFERENCE: ${SETTLEMENT_PREFERENCE:-evm}
+      SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
+      SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
 
       # Blockchain RPC URLs
       BASE_RPC_URL: ${BASE_RPC_URL:-https://mainnet.base.org}
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-https://mainnet.base.org}
       XRPL_WSS_URL: ${XRPL_WSS_URL:-wss://xrplcluster.com}
       APTOS_NODE_URL: ${APTOS_NODE_URL:-https://fullnode.mainnet.aptoslabs.com/v1}
+
+      # M2M Token & Payment Channel Configuration
+      M2M_TOKEN_ADDRESS: ${M2M_TOKEN_ADDRESS:-}
+      TOKEN_NETWORK_REGISTRY: ${TOKEN_NETWORK_REGISTRY:-}
 
       # Wallet Addresses (for settlement)
       EVM_ADDRESS: ${EVM_ADDRESS:-}
@@ -146,6 +174,8 @@ services:
       - "${BTP_PORT:-4000}:4000"
       # Health check and metrics HTTP server
       - "${HEALTH_CHECK_PORT:-8080}:8080"
+      # Explorer UI (NOC Dashboard)
+      - "${EXPLORER_PORT:-5173}:5173"
     networks:
       - ilp-production-network
     depends_on:

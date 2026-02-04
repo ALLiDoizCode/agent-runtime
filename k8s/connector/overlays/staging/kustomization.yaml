@@ -1,0 +1,31 @@
+# Staging Overlay for M2M Connector
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: m2m-connector-staging
+
+resources:
+  - ../../base
+
+# Override namespace for staging
+nameSuffix: -staging
+
+# Staging ConfigMap patches
+configMapGenerator:
+  - name: connector-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=debug
+      - SETTLEMENT_ENABLED=true
+      - BASE_RPC_URL=https://sepolia.base.org
+      - BASE_L2_RPC_URL=https://sepolia.base.org
+      - XRPL_WSS_URL=wss://s.altnet.rippletest.net:51233
+      - APTOS_NODE_URL=https://fullnode.testnet.aptoslabs.com/v1
+
+# Staging image
+images:
+  - name: m2m/connector
+    newTag: staging
+
+commonAnnotations:
+  environment: staging

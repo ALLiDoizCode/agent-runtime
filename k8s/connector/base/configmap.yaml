@@ -1,0 +1,41 @@
+# M2M Connector Configuration
+# Non-sensitive configuration values
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: connector-config
+  namespace: m2m-connector
+  labels:
+    app.kubernetes.io/name: m2m-connector
+    app.kubernetes.io/component: config
+data:
+  # Core Settings
+  NODE_ID: "m2m-connector"
+  LOG_LEVEL: "info"
+
+  # Network Ports
+  BTP_SERVER_PORT: "4000"
+  HEALTH_CHECK_PORT: "8080"
+  EXPLORER_PORT: "5173"
+
+  # Settlement Configuration
+  SETTLEMENT_PREFERENCE: "evm"
+  SETTLEMENT_ENABLED: "true"
+  SETTLEMENT_THRESHOLD: "1000000"
+
+  # TigerBeetle Connection
+  # Update based on your TigerBeetle deployment
+  TIGERBEETLE_CLUSTER_ID: "0"
+  TIGERBEETLE_REPLICAS: "tigerbeetle.tigerbeetle.svc.cluster.local:3000"
+
+  # Blockchain RPC URLs (can be overridden in overlays)
+  BASE_RPC_URL: "https://mainnet.base.org"
+  BASE_L2_RPC_URL: "https://mainnet.base.org"
+  XRPL_WSS_URL: "wss://xrplcluster.com"
+  APTOS_NODE_URL: "https://fullnode.mainnet.aptoslabs.com/v1"
+
+  # Monitoring
+  PROMETHEUS_ENABLED: "true"
+
+  # Peer Discovery (disabled by default)
+  PEER_DISCOVERY_ENABLED: "false"

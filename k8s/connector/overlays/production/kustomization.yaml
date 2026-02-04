@@ -1,0 +1,51 @@
+# Production Overlay for M2M Connector
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: m2m-connector
+
+resources:
+  - ../../base
+
+# Production-specific patches
+patches:
+  # Increase replicas for HA
+  - patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+    target:
+      kind: Deployment
+      name: connector
+
+  # Increase resource limits for production
+  - patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+    target:
+      kind: Deployment
+      name: connector
+
+# Production ConfigMap patches
+configMapGenerator:
+  - name: connector-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=info
+      - SETTLEMENT_ENABLED=true
+      - PROMETHEUS_ENABLED=true
+
+# Production image
+images:
+  - name: m2m/connector
+    newTag: production
+
+commonAnnotations:
+  environment: production
