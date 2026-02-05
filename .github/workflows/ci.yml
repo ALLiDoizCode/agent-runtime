@@ -85,6 +85,12 @@ jobs:
           max_attempts: 3
           command: npm ci --verbose
 
+      - name: Install libsql native module for Linux
+        run: |
+          # Force install the Linux x64 glibc native module for libsql
+          # This is needed because package-lock.json may have been generated on macOS
+          npm install @libsql/linux-x64-gnu --no-save --ignore-scripts || true
+
       - name: Verify installation
         run: |
           echo "Verifying workspace dependencies..."
@@ -326,7 +332,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: 'ghcr.io/${{ github.repository_owner }}/m2m-connector:${{ github.sha }}'
+          image-ref: 'ghcr.io/${{ github.repository_owner }}/agent-runtime:${{ github.sha }}'
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
@@ -439,7 +445,7 @@ jobs:
       - name: Build Docker images
         run: |
           echo "Building Docker image..."
-          docker build -t ilp-connector .
+          docker build -t agent-runtime .
           echo "✓ Docker image built"
 
       - name: Run E2E Full System Test
@@ -493,7 +499,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/m2m-connector
+          images: ghcr.io/${{ github.repository_owner }}/agent-runtime
           tags: |
             type=raw,value=latest
             type=sha,prefix=
