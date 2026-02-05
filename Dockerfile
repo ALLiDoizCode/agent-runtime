@@ -1,11 +1,11 @@
-# Multi-stage Dockerfile for ILP Connector
+# Multi-stage Dockerfile for Agent Runtime
 #
 # Stage 1 (builder): Compiles TypeScript to JavaScript with all dependencies
 # Stage 1.5 (ui-builder): Builds Explorer UI with Vite
 # Stage 2 (runtime): Runs compiled connector with production dependencies only
 #
-# Build: docker build -t ilp-connector .
-# Run:   docker run -e NODE_ID=connector-a -e BTP_SERVER_PORT=3000 -p 3000:3000 -p 3001:3001 ilp-connector
+# Build: docker build -t agent-runtime .
+# Run:   docker run -e NODE_ID=connector-a -e BTP_SERVER_PORT=3000 -p 3000:3000 -p 3001:3001 agent-runtime
 
 # ============================================
 # Stage 1: Builder
@@ -38,7 +38,7 @@ COPY packages/shared/src ./packages/shared/src
 # Build all packages (TypeScript compilation)
 # Build shared first, then connector (dependency order)
 # Use build:connector-only to skip UI build (UI is built in ui-builder stage)
-RUN npm run build --workspace=@m2m/shared && npm run build:connector-only --workspace=@m2m/connector
+RUN npm run build --workspace=@agent-runtime/shared && npm run build:connector-only --workspace=@agent-runtime/connector
 
 # ============================================
 # Stage 1.5: UI Builder (Explorer UI)
@@ -74,8 +74,18 @@ COPY packages/shared/package.json ./packages/shared/
 
 # Install production dependencies only (excludes devDependencies like TypeScript)
 # This significantly reduces image size
-# Use --ignore-scripts to skip prepare script (husky is a devDependency, not needed in production)
-RUN npm ci --workspaces --omit=dev --ignore-scripts
+# Remove the 'prepare' script before install (it runs husky which is a devDependency)
+# Then explicitly install the platform-specific libsql binary for Alpine ARM64/x64
+RUN apk add --no-cache jq && \
+    jq 'del(.scripts.prepare)' package.json > package.json.tmp && \
+    mv package.json.tmp package.json && \
+    npm ci --workspaces --omit=dev --ignore-scripts && \
+    cd packages/connector && \
+    LIBSQL_VERSION=$(npm ls libsql --json 2>/dev/null | jq -r '.dependencies.libsql.version // .dependencies["@libsql/client"].dependencies.libsql.version // "0.4.7"') && \
+    (npm install "@libsql/linux-arm64-musl@${LIBSQL_VERSION}" --no-save 2>/dev/null || \
+     npm install "@libsql/linux-x64-musl@${LIBSQL_VERSION}" --no-save 2>/dev/null || true) && \
+    cd ../.. && \
+    apk del jq
 
 # Copy compiled JavaScript from builder stage
 # Only copy dist directories, not source code
