@@ -19,7 +19,12 @@
 
 import { performance } from 'perf_hooks';
 import * as crypto from 'crypto';
-import { PacketType, serializePrepare, deserializePrepare, ILPPreparePacket } from '@m2m/shared';
+import {
+  PacketType,
+  serializePrepare,
+  deserializePrepare,
+  ILPPreparePacket,
+} from '@agent-runtime/shared';
 
 // Acceptance tests have 5 minute timeout per test
 jest.setTimeout(300000);
