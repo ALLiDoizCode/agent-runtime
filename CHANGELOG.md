@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.6.0...v1.6.1) (2026-02-05)
+
+### Bug Fixes
+
+- **ci:** install libsql native module for Linux in CI test job ([f9ff8b1](https://github.com/ALLiDoizCode/agent-runtime/commit/f9ff8b13880f2d1c0cbb2932f605e7580f447c5c))
+- **ci:** install libsql native module for Linux in integration tests ([70237ac](https://github.com/ALLiDoizCode/agent-runtime/commit/70237ac875f4b827e94ca05fea488eea2b1fcad4))
+- **ci:** update all imports from @m2m/shared to @agent-runtime/shared ([6804143](https://github.com/ALLiDoizCode/agent-runtime/commit/6804143a29ca3b4fa0dbaf94bd774fe55da89585))
+- **ci:** update package names from @m2m/_ to @agent-runtime/_ ([ab68361](https://github.com/ALLiDoizCode/agent-runtime/commit/ab68361ec3fcc231ae514e2011785f6578797ea5))
+- **ci:** update package-lock.json for @agent-runtime/\* package names ([2a343a1](https://github.com/ALLiDoizCode/agent-runtime/commit/2a343a10b33b2e43a34450fbc4de931127e04ec1))
+- **docker:** resolve libsql native module and port conflicts ([6c2c6c2](https://github.com/ALLiDoizCode/agent-runtime/commit/6c2c6c2b80ff58eb9850cd899dd1c4e9b26545be))
+- **settlement:** use max uint256 approval to prevent insufficient allowance errors ([bb61adb](https://github.com/ALLiDoizCode/agent-runtime/commit/bb61adb6b6ff4c48678e534b320416e04d58eba1))
+- **test:** make multi-chain settlement acceptance test deterministic ([40a9842](https://github.com/ALLiDoizCode/agent-runtime/commit/40a9842b360189af6d4ffbf6d0366790623b7716))
+
 ## [1.6.0](https://github.com/ALLiDoizCode/m2m/compare/v1.5.0...v1.6.0) (2026-02-05)
 
 ### Features
