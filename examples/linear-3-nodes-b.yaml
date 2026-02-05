@@ -17,6 +17,7 @@ logLevel: info
 
 # Optional Configuration
 healthCheckPort: 8080
+explorerPort: 3003
 
 # Peer Connections
 # Connector B initiates BTP connections to both A and C

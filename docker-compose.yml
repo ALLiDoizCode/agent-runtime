@@ -12,7 +12,7 @@
 #   Stop:  docker-compose down
 #
 # Prerequisites:
-#   1. Build the connector image: docker build -t ilp-connector .
+#   1. Build the connector image: docker build -t agent-runtime .
 #   2. Docker Engine 20.10+ and Docker Compose 2.x installed
 #
 # Configuration:
@@ -71,12 +71,12 @@ services:
     # Note: Port 3000 is internal-only, not exposed to host for security
     # Connectors access TigerBeetle via Docker network: tigerbeetle:3000
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     # TigerBeetle uses custom binary protocol over TCP, no HTTP endpoint available
     # Health check uses netcat to verify TCP port 3000 accepts connections
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
+      test: ["CMD-SHELL", "(echo > /dev/tcp/localhost/3000) 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -85,7 +85,7 @@ services:
 
   # Connector A - Entry node
   connector-a:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-a
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -100,10 +100,10 @@ services:
       - "3000:3000"  # BTP server port
       - "9080:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       tigerbeetle:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -114,23 +114,24 @@ services:
 
   # Connector B - Transit node (middle)
   connector-b:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-b
     environment:
       CONFIG_FILE: /app/config.yaml
       NODE_ID: connector-b
       LOG_LEVEL: info
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 3003
     volumes:
       - ./examples/linear-3-nodes-b.yaml:/app/config.yaml:ro
     ports:
       - "3001:3001"  # BTP server port
       - "9081:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       tigerbeetle:
-        condition: service_healthy
+        condition: service_started
       connector-a:
         condition: service_started
     restart: unless-stopped
@@ -143,7 +144,7 @@ services:
 
   # Connector C - Exit node
   connector-c:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-c
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -157,10 +158,10 @@ services:
       - "3002:3002"  # BTP server port
       - "9082:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       tigerbeetle:
-        condition: service_healthy
+        condition: service_started
       connector-b:
         condition: service_started
     restart: unless-stopped
@@ -176,7 +177,7 @@ services:
   # Telemetry events are still emitted but not consumed.
 
 networks:
-  ilp-network:
+  agent-network:
     driver: bridge
 
 # Named volumes for persistent data
