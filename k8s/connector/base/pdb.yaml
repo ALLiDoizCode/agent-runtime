@@ -1,0 +1,15 @@
+# Pod Disruption Budget
+# Ensures at least one connector pod is available during disruptions
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: connector
+  namespace: m2m-connector
+  labels:
+    app.kubernetes.io/name: m2m-connector
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: m2m-connector
+      app.kubernetes.io/component: connector

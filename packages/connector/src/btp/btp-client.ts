@@ -397,10 +397,114 @@ export class BTPClient extends EventEmitter {
   }
 
   /**
+   * Send protocol data message without expecting a response
+   * Used for one-way messages like claim notifications
+   * @param protocolName - Protocol identifier (e.g., "payment-channel-claim")
+   * @param contentType - Content type code (e.g., 1 for JSON)
+   * @param data - Protocol-specific data as Buffer
+   */
+  async sendProtocolData(protocolName: string, contentType: number, data: Buffer): Promise<void> {
+    if (!this.isConnected) {
+      throw new BTPConnectionError('Not connected to peer');
+    }
+
+    if (!this._ws) {
+      throw new BTPConnectionError('WebSocket not available');
+    }
+
+    // Generate unique request ID
+    const requestId = this._generateRequestId();
+
+    // Create BTP MESSAGE frame with protocolData
+    const btpMessage: BTPMessage = {
+      type: BTPMessageType.MESSAGE,
+      requestId,
+      data: {
+        protocolData: [
+          {
+            protocolName,
+            contentType,
+            data,
+          },
+        ],
+        ilpPacket: Buffer.alloc(0), // Empty for protocol-data-only messages
+      } as BTPData,
+    };
+
+    // Encode BTP MESSAGE
+    const btpBuffer = serializeBTPMessage(btpMessage);
+
+    this._logger.debug(
+      {
+        event: 'btp_protocol_data_sent',
+        requestId,
+        protocolName,
+        contentType,
+      },
+      'Sending BTP protocol data message'
+    );
+
+    // Send via WebSocket (fire-and-forget, no response expected)
+    try {
+      this._ws.send(btpBuffer);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new BTPConnectionError(`Failed to send protocol data: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Handle incoming BTP message
    * @private
    */
   private async _handleMessage(data: Buffer): Promise<void> {
+    // Try to parse as JSON first (simplified format from agent-server)
+    // This handles backward compatibility with agent-server's JSON responses
+    try {
+      const jsonStr = data.toString('utf8');
+      if (jsonStr.startsWith('{')) {
+        const json = JSON.parse(jsonStr);
+        if (json.type === 'FULFILL' || json.type === 'REJECT') {
+          this._logger.debug(
+            { event: 'btp_json_response', type: json.type },
+            'Received JSON response'
+          );
+          // Find pending request and resolve it
+          // Since JSON responses don't include requestId, resolve the most recent pending request
+          const pendingEntries = Array.from(this._pendingRequests.entries());
+          const firstEntry = pendingEntries[0];
+          if (firstEntry) {
+            const [requestId, pending] = firstEntry;
+            clearTimeout(pending.timeoutId);
+            this._pendingRequests.delete(requestId);
+
+            if (json.type === 'FULFILL') {
+              const fulfillPacket: ILPFulfillPacket = {
+                type: PacketType.FULFILL,
+                fulfillment: json.fulfillment
+                  ? Buffer.from(json.fulfillment, 'base64')
+                  : Buffer.alloc(32),
+                data: json.data ? Buffer.from(json.data, 'base64') : Buffer.alloc(0),
+              };
+              pending.resolve(fulfillPacket);
+            } else {
+              const rejectPacket: ILPRejectPacket = {
+                type: PacketType.REJECT,
+                code: json.code || 'F00',
+                message: json.message || 'Unknown error',
+                triggeredBy: json.triggeredBy || '',
+                data: json.data ? Buffer.from(json.data, 'base64') : Buffer.alloc(0),
+              };
+              pending.resolve(rejectPacket);
+            }
+          }
+          return;
+        }
+      }
+    } catch {
+      // Not JSON, continue to BTP parsing
+    }
+
     try {
       const message = parseBTPMessage(data);
 
@@ -470,9 +574,10 @@ export class BTPClient extends EventEmitter {
             'Received incoming prepare packet from server'
           );
 
-          // Route packet through PacketHandler
+          // Route packet through PacketHandler (pass peer ID for settlement tracking)
           const response = await this._packetHandler.handlePreparePacket(
-            preparePacket as ILPPreparePacket
+            preparePacket as ILPPreparePacket,
+            this._peer.id
           );
 
           // Send response back

@@ -3,19 +3,25 @@
 # =============================================================================
 #
 # Complete production deployment including:
-# - ILP Connector with settlement support
+# - ILP Connector with tri-chain settlement support (EVM, XRP, Aptos)
 # - TigerBeetle high-performance accounting database
 # - Prometheus metrics collection
 # - Grafana dashboards and visualization
 # - Jaeger distributed tracing (optional)
 #
+# Supported Settlement Chains:
+#   - Base L2 (EVM): Payment channels via smart contracts
+#   - XRP Ledger: Native payment channels
+#   - Aptos: Move-based payment channels
+#
 # Prerequisites:
 #   1. Build connector image: docker build -t m2m/connector:latest .
 #   2. Initialize TigerBeetle (one-time):
-#      docker run --rm -v tigerbeetle-data:/data tigerbeetle/tigerbeetle \
+#      docker run --rm --security-opt seccomp=unconfined -v tigerbeetle-data:/data \
+#        ghcr.io/tigerbeetle/tigerbeetle:0.16.68 \
 #        format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
 #   3. Create .env from template: cp .env.example .env
-#   4. Configure .env with your settings
+#   4. Configure .env with your settings (including Aptos credentials)
 #
 # Usage:
 #   Start all services:  docker-compose -f docker-compose-production.yml up -d
@@ -27,37 +33,52 @@
 #   - Connector BTP:     ws://localhost:4000
 #   - Connector Health:  http://localhost:8080/health
 #   - Connector Metrics: http://localhost:8080/metrics
+#   - Explorer UI:       http://localhost:5173
 #   - Prometheus:        http://localhost:9090
 #   - Grafana:           http://localhost:3001 (admin/admin)
 #   - Jaeger UI:         http://localhost:16686 (if enabled)
 #
 # =============================================================================
 
-version: '3.8'
-
 services:
   # ===========================================================================
   # TigerBeetle - High-Performance Accounting Database
   # ===========================================================================
   # IMPORTANT: Must initialize data file before first start:
-  # docker run --rm -v tigerbeetle-data:/data tigerbeetle/tigerbeetle \
+  # docker run --rm --security-opt seccomp=unconfined -v tigerbeetle-data:/data \
+  #   ghcr.io/tigerbeetle/tigerbeetle:0.16.68 \
   #   format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
+  #
+  # PRODUCTION NOTE: For true high availability, deploy 3+ replicas:
+  #   - Format each replica with --replica=N --replica-count=3
+  #   - Start with --addresses=replica0:3000,replica1:3000,replica2:3000
+  #   - See TigerBeetle docs: https://docs.tigerbeetle.com/operating/deploy
   tigerbeetle:
-    image: tigerbeetle/tigerbeetle:latest
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.68
     container_name: m2m-tigerbeetle
     command: start --addresses=0.0.0.0:3000 /data/0_0.tigerbeetle
+    # Required for TigerBeetle's io_uring and direct I/O operations
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - IPC_LOCK
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     volumes:
       - tigerbeetle-data:/data
     networks:
       - ilp-production-network
     restart: unless-stopped
     healthcheck:
-      # TigerBeetle doesn't have HTTP endpoint; use TCP check
-      test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      # TigerBeetle doesn't have HTTP endpoint and minimal Alpine image has nc issues
+      # Disable healthcheck; connector will fail fast if TigerBeetle isn't accessible
+      disable: true
+    # TigerBeetle allocates ~3GB during replica initialization
+    # and requires sufficient memory for optimal performance
+    mem_limit: 4g
+    cpus: '1.0'
 
   # ===========================================================================
   # M2M ILP Connector - Core Payment Processing
@@ -77,27 +98,40 @@ services:
       # Network Ports
       BTP_SERVER_PORT: 4000
       HEALTH_CHECK_PORT: 8080
+      EXPLORER_PORT: 5173
 
       # Settlement Configuration
-      SETTLEMENT_PREFERENCE: ${SETTLEMENT_PREFERENCE:-both}
+      SETTLEMENT_PREFERENCE: ${SETTLEMENT_PREFERENCE:-evm}
+      SETTLEMENT_ENABLED: ${SETTLEMENT_ENABLED:-true}
+      SETTLEMENT_THRESHOLD: ${SETTLEMENT_THRESHOLD:-1000000}
 
       # Blockchain RPC URLs
       BASE_RPC_URL: ${BASE_RPC_URL:-https://mainnet.base.org}
+      BASE_L2_RPC_URL: ${BASE_L2_RPC_URL:-https://mainnet.base.org}
       XRPL_WSS_URL: ${XRPL_WSS_URL:-wss://xrplcluster.com}
+      APTOS_NODE_URL: ${APTOS_NODE_URL:-https://fullnode.mainnet.aptoslabs.com/v1}
+
+      # M2M Token & Payment Channel Configuration
+      M2M_TOKEN_ADDRESS: ${M2M_TOKEN_ADDRESS:-}
+      TOKEN_NETWORK_REGISTRY: ${TOKEN_NETWORK_REGISTRY:-}
 
       # Wallet Addresses (for settlement)
       EVM_ADDRESS: ${EVM_ADDRESS:-}
       XRP_ADDRESS: ${XRP_ADDRESS:-}
+      APTOS_ADDRESS: ${APTOS_ADDRESS:-}
 
       # Key Management
       KEY_BACKEND: ${KEY_BACKEND:-env}
       EVM_PRIVATE_KEY: ${EVM_PRIVATE_KEY:-}
+      TREASURY_EVM_PRIVATE_KEY: ${TREASURY_EVM_PRIVATE_KEY:-}
       XRP_SEED: ${XRP_SEED:-}
+      APTOS_PRIVATE_KEY: ${APTOS_PRIVATE_KEY:-}
 
       # AWS KMS (if KEY_BACKEND=aws-kms)
       AWS_REGION: ${AWS_REGION:-}
       AWS_KMS_EVM_KEY_ID: ${AWS_KMS_EVM_KEY_ID:-}
       AWS_KMS_XRP_KEY_ID: ${AWS_KMS_XRP_KEY_ID:-}
+      AWS_KMS_APTOS_KEY_ID: ${AWS_KMS_APTOS_KEY_ID:-}
 
       # GCP KMS (if KEY_BACKEND=gcp-kms)
       GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
@@ -105,11 +139,13 @@ services:
       GCP_KEY_RING_ID: ${GCP_KEY_RING_ID:-}
       GCP_KMS_EVM_KEY_ID: ${GCP_KMS_EVM_KEY_ID:-}
       GCP_KMS_XRP_KEY_ID: ${GCP_KMS_XRP_KEY_ID:-}
+      GCP_KMS_APTOS_KEY_ID: ${GCP_KMS_APTOS_KEY_ID:-}
 
       # Azure Key Vault (if KEY_BACKEND=azure-kv)
       AZURE_VAULT_URL: ${AZURE_VAULT_URL:-}
       AZURE_EVM_KEY_NAME: ${AZURE_EVM_KEY_NAME:-}
       AZURE_XRP_KEY_NAME: ${AZURE_XRP_KEY_NAME:-}
+      AZURE_APTOS_KEY_NAME: ${AZURE_APTOS_KEY_NAME:-}
 
       # TigerBeetle Connection
       TIGERBEETLE_CLUSTER_ID: "0"
@@ -135,18 +171,25 @@ services:
       - "${BTP_PORT:-4000}:4000"
       # Health check and metrics HTTP server
       - "${HEALTH_CHECK_PORT:-8080}:8080"
+      # Explorer UI (NOC Dashboard)
+      - "${EXPLORER_PORT:-5173}:5173"
     networks:
       - ilp-production-network
     depends_on:
       tigerbeetle:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
+    # Enable io_uring for TigerBeetle client
+    security_opt:
+      - seccomp=unconfined
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    mem_limit: 1g
+    cpus: '1.0'
 
   # ===========================================================================
   # Prometheus - Metrics Collection and Alerting
@@ -177,6 +220,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    mem_limit: 512m
+    cpus: '0.5'
 
   # ===========================================================================
   # Grafana - Metrics Visualization and Dashboards
@@ -203,13 +248,45 @@ services:
     networks:
       - ilp-production-network
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    mem_limit: 256m
+    cpus: '0.25'
+
+  # ===========================================================================
+  # Alertmanager - Alert Routing and Notifications
+  # ===========================================================================
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: m2m-alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "9093:9093"
+    networks:
+      - ilp-production-network
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    mem_limit: 128m
+    cpus: '0.1'
 
   # ===========================================================================
   # Jaeger - Distributed Tracing (Optional)
@@ -236,6 +313,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    mem_limit: 512m
+    cpus: '0.5'
 
 # =============================================================================
 # Volumes - Persistent Data Storage
@@ -264,6 +343,11 @@ volumes:
   # Grafana configuration and state
   # Contains: dashboards, user preferences, alerts
   grafana-data:
+    driver: local
+
+  # Alertmanager notification state
+  # Contains: silences, notification history
+  alertmanager-data:
     driver: local
 
 # =============================================================================

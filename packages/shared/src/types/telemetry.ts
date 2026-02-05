@@ -29,6 +29,12 @@ export enum TelemetryEventType {
   PACKET_RECEIVED = 'PACKET_RECEIVED',
   /** Packet forwarded event - emitted when ILP packet forwarded */
   PACKET_FORWARDED = 'PACKET_FORWARDED',
+  /** Packet fulfilled event - emitted when ILP packet successfully fulfilled */
+  PACKET_FULFILLED = 'PACKET_FULFILLED',
+  /** Packet rejected event - emitted when ILP packet rejected */
+  PACKET_REJECTED = 'PACKET_REJECTED',
+  /** Packet sent event - emitted when ILP packet sent to next hop (deprecated, use PACKET_FORWARDED) */
+  PACKET_SENT = 'PACKET_SENT',
   /** Account balance event - emitted when account balance changes (Story 6.8) */
   ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
   /** Settlement triggered event - emitted when settlement threshold exceeded (Story 6.6) */
@@ -73,6 +79,12 @@ export enum TelemetryEventType {
   SUSPICIOUS_ACTIVITY_DETECTED = 'SUSPICIOUS_ACTIVITY_DETECTED',
   /** Rate limit exceeded event - emitted when rate limit exceeded (Story 11.9) */
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  /** Claim sent event - emitted when payment channel claim sent via BTP (Story 17.2) */
+  CLAIM_SENT = 'CLAIM_SENT',
+  /** Claim received event - emitted when payment channel claim received via BTP (Story 17.3) */
+  CLAIM_RECEIVED = 'CLAIM_RECEIVED',
+  /** Claim redeemed event - emitted when claim redeemed on-chain (Story 17.5) */
+  CLAIM_REDEEMED = 'CLAIM_REDEEMED',
 }
 
 /**
@@ -278,6 +290,136 @@ export interface SettlementCompletedEvent {
 }
 
 /**
+ * Packet Received Telemetry Event
+ *
+ * Emitted when PacketHandler receives an ILP Prepare packet.
+ * Indicates an ILP packet has been received from an upstream peer or client.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI displays packet flow visualization
+ * - Packet inspector shows packet details
+ *
+ * @example
+ * ```typescript
+ * const event: PacketReceivedEvent = {
+ *   type: 'PACKET_RECEIVED',
+ *   nodeId: 'connector-a',
+ *   packetId: 'abc123...',
+ *   destination: 'g.connector.peer2',
+ *   amount: '1000',
+ *   from: 'peer1',
+ *   timestamp: 1704729600000
+ * };
+ * ```
+ */
+export interface PacketReceivedEvent {
+  /** Event type discriminator */
+  type: 'PACKET_RECEIVED';
+  /** Connector node ID receiving packet */
+  nodeId: string;
+  /** Packet identifier (execution condition hex) */
+  packetId: string;
+  /** ILP destination address */
+  destination: string;
+  /** Packet amount, bigint as string */
+  amount: string;
+  /** Peer ID who sent the packet */
+  from: string;
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+}
+
+/**
+ * Packet Forwarded Telemetry Event
+ *
+ * Emitted when PacketHandler forwards an ILP packet to the next hop.
+ * Indicates an ILP packet has been successfully forwarded to a downstream peer.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI displays packet flow visualization
+ * - Packet inspector shows forwarding decisions
+ *
+ * @example
+ * ```typescript
+ * const event: PacketForwardedEvent = {
+ *   type: 'PACKET_FORWARDED',
+ *   nodeId: 'connector-a',
+ *   packetId: 'abc123...',
+ *   destination: 'g.connector.peer2',
+ *   amount: '990',
+ *   to: 'peer2',
+ *   timestamp: 1704729600000
+ * };
+ * ```
+ */
+export interface PacketForwardedEvent {
+  /** Event type discriminator */
+  type: 'PACKET_FORWARDED';
+  /** Connector node ID forwarding packet */
+  nodeId: string;
+  /** Packet identifier (execution condition hex) */
+  packetId: string;
+  /** ILP destination address */
+  destination: string;
+  /** Forwarded packet amount (after fee), bigint as string */
+  amount: string;
+  /** Peer ID to whom the packet was forwarded */
+  to: string;
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+}
+
+/**
+ * Packet Fulfilled Telemetry Event
+ *
+ * Emitted when an ILP Prepare packet is successfully fulfilled.
+ */
+export interface PacketFulfilledEvent {
+  /** Event type discriminator */
+  type: 'PACKET_FULFILLED';
+  /** Connector node ID */
+  nodeId: string;
+  /** Packet identifier (execution condition hex) */
+  packetId: string;
+  /** ILP destination address */
+  destination: string;
+  /** Packet amount, bigint as string */
+  amount: string;
+  /** Source peer ID */
+  from: string;
+  /** Fulfillment (32-byte preimage hex) */
+  fulfillment: string;
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+}
+
+/**
+ * Packet Rejected Telemetry Event
+ *
+ * Emitted when an ILP Prepare packet is rejected.
+ */
+export interface PacketRejectedEvent {
+  /** Event type discriminator */
+  type: 'PACKET_REJECTED';
+  /** Connector node ID */
+  nodeId: string;
+  /** Packet identifier (execution condition hex) */
+  packetId: string;
+  /** ILP destination address */
+  destination: string;
+  /** Packet amount, bigint as string */
+  amount: string;
+  /** Source peer ID */
+  from: string;
+  /** ILP error code */
+  code: string;
+  /** Rejection message */
+  message: string;
+  /** Event timestamp (Unix milliseconds) */
+  timestamp: number;
+}
+
+/**
  * Agent Balance Changed Telemetry Event
  *
  * Emitted when AgentBalanceTracker (Story 11.3) detects a balance change for an agent wallet.
@@ -330,7 +472,7 @@ export interface AgentBalanceChangedEvent {
  */
 export interface FundingTransaction {
   /** Blockchain ('evm' or 'xrp') */
-  chain: 'evm' | 'xrp';
+  chain: 'evm' | 'xrp' | 'aptos';
   /** Token identifier ('ETH', ERC20 address, or 'XRP') */
   token: string;
   /** Recipient address */
@@ -779,10 +921,10 @@ export interface AgentChannelOpenedEvent {
   nodeId: string;
   /** Agent identifier */
   agentId: string;
-  /** Channel ID (EVM: bytes32, XRP: channel_id) */
+  /** Channel ID (EVM: bytes32, XRP: channel_id, Aptos: channelOwner) */
   channelId: string;
-  /** Blockchain network ('evm' or 'xrp') */
-  chain: 'evm' | 'xrp';
+  /** Blockchain network ('evm', 'xrp', or 'aptos') */
+  chain: 'evm' | 'xrp' | 'aptos';
   /** Peer agent identifier */
   peerId: string;
   /** Initial deposit amount, bigint as string */
@@ -896,8 +1038,8 @@ export interface AgentChannelPaymentSentEvent {
   errorCode?: string;
   /** Error message if packet was rejected */
   errorMessage?: string;
-  /** Channel type (evm or xrp) */
-  channelType?: 'evm' | 'xrp' | 'none';
+  /** Channel type (evm, xrp, or aptos) */
+  channelType?: 'evm' | 'xrp' | 'aptos' | 'none';
   /** Channel balance after this payment, bigint as string */
   channelBalance?: string;
   /** Channel total deposit, bigint as string */
@@ -945,8 +1087,8 @@ export interface AgentChannelBalanceUpdateEvent {
   agentId: string;
   /** Channel ID */
   channelId: string;
-  /** Channel type: 'evm' or 'xrp' */
-  channelType: 'evm' | 'xrp';
+  /** Channel type: 'evm', 'xrp', or 'aptos' */
+  channelType: 'evm' | 'xrp' | 'aptos';
   /** Peer identifier */
   peerId: string;
   /** Previous balance before this update, bigint as string */
@@ -995,7 +1137,7 @@ export interface AgentChannelClosedEvent {
   /** Channel ID */
   channelId: string;
   /** Blockchain network ('evm' or 'xrp') */
-  chain: 'evm' | 'xrp';
+  chain: 'evm' | 'xrp' | 'aptos';
 }
 
 /**
@@ -1034,7 +1176,7 @@ export interface WalletBalanceMismatchEvent {
   /** Agent identifier */
   agentId: string;
   /** Blockchain network ('evm' or 'xrp') */
-  chain: 'evm' | 'xrp';
+  chain: 'evm' | 'xrp' | 'aptos';
   /** Token identifier (e.g., 'ETH', 'XRP', '0xUSDC...') */
   token: string;
   /** Expected balance from backup snapshot, bigint as string */
@@ -1118,6 +1260,290 @@ export interface RateLimitExceededEvent {
 }
 
 /**
+ * Claim Settlement Initiated Telemetry Event
+ *
+ * Emitted when automatic settlement execution begins for a payment channel.
+ * Indicates settlement triggered by threshold exceeded, now executing on-chain settlement.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI shows settlement execution lifecycle
+ * - Settlement monitoring panel displays in-progress settlements
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimSettlementInitiatedEvent = {
+ *   type: 'CLAIM_SETTLEMENT_INITIATED',
+ *   nodeId: 'connector-a',
+ *   chain: 'evm',
+ *   channelId: '0xabc123...',
+ *   amount: '5000000000000000000',
+ *   peerId: 'peer-bob',
+ *   timestamp: '2026-02-01T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimSettlementInitiatedEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_SETTLEMENT_INITIATED';
+  /** Connector node ID initiating settlement */
+  nodeId: string;
+  /** Blockchain network ('evm', 'xrp', or 'aptos') */
+  chain: 'evm' | 'xrp' | 'aptos';
+  /** Channel ID (EVM: bytes32, XRP: 64-char hex, Aptos: channelOwner address) */
+  channelId: string;
+  /** Settlement amount, bigint as string */
+  amount: string;
+  /** Peer identifier */
+  peerId: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Claim Settlement Success Telemetry Event
+ *
+ * Emitted when automatic settlement execution completes successfully on-chain.
+ * Indicates settlement transaction confirmed, channel balances updated.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI shows successful settlement completion
+ * - Settlement monitoring panel updates channel status
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimSettlementSuccessEvent = {
+ *   type: 'CLAIM_SETTLEMENT_SUCCESS',
+ *   nodeId: 'connector-a',
+ *   chain: 'evm',
+ *   channelId: '0xabc123...',
+ *   txHash: '0xdef456...',
+ *   settledAmount: '5000000000000000000',
+ *   peerId: 'peer-bob',
+ *   timestamp: '2026-02-01T12:01:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimSettlementSuccessEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_SETTLEMENT_SUCCESS';
+  /** Connector node ID completing settlement */
+  nodeId: string;
+  /** Blockchain network ('evm', 'xrp', or 'aptos') */
+  chain: 'evm' | 'xrp' | 'aptos';
+  /** Channel ID */
+  channelId: string;
+  /** On-chain transaction hash */
+  txHash: string;
+  /** Settled amount, bigint as string */
+  settledAmount: string;
+  /** Peer identifier */
+  peerId: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Claim Settlement Failed Telemetry Event
+ *
+ * Emitted when automatic settlement execution fails.
+ * Indicates settlement transaction failed, or no claim available for settlement.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI shows settlement failures for investigation
+ * - Settlement monitoring panel displays failed settlements
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimSettlementFailedEvent = {
+ *   type: 'CLAIM_SETTLEMENT_FAILED',
+ *   nodeId: 'connector-a',
+ *   chain: 'evm',
+ *   channelId: '0xabc123...',
+ *   error: 'No stored claim available',
+ *   attemptedAmount: '5000000000000000000',
+ *   peerId: 'peer-bob',
+ *   timestamp: '2026-02-01T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimSettlementFailedEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_SETTLEMENT_FAILED';
+  /** Connector node ID failing settlement */
+  nodeId: string;
+  /** Blockchain network ('evm', 'xrp', or 'aptos') */
+  chain: 'evm' | 'xrp' | 'aptos';
+  /** Channel ID */
+  channelId: string;
+  /** Error message describing failure */
+  error: string;
+  /** Attempted settlement amount, bigint as string */
+  attemptedAmount: string;
+  /** Peer identifier */
+  peerId: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Claim Sent Telemetry Event
+ *
+ * Emitted when ClaimSender (Story 17.2) sends payment channel claim via BTP.
+ * Indicates off-chain claim transmitted to peer for redemption.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI shows claim transmission events
+ * - Settlement monitoring panel displays claim send success/failure
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimSentEvent = {
+ *   type: 'CLAIM_SENT',
+ *   nodeId: 'connector-a',
+ *   peerId: 'peer-bob',
+ *   blockchain: 'xrp',
+ *   messageId: 'xrp-a1b2c3d4-n/a-1706889600000',
+ *   amount: '1000000',
+ *   success: true,
+ *   timestamp: '2026-02-02T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimSentEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_SENT';
+  /** Connector node ID sending claim */
+  nodeId: string;
+  /** Peer identifier receiving claim */
+  peerId: string;
+  /** Blockchain type: 'xrp', 'evm', 'aptos' */
+  blockchain: string;
+  /** Unique message ID for idempotency */
+  messageId: string;
+  /** Claim amount, bigint as string */
+  amount: string;
+  /** Whether claim send was successful */
+  success: boolean;
+  /** Error message if success=false */
+  error?: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Claim Received Telemetry Event
+ *
+ * Emitted when ClaimReceiver (Story 17.3) receives payment channel claim via BTP.
+ * Indicates off-chain claim received from peer and verification result.
+ *
+ * **Dashboard Usage:**
+ * - Explorer UI shows claim reception events
+ * - Settlement monitoring panel displays claim verification success/failure
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimReceivedEvent = {
+ *   type: 'CLAIM_RECEIVED',
+ *   nodeId: 'connector-a',
+ *   peerId: 'peer-bob',
+ *   blockchain: 'xrp',
+ *   messageId: 'xrp-a1b2c3d4-n/a-1706889600000',
+ *   channelId: 'a1b2c3d4e5f6789...',
+ *   amount: '1000000',
+ *   verified: true,
+ *   timestamp: '2026-02-02T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimReceivedEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_RECEIVED';
+  /** Connector node ID receiving claim */
+  nodeId: string;
+  /** Peer identifier sending claim */
+  peerId: string;
+  /** Blockchain type: 'xrp', 'evm', 'aptos' */
+  blockchain: string;
+  /** Unique message ID for idempotency */
+  messageId: string;
+  /** Channel ID (XRP: 64-char hex, EVM: bytes32, Aptos: channelOwner) */
+  channelId: string;
+  /** Claim amount, bigint as string */
+  amount: string;
+  /** Whether claim passed verification */
+  verified: boolean;
+  /** Error message if verified=false */
+  error?: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
+ * Claim Redeemed Telemetry Event
+ *
+ * Emitted when a verified payment channel claim is successfully (or unsuccessfully)
+ * redeemed on-chain by the ClaimRedemptionService (Story 17.5).
+ *
+ * **Emission Points:**
+ * - After each claim redemption attempt (success or failure)
+ * - In ClaimRedemptionService._emitRedemptionTelemetry()
+ *
+ * **Use Cases:**
+ * - Monitor automatic claim redemption success rate
+ * - Track gas costs for redemption profitability analysis
+ * - Correlate CLAIM_RECEIVED → CLAIM_REDEEMED for end-to-end claim flow
+ * - Detect redemption failures for investigation
+ *
+ * @example
+ * ```typescript
+ * const event: ClaimRedeemedEvent = {
+ *   type: 'CLAIM_REDEEMED',
+ *   nodeId: 'connector-bob',
+ *   peerId: 'connector-alice',
+ *   blockchain: 'xrp',
+ *   messageId: 'msg_xyz123',
+ *   channelId: 'ABC123...',
+ *   amount: '5000000',
+ *   txHash: 'msg_xyz123',
+ *   gasCost: '10',
+ *   success: true,
+ *   timestamp: '2026-02-02T12:00:00.000Z'
+ * };
+ * ```
+ */
+export interface ClaimRedeemedEvent {
+  /** Event type discriminator */
+  type: 'CLAIM_REDEEMED';
+  /** Connector node ID redeeming claim */
+  nodeId: string;
+  /** Peer identifier who sent the claim */
+  peerId: string;
+  /** Blockchain type: 'xrp', 'evm', 'aptos' */
+  blockchain: 'xrp' | 'evm' | 'aptos';
+  /** Unique message ID from CLAIM_RECEIVED (for correlation) */
+  messageId: string;
+  /** Channel ID (XRP: 64-char hex, EVM: bytes32, Aptos: channelOwner) */
+  channelId: string;
+  /** Claim amount redeemed, bigint as string */
+  amount: string;
+  /**
+   * Transaction hash or identifier.
+   * Note: Currently set to messageId since SDK methods return void.
+   * For actual blockchain tx hashes, query explorers using signatures/amounts
+   * and redeemed_at timestamp.
+   */
+  txHash: string;
+  /** Estimated gas cost for redemption, bigint as string */
+  gasCost: string;
+  /** Whether redemption succeeded */
+  success: boolean;
+  /** Error message if success=false */
+  error?: string;
+  /** Event timestamp (ISO 8601 format) */
+  timestamp: string;
+}
+
+/**
  * Telemetry Event Union Type
  *
  * Discriminated union of all telemetry event types.
@@ -1179,6 +1605,10 @@ export interface RateLimitExceededEvent {
  * ```
  */
 export type TelemetryEvent =
+  | PacketReceivedEvent
+  | PacketForwardedEvent
+  | PacketFulfilledEvent
+  | PacketRejectedEvent
   | AccountBalanceEvent
   | SettlementTriggeredEvent
   | SettlementCompletedEvent
@@ -1200,4 +1630,10 @@ export type TelemetryEvent =
   | AgentChannelClosedEvent
   | WalletBalanceMismatchEvent
   | SuspiciousActivityDetectedEvent
-  | RateLimitExceededEvent;
+  | RateLimitExceededEvent
+  | ClaimSettlementInitiatedEvent
+  | ClaimSettlementSuccessEvent
+  | ClaimSettlementFailedEvent
+  | ClaimSentEvent
+  | ClaimReceivedEvent
+  | ClaimRedeemedEvent;

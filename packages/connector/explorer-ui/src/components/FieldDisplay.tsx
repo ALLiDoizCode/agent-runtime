@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, ExternalLink } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/event-types';
 
 /**
@@ -12,7 +12,7 @@ interface BaseFieldProps {
 }
 
 /**
- * HexField - Display hex values with truncation and copy
+ * HexField - Display hex values with truncation, copy, and optional explorer link
  */
 export function HexField({
   label,
@@ -20,10 +20,12 @@ export function HexField({
   maxLength = 32,
   className,
   onCopy,
+  explorerUrl,
 }: BaseFieldProps & {
   value: string;
   maxLength?: number;
   onCopy?: (value: string) => void;
+  explorerUrl?: string;
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -49,16 +51,41 @@ export function HexField({
     <div className={cn('flex flex-col gap-1', className)}>
       <span className="text-xs text-muted-foreground uppercase tracking-wide">{label}</span>
       <div className="flex items-start gap-2">
-        <span
-          className={cn(
-            'font-mono text-xs break-all',
-            shouldTruncate && 'cursor-pointer hover:text-blue-400'
-          )}
-          onClick={shouldTruncate ? () => setExpanded(!expanded) : undefined}
-          title={shouldTruncate ? (expanded ? 'Click to collapse' : 'Click to expand') : undefined}
-        >
-          {displayValue}
-        </span>
+        {explorerUrl ? (
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              'font-mono text-xs break-all text-blue-500 hover:text-blue-700 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded',
+              shouldTruncate && 'cursor-pointer'
+            )}
+            onClick={(e) => {
+              if (shouldTruncate) {
+                e.preventDefault();
+                setExpanded(!expanded);
+              }
+            }}
+            title={
+              shouldTruncate ? (expanded ? 'Click to collapse' : 'Click to expand') : undefined
+            }
+          >
+            {displayValue}
+          </a>
+        ) : (
+          <span
+            className={cn(
+              'font-mono text-xs break-all',
+              shouldTruncate && 'cursor-pointer hover:text-blue-400'
+            )}
+            onClick={shouldTruncate ? () => setExpanded(!expanded) : undefined}
+            title={
+              shouldTruncate ? (expanded ? 'Click to collapse' : 'Click to expand') : undefined
+            }
+          >
+            {displayValue}
+          </span>
+        )}
         <button
           onClick={handleCopy}
           className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
@@ -70,6 +97,16 @@ export function HexField({
             <Copy className="w-3 h-3 text-muted-foreground" />
           )}
         </button>
+        {explorerUrl && (
+          <button
+            onClick={() => window.open(explorerUrl, '_blank', 'noopener,noreferrer')}
+            className="shrink-0 p-1 rounded hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+            title="View on blockchain explorer"
+            aria-label="View on blockchain explorer"
+          >
+            <ExternalLink className="w-3 h-3 text-muted-foreground hover:text-blue-500" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -228,16 +265,18 @@ export function PeerField({
 }
 
 /**
- * AddressField - Display ILP addresses with copy button
+ * AddressField - Display ILP addresses with copy button and optional explorer link
  */
 export function AddressField({
   label,
   value,
   className,
   onCopy,
+  explorerUrl,
 }: BaseFieldProps & {
   value: string;
   onCopy?: (value: string) => void;
+  explorerUrl?: string;
 }) {
   const [copied, setCopied] = React.useState(false);
 
@@ -256,7 +295,22 @@ export function AddressField({
     <div className={cn('flex flex-col gap-1', className)}>
       <span className="text-xs text-muted-foreground uppercase tracking-wide">{label}</span>
       <div className="flex items-center gap-2">
-        <span className="font-mono text-sm break-all">{value}</span>
+        {explorerUrl ? (
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-sm text-blue-500 hover:text-blue-700 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
+            onClick={(e) => {
+              e.preventDefault();
+              window.open(explorerUrl, '_blank', 'noopener,noreferrer');
+            }}
+          >
+            {value}
+          </a>
+        ) : (
+          <span className="font-mono text-sm break-all">{value}</span>
+        )}
         <button
           onClick={handleCopy}
           className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
@@ -268,6 +322,16 @@ export function AddressField({
             <Copy className="w-3 h-3 text-muted-foreground" />
           )}
         </button>
+        {explorerUrl && (
+          <button
+            onClick={() => window.open(explorerUrl, '_blank', 'noopener,noreferrer')}
+            className="shrink-0 p-1 rounded hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+            title="View on blockchain explorer"
+            aria-label="View on blockchain explorer"
+          >
+            <ExternalLink className="w-3 h-3 text-muted-foreground hover:text-blue-500" />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -244,7 +244,7 @@ describe('Explorer Lifecycle Integration', () => {
   });
 
   describe('Without TelemetryEmitter', () => {
-    it('should skip explorer when TelemetryEmitter is not available', async () => {
+    it('should initialize explorer in standalone mode when TelemetryEmitter is not available', async () => {
       // Arrange
       const btpPort = basePort + 600;
       delete process.env.DASHBOARD_TELEMETRY_URL; // Remove telemetry URL
@@ -255,9 +255,11 @@ describe('Explorer Lifecycle Integration', () => {
       connector = new ConnectorNode(configPath, logger);
       await connector.start();
 
-      // Assert - Explorer should not be initialized without telemetry
+      // Assert - Explorer should be initialized in standalone mode (Story 19.3)
+      // Standalone mode uses EventStore + EventBroadcaster instead of TelemetryEmitter
       const health = connector.getHealthStatus();
-      expect(health.explorer).toBeUndefined();
+      expect(health.explorer).toBeDefined();
+      expect(health.explorer?.enabled).toBe(true);
     }, 10000);
   });
 });

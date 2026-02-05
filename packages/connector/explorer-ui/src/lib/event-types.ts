@@ -14,6 +14,8 @@ export type TelemetryEventType =
   // Packet flow events
   | 'PACKET_RECEIVED'
   | 'PACKET_FORWARDED'
+  | 'PACKET_FULFILLED'
+  | 'PACKET_REJECTED'
   // Account and settlement events
   | 'ACCOUNT_BALANCE'
   | 'SETTLEMENT_TRIGGERED'
@@ -38,6 +40,10 @@ export type TelemetryEventType =
   | 'AGENT_CHANNEL_PAYMENT_SENT'
   | 'AGENT_CHANNEL_BALANCE_UPDATE'
   | 'AGENT_CHANNEL_CLOSED'
+  // Claim exchange events (Epic 17)
+  | 'CLAIM_SENT'
+  | 'CLAIM_RECEIVED'
+  | 'CLAIM_REDEEMED'
   // Security events
   | 'WALLET_BALANCE_MISMATCH'
   | 'SUSPICIOUS_ACTIVITY_DETECTED'
@@ -79,13 +85,75 @@ export interface StoredEvent {
 export type IlpPacketType = 'prepare' | 'fulfill' | 'reject';
 
 /**
- * Packet type color mapping
+ * Packet type color mapping for ILP packet types
+ * NOC aesthetic: prepare (cyan), fulfill (emerald), reject (rose)
  */
 export const PACKET_TYPE_COLORS: Record<string, string> = {
-  prepare: 'bg-blue-500',
-  fulfill: 'bg-green-500',
-  reject: 'bg-red-500',
+  prepare: 'bg-cyan-500',
+  fulfill: 'bg-emerald-500',
+  reject: 'bg-rose-500',
 };
+
+/**
+ * Get ILP packet type display name from event
+ * Returns 'prepare', 'fulfill', or 'reject' for ILP packet events
+ */
+export function getIlpPacketType(event: TelemetryEvent | StoredEvent): IlpPacketType | null {
+  // Check StoredEvent with packet_type field (from database)
+  if ('packet_type' in event && typeof event.packet_type === 'string' && event.packet_type) {
+    const type = event.packet_type.toLowerCase();
+    if (type === 'prepare' || type === 'fulfill' || type === 'reject') {
+      return type as IlpPacketType;
+    }
+  }
+
+  // Check TelemetryEvent with packetType field (from live events)
+  if ('packetType' in event && typeof event.packetType === 'string') {
+    const type = event.packetType.toLowerCase();
+    if (type === 'prepare' || type === 'fulfill' || type === 'reject') {
+      return type as IlpPacketType;
+    }
+  }
+
+  // Determine packet type from event type
+  const eventType = 'type' in event ? event.type : 'event_type' in event ? event.event_type : null;
+
+  // PACKET_RECEIVED and PACKET_FORWARDED are always 'prepare' packets
+  if (eventType === 'PACKET_RECEIVED' || eventType === 'PACKET_FORWARDED') {
+    return 'prepare';
+  }
+
+  // PACKET_FULFILLED events are 'fulfill' packets
+  if (eventType === 'PACKET_FULFILLED') {
+    return 'fulfill';
+  }
+
+  // PACKET_REJECTED events are 'reject' packets
+  if (eventType === 'PACKET_REJECTED') {
+    return 'reject';
+  }
+
+  return null;
+}
+
+/**
+ * Check if event is an ILP packet event (prepare/fulfill/reject)
+ */
+export function isIlpPacketEvent(event: TelemetryEvent | StoredEvent): boolean {
+  return getIlpPacketType(event) !== null;
+}
+
+/**
+ * ILP Packet event types for filtering (Story 18.3 AC 5)
+ * Used by FilterBar "ILP Packets" quick filter preset
+ */
+export const ILP_PACKET_EVENT_TYPES = [
+  'PACKET_RECEIVED',
+  'PACKET_FORWARDED',
+  'PACKET_FULFILLED',
+  'PACKET_REJECTED',
+  'AGENT_CHANNEL_PAYMENT_SENT',
+] as const;
 
 /**
  * Response from GET /api/events
@@ -119,9 +187,11 @@ export interface HealthResponse {
 export const EVENT_TYPE_COLORS: Record<string, string> = {
   // Node lifecycle - gray (neutral)
   NODE_STATUS: 'bg-gray-500',
-  // Packet flow - blue shades
+  // Packet flow - blue shades for prepare, green/red for fulfill/reject
   PACKET_RECEIVED: 'bg-blue-400',
   PACKET_FORWARDED: 'bg-blue-600',
+  PACKET_FULFILLED: 'bg-green-500',
+  PACKET_REJECTED: 'bg-red-500',
   // Account and settlement - green/yellow
   ACCOUNT_BALANCE: 'bg-blue-500',
   SETTLEMENT_TRIGGERED: 'bg-yellow-500',
@@ -146,6 +216,10 @@ export const EVENT_TYPE_COLORS: Record<string, string> = {
   AGENT_CHANNEL_PAYMENT_SENT: 'bg-violet-400',
   AGENT_CHANNEL_BALANCE_UPDATE: 'bg-violet-500',
   AGENT_CHANNEL_CLOSED: 'bg-violet-600',
+  // Claim exchange events - pink/fuchsia theme (Epic 17)
+  CLAIM_SENT: 'bg-fuchsia-500',
+  CLAIM_RECEIVED: 'bg-fuchsia-400',
+  CLAIM_REDEEMED: 'bg-fuchsia-600',
   // Security events - red shades
   WALLET_BALANCE_MISMATCH: 'bg-red-500',
   SUSPICIOUS_ACTIVITY_DETECTED: 'bg-red-600',
@@ -199,7 +273,7 @@ export interface AccountState {
   settlementState: SettlementState;
   balanceHistory: BalanceHistoryEntry[];
   hasActiveChannel?: boolean;
-  channelType?: 'evm' | 'xrp';
+  channelType?: 'evm' | 'xrp' | 'aptos';
   lastUpdated: number;
 }
 
@@ -224,8 +298,8 @@ export interface ChannelState {
   openedAt: string;
   settledAt?: string;
   lastActivityAt: string;
-  // XRP-specific fields
-  settlementMethod?: 'evm' | 'xrp';
+  // Chain-specific fields
+  settlementMethod?: 'evm' | 'xrp' | 'aptos';
   xrpAccount?: string;
   xrpDestination?: string;
   xrpAmount?: string;
@@ -251,6 +325,9 @@ export const SETTLEMENT_EVENT_TYPES = [
   'AGENT_CHANNEL_OPENED',
   'AGENT_CHANNEL_BALANCE_UPDATE',
   'AGENT_CHANNEL_CLOSED',
+  'CLAIM_SENT',
+  'CLAIM_RECEIVED',
+  'CLAIM_REDEEMED',
 ] as const;
 
 /**
@@ -287,15 +364,167 @@ export interface WalletXrpChannel {
 }
 
 /**
+ * Aptos payment channel from /api/balances
+ */
+export interface WalletAptosChannel {
+  channelId: string;
+  peerAddress: string;
+  deposit: string;
+  transferredAmount: string;
+  status: string;
+}
+
+/**
  * Response from GET /api/balances
  */
 export interface WalletBalances {
   agentId: string;
   evmAddress: string;
   xrpAddress: string | null;
+  aptosAddress: string | null;
   ethBalance: string | null;
   agentTokenBalance: string | null;
   xrpBalance: string | null;
+  aptBalance: string | null;
   evmChannels: WalletEvmChannel[];
   xrpChannels: WalletXrpChannel[];
+  aptosChannels: WalletAptosChannel[];
+}
+
+// ============================================================================
+// Story 17.6: Claim Exchange Event Helpers
+// ============================================================================
+
+/**
+ * Blockchain type for claim events
+ */
+export type ClaimBlockchain = 'xrp' | 'evm' | 'aptos';
+
+/**
+ * Extract blockchain type from claim event
+ */
+export function getClaimBlockchain(event: TelemetryEvent): ClaimBlockchain | null {
+  if (typeof event.blockchain === 'string') {
+    const blockchain = event.blockchain.toLowerCase();
+    if (blockchain === 'xrp' || blockchain === 'evm' || blockchain === 'aptos') {
+      return blockchain as ClaimBlockchain;
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract amount from claim event
+ */
+export function getClaimAmount(event: TelemetryEvent): string | null {
+  return typeof event.amount === 'string' ? event.amount : null;
+}
+
+/**
+ * Extract success status from claim event (CLAIM_SENT, CLAIM_REDEEMED)
+ */
+export function getClaimSuccess(event: TelemetryEvent): boolean | null {
+  return typeof event.success === 'boolean' ? event.success : null;
+}
+
+/**
+ * Extract verified status from claim event (CLAIM_RECEIVED)
+ */
+export function getClaimVerified(event: TelemetryEvent): boolean | null {
+  return typeof event.verified === 'boolean' ? event.verified : null;
+}
+
+/**
+ * Extract messageId from claim event (for correlation)
+ */
+export function getClaimMessageId(event: TelemetryEvent): string | null {
+  return typeof event.messageId === 'string' ? event.messageId : null;
+}
+
+/**
+ * Extract channelId from claim event (available in CLAIM_RECEIVED and CLAIM_REDEEMED)
+ */
+export function getClaimChannelId(event: TelemetryEvent): string | null {
+  return typeof event.channelId === 'string' ? event.channelId : null;
+}
+
+/**
+ * Format claim amount based on blockchain
+ * - XRP: drops
+ * - EVM: wei
+ * - Aptos: octas
+ */
+export function formatClaimAmount(amount: string, blockchain: ClaimBlockchain): string {
+  const value = BigInt(amount);
+
+  switch (blockchain) {
+    case 'xrp':
+      // Convert drops to XRP (1 XRP = 1,000,000 drops)
+      return `${(Number(value) / 1_000_000).toFixed(6)} XRP`;
+    case 'evm':
+      // Convert wei to ETH (1 ETH = 10^18 wei)
+      return `${(Number(value) / 1e18).toFixed(6)} ETH`;
+    case 'aptos':
+      // Convert octas to APT (1 APT = 10^8 octas)
+      return `${(Number(value) / 1e8).toFixed(6)} APT`;
+  }
+}
+
+/**
+ * Get blockchain badge color
+ */
+export function getBlockchainBadgeColor(blockchain: ClaimBlockchain): string {
+  switch (blockchain) {
+    case 'xrp':
+      return 'bg-orange-100 text-orange-800 border-orange-300';
+    case 'evm':
+      return 'bg-blue-100 text-blue-800 border-blue-300';
+    case 'aptos':
+      return 'bg-green-100 text-green-800 border-green-300';
+  }
+}
+
+// ============================================================================
+// Block Explorer Link Utilities
+// ============================================================================
+
+/**
+ * Base Sepolia block explorer URL
+ */
+export const BASE_SEPOLIA_EXPLORER = 'https://sepolia.basescan.org';
+
+/**
+ * Check if a string is a valid Ethereum address (0x followed by 40 hex chars)
+ */
+export function isEthereumAddress(value: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+/**
+ * Check if a string is a valid transaction hash (0x followed by 64 hex chars)
+ */
+export function isTransactionHash(value: string): boolean {
+  return /^0x[a-fA-F0-9]{64}$/.test(value);
+}
+
+/**
+ * Get block explorer URL for an Ethereum address
+ */
+export function getAddressExplorerUrl(address: string): string {
+  return `${BASE_SEPOLIA_EXPLORER}/address/${address}`;
+}
+
+/**
+ * Get block explorer URL for a transaction hash
+ */
+export function getTransactionExplorerUrl(txHash: string): string {
+  return `${BASE_SEPOLIA_EXPLORER}/tx/${txHash}`;
+}
+
+/**
+ * Truncate an Ethereum address or hash for display
+ */
+export function truncateHash(value: string, startChars = 6, endChars = 4): string {
+  if (value.length <= startChars + endChars + 2) return value;
+  return `${value.slice(0, startChars)}...${value.slice(-endChars)}`;
 }

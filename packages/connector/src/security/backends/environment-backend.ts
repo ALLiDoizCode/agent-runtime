@@ -75,9 +75,11 @@ export class EnvironmentVariableBackend implements KeyManagerBackend {
         throw new Error('EVM wallet not initialized. Set EVM_PRIVATE_KEY environment variable.');
       }
 
-      // Sign message using ethers.Wallet
-      const signature = await this.evmWallet.signMessage(message);
-      return Buffer.from(signature.slice(2), 'hex'); // Remove '0x' prefix
+      // Sign raw message hash using signingKey.sign() (NOT signMessage which adds EIP-191 prefix)
+      // This is used for signing transaction hashes where we need raw ECDSA signature
+      const signature = this.evmWallet.signingKey.sign(message);
+      // Return concatenated r || s || v (65 bytes)
+      return Buffer.from(signature.serialized.slice(2), 'hex'); // Remove '0x' prefix
     } else {
       if (!this.xrpWallet) {
         throw new Error('XRP wallet not initialized. Set XRP_SEED environment variable.');

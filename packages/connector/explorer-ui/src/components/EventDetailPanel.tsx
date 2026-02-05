@@ -14,7 +14,16 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TelemetryEvent, StoredEvent, formatRelativeTime } from '@/lib/event-types';
+import {
+  TelemetryEvent,
+  StoredEvent,
+  formatRelativeTime,
+  getClaimBlockchain,
+  getClaimAmount,
+  getClaimChannelId,
+  formatClaimAmount,
+  getBlockchainBadgeColor,
+} from '@/lib/event-types';
 import { JsonViewer } from './JsonViewer';
 import { PacketInspector, isPacketEvent } from './PacketInspector';
 import { ToonViewer, hasNostrEvent } from './ToonViewer';
@@ -23,6 +32,8 @@ import { CopyButton, AddressField, AmountField, PeerField } from './FieldDisplay
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ExternalLink } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { ClaimTimeline } from './ClaimTimeline';
+import { useClaimEvents, extractMessageId, isClaimEventType } from '@/hooks/useClaimEvents';
 
 export interface EventDetailPanelProps {
   event: TelemetryEvent | StoredEvent | null;
@@ -167,6 +178,9 @@ function DetailPanelContent({
   showPacketTab,
   showToonTab,
   showRelatedTab,
+  showClaimTimelineTab,
+  claimMessageId,
+  claimEvents,
   event,
   onEventSelect,
 }: {
@@ -176,10 +190,23 @@ function DetailPanelContent({
   showPacketTab: boolean;
   showToonTab: boolean;
   showRelatedTab: boolean;
+  showClaimTimelineTab: boolean;
+  claimMessageId: string | null;
+  claimEvents: ReturnType<typeof useClaimEvents>;
   event: TelemetryEvent | StoredEvent;
   onEventSelect?: (event: StoredEvent) => void;
 }) {
   if (!displayData) return null;
+
+  // Extract claim-specific data if this is a claim event
+  const isClaimEvent = showClaimTimelineTab;
+  const claimBlockchain = isClaimEvent
+    ? getClaimBlockchain(displayData.payload as TelemetryEvent)
+    : null;
+  const claimAmount = isClaimEvent ? getClaimAmount(displayData.payload as TelemetryEvent) : null;
+  const claimChannelId = isClaimEvent
+    ? getClaimChannelId(displayData.payload as TelemetryEvent)
+    : null;
 
   return (
     <div className="flex flex-col gap-4 flex-1 overflow-hidden">
@@ -191,8 +218,45 @@ function DetailPanelContent({
           </div>
         )}
         {displayData.peerId && <PeerField label="Peer" value={displayData.peerId} />}
+
+        {/* Claim-specific fields */}
+        {isClaimEvent && claimBlockchain && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Blockchain</span>
+            <Badge
+              variant="outline"
+              className={`text-xs border w-fit ${getBlockchainBadgeColor(claimBlockchain)}`}
+            >
+              {claimBlockchain.toUpperCase()}
+            </Badge>
+          </div>
+        )}
+        {isClaimEvent && claimMessageId && (
+          <div className="col-span-2">
+            <AddressField label="Message ID" value={claimMessageId} />
+          </div>
+        )}
+        {isClaimEvent && claimChannelId && (
+          <div className="col-span-2">
+            <AddressField label="Channel ID" value={claimChannelId} />
+          </div>
+        )}
+        {isClaimEvent && claimAmount && claimBlockchain && (
+          <div className="col-span-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Amount</span>
+              <span className="text-sm font-mono">
+                {formatClaimAmount(claimAmount, claimBlockchain)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Standard fields */}
         {displayData.packetId && <AddressField label="Packet ID" value={displayData.packetId} />}
-        {displayData.amount && <AmountField label="Amount" value={displayData.amount} />}
+        {!isClaimEvent && displayData.amount && (
+          <AmountField label="Amount" value={displayData.amount} />
+        )}
         {displayData.destination && (
           <div className="col-span-2">
             <AddressField label="Destination" value={displayData.destination} />
@@ -210,6 +274,7 @@ function DetailPanelContent({
           <TabsTrigger value="raw">Raw</TabsTrigger>
           {showPacketTab && <TabsTrigger value="packet">ILP Packet</TabsTrigger>}
           {showToonTab && <TabsTrigger value="toon">TOON</TabsTrigger>}
+          {showClaimTimelineTab && <TabsTrigger value="timeline">Timeline</TabsTrigger>}
           {showRelatedTab && <TabsTrigger value="related">Related</TabsTrigger>}
         </TabsList>
 
@@ -230,6 +295,18 @@ function DetailPanelContent({
           {showToonTab && (
             <TabsContent value="toon" className="mt-0">
               <ToonViewer data={displayData.payload} />
+            </TabsContent>
+          )}
+
+          {showClaimTimelineTab && (
+            <TabsContent value="timeline" className="mt-0 p-4">
+              {claimMessageId ? (
+                <ClaimTimeline messageId={claimMessageId} events={claimEvents} />
+              ) : (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  No message ID found for this claim event
+                </div>
+              )}
             </TabsContent>
           )}
 
@@ -284,6 +361,13 @@ export function EventDetailPanel({ event, onClose, onEventSelect }: EventDetailP
   const showPacketTab = event && isPacketEvent(displayData?.payload as TelemetryEvent);
   const showToonTab = event && hasNostrEvent(displayData?.payload);
   const showRelatedTab = event && hasPacketId(event);
+  const showClaimTimelineTab = event && displayData && isClaimEventType(displayData.type);
+
+  // Extract messageId for claim events
+  const claimMessageId = showClaimTimelineTab
+    ? extractMessageId(event as Record<string, unknown>)
+    : null;
+  const claimEvents = useClaimEvents(claimMessageId);
 
   // If current tab is not available, switch to raw
   React.useEffect(() => {
@@ -291,7 +375,8 @@ export function EventDetailPanel({ event, onClose, onEventSelect }: EventDetailP
     if (selectedTab === 'packet' && !showPacketTab) setSelectedTab('raw');
     if (selectedTab === 'toon' && !showToonTab) setSelectedTab('raw');
     if (selectedTab === 'related' && !showRelatedTab) setSelectedTab('raw');
-  }, [event, selectedTab, showPacketTab, showToonTab, showRelatedTab]);
+    if (selectedTab === 'timeline' && !showClaimTimelineTab) setSelectedTab('raw');
+  }, [event, selectedTab, showPacketTab, showToonTab, showRelatedTab, showClaimTimelineTab]);
 
   // Desktop: Sheet side panel
   if (isDesktop) {
@@ -325,6 +410,9 @@ export function EventDetailPanel({ event, onClose, onEventSelect }: EventDetailP
               showPacketTab={!!showPacketTab}
               showToonTab={!!showToonTab}
               showRelatedTab={!!showRelatedTab}
+              showClaimTimelineTab={!!showClaimTimelineTab}
+              claimMessageId={claimMessageId}
+              claimEvents={claimEvents}
               event={event}
               onEventSelect={onEventSelect}
             />
@@ -365,6 +453,9 @@ export function EventDetailPanel({ event, onClose, onEventSelect }: EventDetailP
             showPacketTab={!!showPacketTab}
             showToonTab={!!showToonTab}
             showRelatedTab={!!showRelatedTab}
+            showClaimTimelineTab={!!showClaimTimelineTab}
+            claimMessageId={claimMessageId}
+            claimEvents={claimEvents}
             event={event}
             onEventSelect={onEventSelect}
           />

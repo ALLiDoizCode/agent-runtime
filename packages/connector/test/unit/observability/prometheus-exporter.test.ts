@@ -14,6 +14,7 @@ import {
   SettlementMetricsOptions,
   ChannelMetricsOptions,
   ErrorMetricsOptions,
+  ClaimMetricsOptions,
 } from '../../../src/observability/types';
 
 describe('PrometheusExporter', () => {
@@ -465,6 +466,296 @@ describe('PrometheusExporter', () => {
       exporter.shutdown();
 
       expect(mockLogger.info).toHaveBeenCalledWith('PrometheusExporter shutdown complete');
+    });
+  });
+
+  describe('claim metrics', () => {
+    beforeEach(() => {
+      exporter = new PrometheusExporter(mockLogger, { includeDefaultMetrics: false });
+    });
+
+    describe('recordClaimSent', () => {
+      it('should record claim sent for XRP blockchain', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'xrp',
+          peerId: 'peer-bob',
+          success: true,
+        };
+
+        exporter.recordClaimSent(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('claims_sent_total');
+        expect(metrics).toContain('peer_id="peer-bob"');
+        expect(metrics).toContain('blockchain="xrp"');
+        expect(metrics).toContain('success="true"');
+      });
+
+      it('should record claim sent for EVM blockchain', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'evm',
+          peerId: 'peer-alice',
+          success: true,
+        };
+
+        exporter.recordClaimSent(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('blockchain="evm"');
+      });
+
+      it('should record claim sent for Aptos blockchain', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'aptos',
+          peerId: 'peer-charlie',
+          success: true,
+        };
+
+        exporter.recordClaimSent(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('blockchain="aptos"');
+      });
+
+      it('should record failed claim send', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'xrp',
+          peerId: 'peer-bob',
+          success: false,
+        };
+
+        exporter.recordClaimSent(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('success="false"');
+      });
+
+      it('should warn if success field is missing', () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'xrp',
+          peerId: 'peer-bob',
+        };
+
+        exporter.recordClaimSent(options);
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          { blockchain: 'xrp', peerId: 'peer-bob' },
+          'recordClaimSent called without success field'
+        );
+      });
+    });
+
+    describe('recordClaimReceived', () => {
+      it('should record verified claim received', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'xrp',
+          peerId: 'peer-alice',
+          verified: true,
+        };
+
+        exporter.recordClaimReceived(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('claims_received_total');
+        expect(metrics).toContain('peer_id="peer-alice"');
+        expect(metrics).toContain('blockchain="xrp"');
+        expect(metrics).toContain('verified="true"');
+      });
+
+      it('should record unverified claim received', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'evm',
+          peerId: 'peer-bob',
+          verified: false,
+        };
+
+        exporter.recordClaimReceived(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('verified="false"');
+      });
+
+      it('should warn if verified field is missing', () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'xrp',
+          peerId: 'peer-alice',
+        };
+
+        exporter.recordClaimReceived(options);
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          { blockchain: 'xrp', peerId: 'peer-alice' },
+          'recordClaimReceived called without verified field'
+        );
+      });
+    });
+
+    describe('recordClaimRedeemed', () => {
+      it('should record successful claim redemption with latency', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'xrp',
+          peerId: 'peer-alice',
+          success: true,
+          latencyMs: 5000,
+        };
+
+        exporter.recordClaimRedeemed(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('claims_redeemed_total');
+        expect(metrics).toContain('blockchain="xrp"');
+        expect(metrics).toContain('success="true"');
+        expect(metrics).toContain('claim_redemption_latency_seconds');
+      });
+
+      it('should record failed claim redemption', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'evm',
+          peerId: 'peer-bob',
+          success: false,
+        };
+
+        exporter.recordClaimRedeemed(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('success="false"');
+      });
+
+      it('should update last redemption timestamp on success', async () => {
+        const beforeRecord = Date.now() / 1000;
+
+        const options: ClaimMetricsOptions = {
+          blockchain: 'xrp',
+          peerId: 'peer-alice',
+          success: true,
+        };
+
+        exporter.recordClaimRedeemed(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('claim_last_redemption_timestamp_seconds');
+
+        // The timestamp should be recent
+        const match = metrics.match(
+          /claim_last_redemption_timestamp_seconds\{blockchain="xrp"\}\s+(\d+\.?\d*)/
+        );
+        expect(match).toBeDefined();
+        expect(match).not.toBeNull();
+        const timestamp = parseFloat(match![1] as string);
+        expect(timestamp).toBeGreaterThanOrEqual(beforeRecord);
+      });
+
+      it('should not update last redemption timestamp on failure', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'evm',
+          peerId: 'peer-bob',
+          success: false,
+        };
+
+        exporter.recordClaimRedeemed(options);
+
+        const metrics = await exporter.getMetrics();
+        // Timestamp should not be set for failed redemptions
+        const match = metrics.match(/claim_last_redemption_timestamp_seconds\{blockchain="evm"\}/);
+        expect(match).toBeNull();
+      });
+
+      it('should record redemption for all blockchain types', async () => {
+        exporter.recordClaimRedeemed({
+          blockchain: 'xrp',
+          peerId: 'peer-1',
+          success: true,
+        });
+
+        exporter.recordClaimRedeemed({
+          blockchain: 'evm',
+          peerId: 'peer-2',
+          success: true,
+        });
+
+        exporter.recordClaimRedeemed({
+          blockchain: 'aptos',
+          peerId: 'peer-3',
+          success: true,
+        });
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('blockchain="xrp"');
+        expect(metrics).toContain('blockchain="evm"');
+        expect(metrics).toContain('blockchain="aptos"');
+      });
+
+      it('should warn if success field is missing', () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'xrp',
+          peerId: 'peer-alice',
+        };
+
+        exporter.recordClaimRedeemed(options);
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          { blockchain: 'xrp' },
+          'recordClaimRedeemed called without success field'
+        );
+      });
+    });
+
+    describe('recordClaimVerificationFailure', () => {
+      it('should record invalid signature verification failure', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'xrp',
+          peerId: 'peer-bob',
+          errorType: 'invalid_signature',
+        };
+
+        exporter.recordClaimVerificationFailure(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('claim_verification_failures_total');
+        expect(metrics).toContain('peer_id="peer-bob"');
+        expect(metrics).toContain('blockchain="xrp"');
+        expect(metrics).toContain('error_type="invalid_signature"');
+      });
+
+      it('should record non-monotonic nonce verification failure', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'evm',
+          peerId: 'peer-alice',
+          errorType: 'non_monotonic_nonce',
+        };
+
+        exporter.recordClaimVerificationFailure(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('error_type="non_monotonic_nonce"');
+      });
+
+      it('should record unknown verification failure', async () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'aptos',
+          peerId: 'peer-charlie',
+          errorType: 'unknown',
+        };
+
+        exporter.recordClaimVerificationFailure(options);
+
+        const metrics = await exporter.getMetrics();
+        expect(metrics).toContain('error_type="unknown"');
+      });
+
+      it('should warn if errorType is missing', () => {
+        const options: ClaimMetricsOptions = {
+          blockchain: 'xrp',
+          peerId: 'peer-bob',
+        };
+
+        exporter.recordClaimVerificationFailure(options);
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          { blockchain: 'xrp', peerId: 'peer-bob' },
+          'recordClaimVerificationFailure called without errorType'
+        );
+      });
     });
   });
 });

@@ -53,7 +53,7 @@ export {
 // Routing Types
 export { RoutingTableEntry } from './types/routing';
 
-// Telemetry Types (Story 6.8, Story 11.3, Story 11.4, Story 11.5, Story 8.10, Story 9.7, Story 11.6)
+// Telemetry Types (Story 6.8, Story 11.3, Story 11.4, Story 11.5, Story 8.10, Story 9.7, Story 11.6, Story 17.2, Story 17.3)
 export {
   TelemetryEventType,
   SettlementState,
@@ -73,15 +73,24 @@ export {
   AgentChannelOpenedEvent,
   AgentChannelPaymentSentEvent,
   AgentChannelClosedEvent,
+  ClaimSentEvent,
+  ClaimReceivedEvent,
   TelemetryEvent,
 } from './types/telemetry';
 
-// Payment Channel Telemetry Types (Epic 8 Story 8.10)
+// Payment Channel Telemetry Types (Epic 8 Story 8.10, Epic 27 Story 27.5)
 export {
   PaymentChannelOpenedEvent,
   PaymentChannelBalanceUpdateEvent,
   PaymentChannelSettledEvent,
   DashboardChannelState,
+  // Aptos Settlement Telemetry (Story 27.5)
+  AptosChannelOpenedEvent,
+  AptosClaimSignedEvent,
+  AptosClaimSubmittedEvent,
+  AptosSettlementCompletedEvent,
+  AptosSettlementFailedEvent,
+  AptosSettlementTelemetryEvent,
 } from './types/payment-channel-telemetry';
 
 // Payment Channel Types (Epic 8 Story 8.7)

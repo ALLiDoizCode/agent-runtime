@@ -7,6 +7,29 @@
 import { ConnectorNode } from './core/connector-node';
 import { ConfigurationError } from './config/config-loader';
 import { createLogger } from './utils/logger';
+import { RoutingTable } from './routing/routing-table';
+import { PacketHandler } from './core/packet-handler';
+import { BTPServer } from './btp/btp-server';
+import { BTPClient } from './btp/btp-client';
+import { LocalDeliveryClient } from './core/local-delivery-client';
+import type { Logger } from 'pino';
+
+// Export public API
+export {
+  ConnectorNode,
+  RoutingTable,
+  PacketHandler,
+  BTPServer,
+  BTPClient,
+  LocalDeliveryClient,
+  createLogger,
+};
+
+// Export configuration types
+export type { LocalDeliveryConfig } from './config/types';
+
+// Export main function for testing
+export { main };
 
 /**
  * Main entry point
@@ -18,15 +41,22 @@ async function main(): Promise<void> {
   const logLevel = process.env.LOG_LEVEL || 'info';
 
   // Create temporary logger for startup (without telemetry)
-  const tempLogger = createLogger('connector-startup', logLevel);
+  const logger = createLogger('connector-startup', logLevel);
 
+  await startConnectorMode(configFile, logger);
+}
+
+/**
+ * Start in standard connector mode
+ */
+async function startConnectorMode(configFile: string, logger: Logger): Promise<void> {
   // Create connector instance (configuration loaded inside constructor)
   let connectorNode: ConnectorNode;
   try {
-    connectorNode = new ConnectorNode(configFile, tempLogger);
+    connectorNode = new ConnectorNode(configFile, logger);
   } catch (error) {
     if (error instanceof ConfigurationError) {
-      tempLogger.error(
+      logger.error(
         {
           event: 'configuration_error',
           filePath: configFile,
@@ -39,9 +69,6 @@ async function main(): Promise<void> {
     }
     throw error;
   }
-
-  // Get nodeId from loaded config for logging
-  const logger = tempLogger;
 
   /**
    * Graceful shutdown handler
@@ -112,20 +139,9 @@ async function main(): Promise<void> {
   }
 }
 
-// Execute main function if this is the entry point
-if (require.main === module) {
+// Run main entry point only when executed directly (not imported)
+// Check if this file is the entry point (running as main script)
+const isMainModule = require.main === module || process.argv[1]?.includes('connector');
+if (isMainModule) {
   void main();
 }
-
-// Export for testing
-export { main };
-
-// Re-export core types and classes for library usage
-export { ConnectorNode } from './core/connector-node';
-export { ConnectorConfig } from './config/types';
-export { ConfigLoader, ConfigurationError } from './config/config-loader';
-export { RoutingTable } from './routing/routing-table';
-export { PacketHandler } from './core/packet-handler';
-export { BTPServer } from './btp/btp-server';
-export { BTPClient } from './btp/btp-client';
-export { createLogger } from './utils/logger';

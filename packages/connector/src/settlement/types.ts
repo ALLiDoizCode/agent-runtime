@@ -197,19 +197,22 @@ export interface PeerAccountBalance {
 }
 
 /**
- * Peer Configuration with Settlement Preferences
+ * Peer Configuration with Tri-Chain Settlement Preferences
  *
- * Extends base peer configuration with multi-chain settlement capabilities.
+ * Extends base peer configuration with tri-chain settlement capabilities.
  * Connectors use this configuration to determine settlement method per peer.
  *
  * @interface PeerConfig
  * @example
- * const evmPeer: PeerConfig = {
+ * const triChainPeer: PeerConfig = {
  *   peerId: 'peer-alice',
  *   address: 'g.alice',
- *   settlementPreference: 'evm',
- *   settlementTokens: ['USDC', 'DAI'],
- *   evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
+ *   settlementPreference: 'any',
+ *   settlementTokens: ['USDC', 'XRP', 'APT'],
+ *   evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+ *   xrpAddress: 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEEW',
+ *   aptosAddress: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+ *   aptosPubkey: 'abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab'
  * };
  */
 export interface PeerConfig {
@@ -229,32 +232,50 @@ export interface PeerConfig {
    * Settlement preference for this peer
    * - 'evm': Only settle via EVM payment channels (Epic 8)
    * - 'xrp': Only settle via XRP payment channels (Epic 9)
-   * - 'both': Support both methods (auto-select based on token)
+   * - 'aptos': Only settle via Aptos payment channels (Epic 27)
+   * - 'any': Support all methods (auto-select based on token)
+   *
+   * Note: 'both' is deprecated in favor of 'any' for tri-chain support
    */
-  settlementPreference: 'evm' | 'xrp' | 'both';
+  settlementPreference: 'evm' | 'xrp' | 'aptos' | 'any' | 'both';
 
   /**
    * Supported settlement tokens
    * Format: Array of token identifiers
    * - ERC20 tokens: Contract address (e.g., '0x...')
    * - XRP: Literal string 'XRP'
-   * Example: ['USDC', 'XRP', 'DAI']
+   * - APT: Literal string 'APT'
+   * Example: ['USDC', 'XRP', 'APT', 'DAI']
    */
   settlementTokens: string[];
 
   /**
    * Optional: Ethereum address for EVM settlement
-   * Required if settlementPreference is 'evm' or 'both'
+   * Required if settlementPreference is 'evm' or 'any' with EVM tokens
    * Format: Ethereum checksummed address (0x prefixed)
    */
   evmAddress?: string;
 
   /**
    * Optional: XRP Ledger address for XRP settlement
-   * Required if settlementPreference is 'xrp' or 'both'
+   * Required if settlementPreference is 'xrp' or 'any' with XRP token
    * Format: XRP Ledger r-address
    */
   xrpAddress?: string;
+
+  /**
+   * Optional: Aptos address for Aptos settlement
+   * Required if settlementPreference is 'aptos' or 'any' with APT token
+   * Format: 0x-prefixed 64-character hex (Aptos account address)
+   */
+  aptosAddress?: string;
+
+  /**
+   * Optional: Aptos public key for claim verification
+   * Required if settlementPreference is 'aptos' or 'any' with APT token
+   * Format: 64-character hex (ed25519 public key)
+   */
+  aptosPubkey?: string;
 }
 
 /**
@@ -348,7 +369,7 @@ export interface XRPClaim {
 /**
  * Unified Settlement Executor Configuration
  *
- * Configuration for multi-chain settlement routing.
+ * Configuration for tri-chain settlement routing.
  *
  * @interface UnifiedSettlementExecutorConfig
  * @example
@@ -357,12 +378,15 @@ export interface XRPClaim {
  *     ['peer-alice', {
  *       peerId: 'peer-alice',
  *       address: 'g.alice',
- *       settlementPreference: 'evm',
- *       settlementTokens: ['USDC'],
- *       evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
+ *       settlementPreference: 'any',
+ *       settlementTokens: ['USDC', 'XRP', 'APT'],
+ *       evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+ *       xrpAddress: 'rN7n7otQDd6FczFgLdlqtyMVrn3HMfXEEW',
+ *       aptosAddress: '0x1234...',
+ *       aptosPubkey: 'abcd...'
  *     }]
  *   ]),
- *   defaultPreference: 'both',
+ *   defaultPreference: 'any',
  *   enabled: true
  * };
  */
@@ -378,7 +402,7 @@ export interface UnifiedSettlementExecutorConfig {
    * Default settlement preference (fallback)
    * Used when peer not found in peers map
    */
-  defaultPreference: 'evm' | 'xrp' | 'both';
+  defaultPreference: 'evm' | 'xrp' | 'aptos' | 'any' | 'both';
 
   /**
    * Enable settlement execution

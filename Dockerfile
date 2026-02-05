@@ -10,7 +10,7 @@
 # ============================================
 # Stage 1: Builder
 # ============================================
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -43,7 +43,7 @@ RUN npm run build --workspace=@m2m/shared && npm run build:connector-only --work
 # ============================================
 # Stage 1.5: UI Builder (Explorer UI)
 # ============================================
-FROM node:20-alpine AS ui-builder
+FROM node:22-alpine AS ui-builder
 
 WORKDIR /app
 
@@ -59,7 +59,7 @@ RUN npm ci && npm run build
 # ============================================
 # Stage 2: Runtime
 # ============================================
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 
 # Set production environment
 ENV NODE_ENV=production
@@ -93,8 +93,8 @@ RUN apk add --no-cache wget
 
 # Security hardening: Run as non-root user
 # Alpine's node image includes a 'node' user by default
-# Change ownership of application files to node user
-RUN chown -R node:node /app
+# Create data directory for Explorer UI SQLite databases and change ownership
+RUN mkdir -p /app/data && chown -R node:node /app
 
 # Switch to non-root user (prevents privilege escalation attacks)
 USER node

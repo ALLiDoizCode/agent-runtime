@@ -640,4 +640,136 @@ describe('BTPClientManager', () => {
       );
     });
   });
+
+  describe('getClientForPeer()', () => {
+    it('should return BTPClient instance for existing peer', async () => {
+      // Arrange
+      const peer = createTestPeer('peerM');
+      const mockClient = {
+        connect: jest.fn().mockResolvedValue(undefined),
+        disconnect: jest.fn().mockResolvedValue(undefined),
+        sendPacket: jest.fn(),
+        get isConnected() {
+          return true;
+        },
+        on: jest.fn(),
+      } as unknown as jest.Mocked<BTPClient>;
+      MockedBTPClient.mockImplementation(() => mockClient);
+
+      await manager.addPeer(peer);
+
+      // Act
+      const client = manager.getClientForPeer('peerM');
+
+      // Assert
+      expect(client).toBeDefined();
+      expect(client).toBe(mockClient);
+    });
+
+    it('should return undefined for non-existent peer', () => {
+      // Act
+      const client = manager.getClientForPeer('nonexistent');
+
+      // Assert
+      expect(client).toBeUndefined();
+    });
+
+    it('should return different BTPClient instances for different peers', async () => {
+      // Arrange
+      const peerA = createTestPeer('peerN');
+      const peerB = createTestPeer('peerO');
+
+      const mockClientA = {
+        connect: jest.fn().mockResolvedValue(undefined),
+        disconnect: jest.fn().mockResolvedValue(undefined),
+        sendPacket: jest.fn(),
+        get isConnected() {
+          return true;
+        },
+        on: jest.fn(),
+      } as unknown as jest.Mocked<BTPClient>;
+
+      const mockClientB = {
+        connect: jest.fn().mockResolvedValue(undefined),
+        disconnect: jest.fn().mockResolvedValue(undefined),
+        sendPacket: jest.fn(),
+        get isConnected() {
+          return true;
+        },
+        on: jest.fn(),
+      } as unknown as jest.Mocked<BTPClient>;
+
+      MockedBTPClient.mockImplementationOnce(() => mockClientA).mockImplementationOnce(
+        () => mockClientB
+      );
+
+      await manager.addPeer(peerA);
+      await manager.addPeer(peerB);
+
+      // Act
+      const clientA = manager.getClientForPeer('peerN');
+      const clientB = manager.getClientForPeer('peerO');
+
+      // Assert
+      expect(clientA).toBe(mockClientA);
+      expect(clientB).toBe(mockClientB);
+      expect(clientA).not.toBe(clientB);
+    });
+  });
+
+  describe('isConnected()', () => {
+    it('should return true for connected peer', async () => {
+      // Arrange
+      const peer = createTestPeer('peerP');
+      const mockClient = {
+        connect: jest.fn().mockResolvedValue(undefined),
+        disconnect: jest.fn().mockResolvedValue(undefined),
+        sendPacket: jest.fn(),
+        get isConnected() {
+          return true;
+        },
+        on: jest.fn(),
+      } as unknown as jest.Mocked<BTPClient>;
+      MockedBTPClient.mockImplementation(() => mockClient);
+
+      await manager.addPeer(peer);
+
+      // Act
+      const connected = manager.isConnected('peerP');
+
+      // Assert
+      expect(connected).toBe(true);
+    });
+
+    it('should return false for disconnected peer', async () => {
+      // Arrange
+      const peer = createTestPeer('peerQ');
+      const mockClient = {
+        connect: jest.fn().mockResolvedValue(undefined),
+        disconnect: jest.fn().mockResolvedValue(undefined),
+        sendPacket: jest.fn(),
+        get isConnected() {
+          return false;
+        },
+        on: jest.fn(),
+      } as unknown as jest.Mocked<BTPClient>;
+      MockedBTPClient.mockImplementation(() => mockClient);
+
+      await manager.addPeer(peer);
+
+      // Act
+      const connected = manager.isConnected('peerQ');
+
+      // Assert
+      expect(connected).toBe(false);
+    });
+
+    it('should return false for non-existent peer', () => {
+      // Act
+      const connected = manager.isConnected('nonexistent');
+
+      // Assert
+      expect(connected).toBe(false);
+    });
+  });
 });

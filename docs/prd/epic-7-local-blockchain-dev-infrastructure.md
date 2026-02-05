@@ -4,7 +4,7 @@
 **Priority:** High - Required before Epic 8 and Epic 9
 **Type:** Development Infrastructure / Enabler Epic
 
-**Goal:** Establish local blockchain node infrastructure for Base L2 (EVM) and XRP Ledger development, enabling developers to build and test payment channel smart contracts locally without relying on public testnets or mainnets. Deploy Anvil (Foundry) as a local Base L2 fork and rippled in standalone mode via Docker Compose, providing instant block finality, zero gas costs, pre-funded test accounts, and complete control over blockchain state. This epic delivers a turnkey local development environment that accelerates iteration cycles and eliminates testnet rate limits and network dependencies.
+**Goal:** Establish local blockchain node infrastructure for Base L2 (EVM), XRP Ledger, and Aptos development, enabling developers to build and test payment channel smart contracts locally without relying on public testnets or mainnets. Deploy Anvil (Foundry) as a local Base L2 fork, rippled in standalone mode, and Aptos local testnet via Docker Compose, providing instant block finality, zero gas costs, pre-funded test accounts, and complete control over blockchain state. This epic delivers a turnkey tri-chain local development environment that accelerates iteration cycles and eliminates testnet rate limits and network dependencies.
 
 **Foundation:** This epic implements the recommendations from `docs/research/local-blockchain-nodes-setup-guide.md`, providing local blockchain infrastructure for Epic 8 (EVM Payment Channels) and Epic 9 (XRP Payment Channels) development and testing.
 
@@ -807,10 +807,311 @@ export function validateEnvironment(config: ConnectorConfig) {
 
 ---
 
+## Story 7.6: Aptos Local Testnet Docker Service for Move Module Development
+
+As a Move smart contract developer,
+I want a local Aptos testnet running in Docker that provides Node API, Faucet, and optional Indexer,
+so that I can develop and test payment channel Move modules without testnet rate limits or network delays.
+
+### Acceptance Criteria
+
+1. Aptos local testnet service added to `docker-compose.yml` using `aptoslabs/tools:nightly` image
+2. Aptos Node REST API exposed on port 8080 accessible from all containers
+3. Aptos Faucet exposed on port 8081 for funding test accounts
+4. Health check implemented using readiness endpoint (`http://localhost:8080/v1`)
+5. Docker socket mounted for internal container management (required for `--with-indexer-api`)
+6. Persistent volume for testnet data to survive container restarts
+7. Move contracts directory mounted for easy deployment (`packages/contracts-aptos`)
+8. Environment variables configurable for Indexer API toggle
+9. Helper script `scripts/init-aptos-local.sh` for account creation and module deployment
+10. Documentation updated in `docs/guides/aptos-payment-channels-setup.md` with local development section
+11. Integration test verifies Aptos starts, accepts REST API requests, and funds accounts via faucet
+12. Connector `aptos-client.ts` already supports `Network.LOCAL` detection (verified)
+
+### Docker Compose Configuration
+
+```yaml
+# docker-compose.yml (add to existing services)
+services:
+  # Aptos Local Testnet - Payment Channel Settlement (Epic 13)
+  #
+  # Provides local Aptos blockchain for Move module development and testing.
+  # Part of tri-chain settlement infrastructure alongside Anvil (EVM) and rippled (XRP).
+  #
+  # Services included:
+  #   - Aptos Node API (REST): http://localhost:8080/v1
+  #   - Aptos Faucet: http://localhost:8081
+  #   - Readiness Check: http://localhost:8070/
+  #
+  aptos-local:
+    image: aptoslabs/tools:${APTOS_IMAGE_TAG:-nightly}
+    container_name: aptos-local
+    platform: linux/amd64
+    volumes:
+      # Docker socket for internal container management (Postgres, Hasura for Indexer)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persistent testnet data
+      - aptos-testnet-data:/testnet
+      # Mount Move contracts for deployment
+      - ./packages/contracts-aptos:/contracts:ro
+    ports:
+      - '8080:8080' # Node REST API
+      - '8081:8081' # Faucet
+    networks:
+      - ilp-network
+    environment:
+      - APTOS_WITH_INDEXER=${APTOS_WITH_INDEXER:-false}
+    command: >
+      aptos node run-local-testnet
+      --test-dir /testnet
+      --force-restart
+      --assume-yes
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:8080/v1']
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  aptos-testnet-data:
+    driver: local
+```
+
+### With Indexer API (Optional Profile)
+
+```yaml
+# For development requiring GraphQL queries
+aptos-local-indexed:
+  image: aptoslabs/tools:${APTOS_IMAGE_TAG:-nightly}
+  container_name: aptos-local-indexed
+  platform: linux/amd64
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - aptos-testnet-indexed-data:/testnet
+    - ./packages/contracts-aptos:/contracts:ro
+  ports:
+    - '8080:8080' # Node REST API
+    - '8081:8081' # Faucet
+    - '8090:8090' # Indexer API (GraphQL)
+    - '50051:50051' # Transaction Stream (gRPC)
+  networks:
+    - ilp-network
+  command: >
+    aptos node run-local-testnet
+    --test-dir /testnet
+    --with-indexer-api
+    --force-restart
+    --assume-yes
+  healthcheck:
+    test: ['CMD', 'curl', '-sf', 'http://localhost:8080/v1']
+    interval: 10s
+    timeout: 5s
+    retries: 20
+    start_period: 90s
+  restart: unless-stopped
+  profiles:
+    - aptos-indexed
+```
+
+### Environment Variables (.env)
+
+```bash
+# Aptos Local Testnet Configuration
+APTOS_IMAGE_TAG=nightly           # Docker image tag (nightly, devnet, testnet)
+APTOS_WITH_INDEXER=false          # Enable Indexer API (requires more resources)
+
+# Local Development URLs (for connector configuration)
+APTOS_NODE_URL=http://localhost:8080/v1
+APTOS_FAUCET_URL=http://localhost:8081
+```
+
+### Helper Scripts
+
+**scripts/init-aptos-local.sh:**
+
+```bash
+#!/bin/bash
+set -e
+
+echo "=== Aptos Local Testnet Initialization ==="
+
+# Wait for Aptos node to be ready
+echo "Waiting for Aptos local node..."
+until curl -sf http://localhost:8080/v1 > /dev/null 2>&1; do
+  echo "  Waiting for node REST API..."
+  sleep 2
+done
+echo "✓ Aptos node ready!"
+
+# Wait for faucet
+echo "Waiting for faucet..."
+until curl -sf http://localhost:8081 > /dev/null 2>&1; do
+  echo "  Waiting for faucet..."
+  sleep 2
+done
+echo "✓ Faucet ready!"
+
+# Create local profile
+echo "Creating local CLI profile..."
+aptos init --profile local \
+  --rest-url http://localhost:8080 \
+  --faucet-url http://localhost:8081 \
+  --assume-yes
+
+# Fund the account
+echo "Funding account via faucet..."
+aptos account fund-with-faucet --profile local --account default
+
+# Get account address
+ACCOUNT_ADDRESS=$(aptos account lookup-address --profile local 2>/dev/null | grep -o '0x[a-f0-9]*')
+echo "✓ Account funded: $ACCOUNT_ADDRESS"
+
+# Deploy payment_channel module if contracts exist
+if [ -d "packages/contracts-aptos/sources" ]; then
+  echo "Deploying payment_channel Move module..."
+  cd packages/contracts-aptos
+  aptos move publish \
+    --profile local \
+    --named-addresses payment_channel=local \
+    --assume-yes
+  echo "✓ Module deployed!"
+  cd -
+fi
+
+echo ""
+echo "=== Aptos Local Setup Complete ==="
+echo "Node API:  http://localhost:8080/v1"
+echo "Faucet:    http://localhost:8081"
+echo "Account:   $ACCOUNT_ADDRESS"
+echo ""
+echo "Environment variables for .env:"
+echo "  APTOS_NODE_URL=http://localhost:8080/v1"
+echo "  APTOS_FAUCET_URL=http://localhost:8081"
+echo "  APTOS_ACCOUNT_ADDRESS=$ACCOUNT_ADDRESS"
+echo "  APTOS_MODULE_ADDRESS=$ACCOUNT_ADDRESS"
+```
+
+**scripts/aptos-fund-account.sh:**
+
+```bash
+#!/bin/bash
+# Fund an Aptos account on local testnet
+ACCOUNT=${1:-default}
+AMOUNT=${2:-100000000}  # Default: 1 APT (100,000,000 octas)
+
+curl -X POST "http://localhost:8081/mint?amount=$AMOUNT&address=$ACCOUNT"
+echo "Funded $ACCOUNT with $AMOUNT octas"
+```
+
+**scripts/aptos-deploy-module.sh:**
+
+```bash
+#!/bin/bash
+# Deploy payment_channel module to local testnet
+cd packages/contracts-aptos
+aptos move publish \
+  --profile local \
+  --named-addresses payment_channel=local \
+  --assume-yes
+```
+
+### Testing Aptos Local
+
+```bash
+# Start Aptos local testnet
+docker-compose up -d aptos-local
+
+# Wait for startup (first run downloads ~2GB)
+docker-compose logs -f aptos-local
+
+# Test Node REST API
+curl -s http://localhost:8080/v1 | jq .
+
+# Test Faucet
+curl -X POST "http://localhost:8081/mint?amount=100000000&address=0x1"
+
+# Initialize and deploy
+./scripts/init-aptos-local.sh
+
+# Run Move tests
+cd packages/contracts-aptos
+aptos move test --named-addresses payment_channel=0xCAFE
+```
+
+### TypeScript SDK Configuration
+
+The existing `aptos-client.ts` already supports local network detection:
+
+```typescript
+// packages/connector/src/settlement/aptos-client.ts:570-581
+private getNetworkFromUrl(url: string): Network {
+  if (url.includes('testnet')) {
+    return Network.TESTNET;
+  } else if (url.includes('devnet')) {
+    return Network.DEVNET;
+  } else if (url.includes('mainnet')) {
+    return Network.MAINNET;
+  } else if (url.includes('localhost') || url.includes('127.0.0.1')) {
+    return Network.LOCAL;  // ✓ Already supported
+  }
+  return Network.CUSTOM;
+}
+```
+
+Usage with local node:
+
+```typescript
+import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
+
+// Automatic local detection
+const config = new AptosConfig({
+  network: Network.LOCAL,
+  fullnode: 'http://localhost:8080/v1',
+  faucet: 'http://localhost:8081',
+});
+
+const aptos = new Aptos(config);
+
+// Fund account from local faucet
+await aptos.fundAccount({
+  accountAddress: '0xYOUR_ADDRESS',
+  amount: 100_000_000, // 1 APT
+});
+```
+
+### Platform Considerations
+
+**Apple Silicon (M1/M2/M3):**
+
+- The `aptoslabs/tools` image uses `platform: linux/amd64` and runs via Rosetta emulation
+- Performance is acceptable for development (~30-60s startup)
+- Alternative: Install Aptos CLI natively (`brew install aptos`) for faster execution
+
+**Resource Requirements:**
+
+| Configuration      | Memory | CPU     | Disk | Startup Time |
+| ------------------ | ------ | ------- | ---- | ------------ |
+| Basic (no indexer) | ~2GB   | 1 core  | ~1GB | ~45s         |
+| With Indexer API   | ~4GB   | 2 cores | ~2GB | ~90s         |
+
+### Benefits
+
+- **Instant transactions:** No waiting for network consensus
+- **Free APT:** Unlimited faucet funding for testing
+- **Offline development:** After initial image pull, works without internet
+- **Move testing:** Full Move VM for contract development
+- **Tri-chain parity:** Matches Anvil and rippled local development experience
+- **Epic 13 integration:** Test payment channel SDK locally before testnet deployment
+
+---
+
 ## Epic Completion Criteria
 
 - [ ] Anvil service running in Docker Compose and forking Base Sepolia
 - [ ] rippled service running in Docker Compose in standalone mode
+- [ ] Aptos local testnet running in Docker Compose with Node API and Faucet
 - [ ] All services integrated with health checks and dependency ordering
 - [ ] Makefile provides simple dev commands (dev-up, dev-down, dev-reset)
 - [ ] Documentation complete with setup guide, tutorials, and troubleshooting
@@ -829,12 +1130,14 @@ export function validateEnvironment(config: ConnectorConfig) {
 - **Epic 8:** EVM Payment Channels (Base L2) - Local Anvil for contract development and testing
 - **Epic 9:** XRP Payment Channels - Local rippled for PayChan development and testing
 - **Epic 10:** Multi-Chain Settlement - Local environment for cross-chain testing
+- **Epic 13:** Aptos Payment Channels - Local Aptos testnet for Move module development and testing
 
 **Integrates With:**
 
 - **Epic 6:** Settlement Foundation - TigerBeetle added to dev compose file
 - **Epic 2:** BTP Protocol - Connectors start with blockchain dependencies healthy
 - **Epic 3:** Dashboard - Optional dashboard service for development visualization
+- **Epic 13:** Aptos Payment Channels - AptosClient, AptosChannelSDK, AptosClaimSigner integration
 
 ---
 
@@ -847,6 +1150,7 @@ export function validateEnvironment(config: ConnectorConfig) {
 ```
 Connector → Anvil (localhost:8545) → Forked Base Sepolia state
 Connector → rippled (localhost:5005) → Standalone mode (offline)
+Connector → Aptos (localhost:8080) → Local testnet (isolated)
 ```
 
 **Production (Public Mainnets):**
@@ -854,6 +1158,7 @@ Connector → rippled (localhost:5005) → Standalone mode (offline)
 ```
 Connector → Base Mainnet (https://mainnet.base.org) → Live blockchain
 Connector → XRPL Mainnet (https://xrplcluster.com) → Live blockchain
+Connector → Aptos Mainnet (https://fullnode.mainnet.aptoslabs.com) → Live blockchain
 ```
 
 ### Why Fork Base Sepolia (Not Mainnet)?
@@ -881,6 +1186,21 @@ Connector → XRPL Mainnet (https://xrplcluster.com) → Live blockchain
 - Auto-ledger advancer service (optional) advances ledgers every 5 seconds
 - Helper scripts automate common operations
 - Documentation clearly explains standalone mode behavior
+
+### Aptos Local Testnet Characteristics
+
+1. **Self-contained:** Runs all services internally (Node, Faucet, optional Indexer)
+2. **Docker socket required:** Uses host Docker daemon for internal container management
+3. **Instant finality:** Transactions confirm immediately in local mode
+4. **Unlimited faucet:** No rate limits on test APT funding
+5. **Move VM parity:** Full Move language support identical to mainnet
+
+**Platform Notes:**
+
+- Uses `linux/amd64` platform (runs via Rosetta on Apple Silicon)
+- First startup downloads ~2GB of Docker images
+- Subsequent startups use cached data (~45 seconds)
+- Native CLI (`brew install aptos`) available for faster M1/M2 development
 
 ---
 
@@ -919,27 +1239,49 @@ Connector → XRPL Mainnet (https://xrplcluster.com) → Live blockchain
 4. Submit test transaction to each blockchain
 5. Verify transactions confirmed
 
+**Test 5: Move Module Deployment to Local Aptos**
+
+1. Start Aptos local testnet
+2. Wait for Node API and Faucet health checks
+3. Create test account and fund via faucet
+4. Compile payment_channel Move module
+5. Deploy module to local testnet
+6. Verify module accessible via view function
+
+**Test 6: Aptos Payment Channel on Local Testnet**
+
+1. Deploy payment_channel module
+2. Open payment channel with test APT
+3. Sign off-chain claim
+4. Submit claim to channel
+5. Verify channel state updated correctly
+
 ---
 
 ## Performance Requirements
 
 - **Anvil startup time:** <10 seconds (with fork)
 - **rippled startup time:** <15 seconds (standalone mode)
-- **Full stack startup time:** <60 seconds (all services healthy)
+- **Aptos startup time:** <60 seconds (first run), <45 seconds (cached)
+- **Full stack startup time:** <90 seconds (all three blockchains healthy)
 - **Anvil block time:** Instant (auto-mine on transaction)
 - **rippled ledger close time:** Manual (or 5 seconds with auto-advancer)
+- **Aptos transaction time:** Instant (local testnet)
 - **Fork sync time:** <30 seconds (initial fetch of Base Sepolia state)
+- **Aptos image download:** ~2GB (first run only)
 
 ---
 
 ## Documentation Deliverables
 
-1. `docs/guides/local-blockchain-development.md` - Complete setup and usage guide
+1. `docs/guides/local-blockchain-development.md` - Complete setup and usage guide (updated for tri-chain)
 2. `docs/guides/local-vs-production-config.md` - Environment configuration guide
-3. `README.md` - Updated with Development Environment section
-4. `scripts/README.md` - Helper scripts documentation
-5. `.env.dev.example` - Example development environment variables
-6. `docker-compose-dev.yml` - Annotated with comments explaining each service
+3. `docs/guides/aptos-payment-channels-setup.md` - Updated with local development section
+4. `README.md` - Updated with Development Environment section
+5. `scripts/README.md` - Helper scripts documentation
+6. `scripts/init-aptos-local.sh` - Aptos initialization and deployment script
+7. `.env.dev.example` - Example development environment variables (including Aptos)
+8. `docker-compose.yml` - Annotated with comments explaining each service (including Aptos)
 
 ---
 
@@ -947,23 +1289,33 @@ Connector → XRPL Mainnet (https://xrplcluster.com) → Live blockchain
 
 - Developer onboarding time: <30 minutes (zero to first contract deployment)
 - Local development iteration speed: <5 seconds (change code → test)
-- Testnet dependency elimination: 100% (can develop offline)
-- Developer satisfaction: Survey after Epic 8/9 completion
+- Testnet dependency elimination: 100% (can develop offline after initial setup)
+- Developer satisfaction: Survey after Epic 8/9/27 completion
 - Smart contract deployment success rate: >99% (local Anvil)
 - XRPL transaction success rate: 100% (standalone mode accepts all valid transactions)
+- Move module deployment success rate: >99% (local Aptos testnet)
+- Tri-chain local stack reliability: >99% uptime during development sessions
 
 ---
 
 ## Timeline Estimate
 
-**Total Duration:** 1-2 weeks
+**Total Duration:** 2 weeks
 
 - **Days 1-2:** Anvil Docker service and health checks (Story 7.1)
 - **Days 3-4:** rippled Docker service and helper scripts (Story 7.2)
 - **Days 5-6:** Docker Compose integration and Makefile (Story 7.3)
 - **Days 7-8:** Documentation and developer onboarding (Story 7.4)
 - **Days 9-10:** Environment configuration and validation (Story 7.5)
+- **Days 11-12:** Aptos local testnet Docker service and helper scripts (Story 7.6)
+
+**Story 7.6 Dependencies:**
+
+- Requires Epic 13 (Aptos Payment Channels) for Move module and SDK integration
+- Can run in parallel with Epic 13 development (local testnet enables faster iteration)
 
 **Can be parallelized with Epic 6** - Local blockchain infrastructure doesn't depend on TigerBeetle settlement.
 
 **Must complete before Epic 8/9** - Payment channel development requires local blockchain nodes.
+
+**Story 7.6 timing:** Can be implemented after Epic 13 is complete, or during Epic 13 to accelerate Move module development.

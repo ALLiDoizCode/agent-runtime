@@ -44,17 +44,32 @@ btpServerPort: 4000
 # Override with HEALTH_CHECK_PORT environment variable.
 healthCheckPort: 8080
 
+# Explorer UI Configuration (NOC Dashboard)
+# Override with EXPLORER_PORT environment variable.
+explorerPort: 5173
+
 # =============================================================================
 # Settlement Configuration
 # =============================================================================
-# Settlement preference: 'evm' | 'xrp' | 'both'
+settlement:
+  # Enable settlement (environment variables will override these defaults)
+  enableSettlement: true
+  settlementThreshold: 1000000
+  connectorFeePercentage: 0.1
+  initialDepositMultiplier: 10
+
+  # TigerBeetle Configuration
+  tigerBeetleClusterId: 0
+  tigerBeetleReplicas:
+    - tigerbeetle:3000
+
+# Settlement preference: 'evm' | 'xrp' | 'aptos' | 'both'
 # Override with SETTLEMENT_PREFERENCE environment variable.
 settlementPreference: both
 
 # Blockchain RPC endpoints
-# Override with BASE_RPC_URL and XRPL_WSS_URL environment variables.
-# evmRpcUrl: https://mainnet.base.org
-# xrplWssUrl: wss://xrplcluster.com
+# Override with BASE_RPC_URL, BASE_L2_RPC_URL, XRPL_WSS_URL, APTOS_NODE_URL
+# All loaded from environment variables
 
 # =============================================================================
 # Logging Configuration

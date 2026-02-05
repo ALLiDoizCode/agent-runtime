@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { useEventFilters } from './hooks/useEventFilters';
 import { useEvents, EventMode } from './hooks/useEvents';
 import { EventTable } from './components/EventTable';
+import { Dashboard } from './components/Dashboard';
 import { Header } from './components/Header';
 import { JumpToLive } from './components/JumpToLive';
 import { AccountsView } from './components/AccountsView';
@@ -10,7 +12,8 @@ import { TelemetryEvent, StoredEvent } from './lib/event-types';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { KeyboardHelpDialog } from './components/KeyboardHelpDialog';
-import { Radio, History, Wallet, ListTree, Network } from 'lucide-react';
+import { KeyManager } from './components/KeyManager';
+import { Radio, History, Wallet, ListTree, Network, Key, LayoutDashboard } from 'lucide-react';
 
 const FilterBar = lazy(() =>
   import('./components/FilterBar').then((m) => ({ default: m.FilterBar }))
@@ -20,9 +23,27 @@ const EventDetailPanel = lazy(() =>
 );
 
 /** Tab view types */
-type TabView = 'events' | 'accounts' | 'peers';
+type TabView = 'dashboard' | 'events' | 'accounts' | 'peers' | 'keys';
 
-function App() {
+/** Navigation bar component */
+function NavBar() {
+  return (
+    <nav className="border-b border-border px-4 py-2">
+      <div className="flex items-center gap-4">
+        <Link
+          to="/"
+          className="flex items-center gap-2 px-3 py-2 rounded-md transition-colors bg-secondary text-secondary-foreground"
+        >
+          <ListTree className="h-4 w-4" />
+          Explorer
+        </Link>
+      </div>
+    </nav>
+  );
+}
+
+/** Explorer view component (existing functionality) */
+function ExplorerView() {
   // Filter state management
   const { filters, setFilters, resetFilters, hasActiveFilters, activeFilterCount } =
     useEventFilters();
@@ -48,8 +69,8 @@ function App() {
   // Selected event for detail panel (Story 14.5)
   const [selectedEvent, setSelectedEvent] = useState<TelemetryEvent | StoredEvent | null>(null);
 
-  // Tab view state (Story 14.6)
-  const [activeTab, setActiveTab] = useState<TabView>('events');
+  // Tab view state (Story 14.6) - Default to dashboard
+  const [activeTab, setActiveTab] = useState<TabView>('dashboard');
 
   // Help dialog state (Task 3)
   const [helpOpen, setHelpOpen] = useState(false);
@@ -77,13 +98,19 @@ function App() {
 
       switch (e.key) {
         case '1':
-          setActiveTab('events');
+          setActiveTab('dashboard');
           break;
         case '2':
-          setActiveTab('accounts');
+          setActiveTab('events');
           break;
         case '3':
+          setActiveTab('accounts');
+          break;
+        case '4':
           setActiveTab('peers');
+          break;
+        case '5':
+          setActiveTab('keys');
           break;
         case '/': {
           e.preventDefault();
@@ -123,7 +150,7 @@ function App() {
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground dark">
+    <div className="dark">
       <Header
         status={connectionStatus}
         eventCount={events.length}
@@ -175,12 +202,16 @@ function App() {
       </div>
 
       {/* Tab navigation (Story 14.6) */}
-      <div className="px-4 md:px-6 py-2 border-b border-border">
+      <div className="px-4 md:px-6 py-2 border-b border-border bg-card/30">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabView)}>
           <TabsList>
+            <TabsTrigger value="dashboard" className="gap-2">
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
+            </TabsTrigger>
             <TabsTrigger value="events" className="gap-2">
               <ListTree className="h-4 w-4" />
-              Events
+              Packets
             </TabsTrigger>
             <TabsTrigger value="accounts" className="gap-2">
               <Wallet className="h-4 w-4" />
@@ -189,6 +220,10 @@ function App() {
             <TabsTrigger value="peers" className="gap-2">
               <Network className="h-4 w-4" />
               Peers
+            </TabsTrigger>
+            <TabsTrigger value="keys" className="gap-2">
+              <Key className="h-4 w-4" />
+              Keys
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -213,7 +248,9 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'events' ? (
+        {activeTab === 'dashboard' ? (
+          <Dashboard events={events} connectionStatus={connectionStatus} />
+        ) : activeTab === 'events' ? (
           <EventTable
             events={events}
             onEventClick={handleEventClick}
@@ -228,8 +265,12 @@ function App() {
           />
         ) : activeTab === 'accounts' ? (
           <AccountsView />
-        ) : (
+        ) : activeTab === 'peers' ? (
           <PeersView />
+        ) : (
+          <div className="max-w-2xl mx-auto">
+            <KeyManager />
+          </div>
         )}
       </main>
 
@@ -254,6 +295,19 @@ function App() {
       {/* Keyboard shortcuts help dialog (Story 15.3) */}
       <KeyboardHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <div className="min-h-screen bg-background text-foreground">
+        <NavBar />
+        <Routes>
+          <Route path="/" element={<ExplorerView />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }
 
