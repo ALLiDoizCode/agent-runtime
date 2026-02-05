@@ -18,6 +18,7 @@ module.exports = {
     'agent-wallet-integration\\.doc\\.test\\.ts$',
     'tri-chain-settlement\\.test\\.ts$',
     'aptos-local-testnet\\.test\\.ts$',
+    'tigerbeetle-5peer-deployment\\.test\\.ts$',
   ],
   testTimeout: 30000, // 30 second default timeout for integration tests
   collectCoverageFrom: [
