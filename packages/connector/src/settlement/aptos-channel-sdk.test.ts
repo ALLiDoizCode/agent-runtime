@@ -115,7 +115,8 @@ function createMockClaimSigner(): jest.Mocked<IAptosClaimSigner> {
 
 // Default SDK config for tests
 const testConfig: AptosChannelSDKConfig = {
-  moduleAddress: '0xmodule1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+  moduleAddress:
+    '0xmodule1234567890abcdef1234567890abcdef1234567890abcdef1234567890::payment_channel',
   refreshIntervalMs: 30000,
   defaultSettleDelay: 86400,
 };
@@ -783,12 +784,12 @@ describe('AptosChannelSDK', () => {
       // Use mixed case address
       await sdk.getChannelState('0xABCD');
 
-      // View should be called with normalized address
+      // View should be called with normalized address and coin type
       expect(mockAptosClient.view).toHaveBeenCalledWith(
         expect.any(String),
         'payment_channel',
         'get_channel',
-        [],
+        ['0x1::aptos_coin::AptosCoin'],
         [expect.stringMatching(/^0x[0-9a-f]+$/)]
       );
     });
@@ -798,12 +799,12 @@ describe('AptosChannelSDK', () => {
 
       await sdk.getChannelState('0x1');
 
-      // Should be padded to 64 chars
+      // Should be padded to 64 chars, coin type included
       expect(mockAptosClient.view).toHaveBeenCalledWith(
         expect.any(String),
         'payment_channel',
         'get_channel',
-        [],
+        ['0x1::aptos_coin::AptosCoin'],
         ['0x0000000000000000000000000000000000000000000000000000000000000001']
       );
     });
@@ -851,7 +852,7 @@ describe('createAptosChannelSDKFromEnv', () => {
 
   it('should create SDK with all required env vars set', () => {
     // Set all required env vars
-    process.env.APTOS_MODULE_ADDRESS = '0xmodule1234567890abcdef';
+    process.env.APTOS_MODULE_ADDRESS = '0xmodule1234567890abcdef::payment_channel';
     process.env.APTOS_NODE_URL = 'https://fullnode.testnet.aptoslabs.com/v1';
     process.env.APTOS_PRIVATE_KEY = 'abc123';
     process.env.APTOS_ACCOUNT_ADDRESS = '0xaccount123';
@@ -886,7 +887,7 @@ describe('createAptosChannelSDKFromEnv', () => {
 
   it('should use optional env vars for config when set', () => {
     // Set all required env vars
-    process.env.APTOS_MODULE_ADDRESS = '0xmodule1234567890abcdef';
+    process.env.APTOS_MODULE_ADDRESS = '0xmodule1234567890abcdef::payment_channel';
     process.env.APTOS_NODE_URL = 'https://fullnode.testnet.aptoslabs.com/v1';
     process.env.APTOS_PRIVATE_KEY = 'abc123';
     process.env.APTOS_ACCOUNT_ADDRESS = '0xaccount123';
