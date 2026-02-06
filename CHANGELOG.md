@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.6.1...v1.6.2) (2026-02-06)
+
+### Code Refactoring
+
+- complete rebrand from m2m to agent-runtime across documentation and configs ([2298fa4](https://github.com/ALLiDoizCode/agent-runtime/commit/2298fa4d9e1e7c94ba420680804812af06ccc4b1))
+
 ## [1.6.1](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.6.0...v1.6.1) (2026-02-05)
 
 ### Bug Fixes
