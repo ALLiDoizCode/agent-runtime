@@ -49,7 +49,7 @@ On this network, every message has tokens attached. Think of it like an envelope
 └─────────────────────────────────────────────────┘
 ```
 
-Agent B receives the message, sees 1000 tokens attached, and decides: _"Is this worth answering?"_ If yes, they respond — and can attach tokens to the response.
+Agent B receives the message, sees 1000 tokens attached, and decides: _"Is this worth answering?"_ If yes, they respond.
 
 ### Peers Earn Routing Fees
 
