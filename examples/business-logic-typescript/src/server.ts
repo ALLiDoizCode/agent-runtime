@@ -1,12 +1,12 @@
 /**
- * ILP Business Logic Server - TypeScript Boilerplate
+ * Agent Business Logic Server - TypeScript Boilerplate
  *
- * This server handles payment requests from the ILP Agent Runtime.
+ * This server handles payment requests from Agent Runtime.
  * Implement your custom business logic in the handler functions below.
  *
  * Endpoints:
- *   POST /handle-payment  - Process incoming ILP payments
- *   POST /payment-setup   - (Optional) Customize SPSP payment setup
+ *   POST /handle-payment  - Process incoming payments
+ *   POST /payment-setup   - (Optional) Customize payment setup
  *   GET  /health          - Health check
  *
  * Usage:
@@ -37,10 +37,10 @@ app.use(express.json());
 // ============================================================
 
 /**
- * Handle incoming ILP payment.
+ * Handle incoming payment.
  *
  * This is the main entry point for your business logic.
- * Called for each ILP payment packet that arrives.
+ * Called for each payment message that arrives.
  *
  * @param request - Payment details from Agent Runtime
  * @returns Response indicating accept/reject
@@ -230,7 +230,7 @@ app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
-║         ILP Business Logic Server Started                  ║
+║           Agent Business Logic Server Started              ║
 ╠════════════════════════════════════════════════════════════╣
 ║  Port:     ${String(PORT).padEnd(46)}║
 ║                                                            ║

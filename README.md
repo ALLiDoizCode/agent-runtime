@@ -1,1119 +1,322 @@
 # Agent Runtime
 
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](CHANGELOG.md)
-[![CI](https://github.com/ALLiDoizCode/agent-runtime/workflows/CI/badge.svg)](https://github.com/ALLiDoizCode/agent-runtime/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-22.11.0-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> A runtime for deploying autonomous agents with tri-chain settlement and real-time observability.
+> **A payment network built for agents.**
 
 ---
 
-## TL;DR
+## The Problem
 
-**Agent Runtime** is a production-ready platform for deploying autonomous agents that can transact across different payment networks. It features **tri-chain settlement** (EVM, XRP, Aptos), **TigerBeetle accounting**, and a built-in **Explorer UI** for real-time packet inspection.
+Agents are already crypto-native. Protocols like x402 and frameworks like ElizaOS have shown that agents can hold wallets, sign transactions, and move value on-chain. Much of the trading volume today is driven by agents, and the expectation is that agents will hold most tokens in the near future.
 
-### Key Capabilities
+**But blockchains are slow.**
 
-- **Multi-Hop Payment Routing** — RFC-compliant ILPv4 with BTP WebSocket protocol
-- **Tri-Chain Settlement** — Instant finality on Base L2, XRP Ledger, and Aptos
-- **Double-Entry Accounting** — TigerBeetle integration for balance tracking
-- **Explorer UI** — Real-time packet inspection, settlement monitoring, and payment channel visualization
+When Agent A wants to pay Agent B for data, an on-chain transaction takes seconds to minutes and costs gas. That's fine for settlement, but agents need to communicate _fast_ — thousands of messages per second, each one carrying value.
 
----
-
-## Protocol Components
-
-### Interledger Protocol (ILP) & Bilateral Transfer Protocol (BTP)
-
-**ILP** is a protocol suite for routing payments across different payment networks, similar to how IP routes data packets across networks. This implementation uses **ILPv4** with **BTP** for connector-to-connector communication.
-
-#### Key Concepts
-
-- **ILP Packets** — Three types: PREPARE (initiate), FULFILL (confirm), REJECT (fail)
-- **Hashed Timelock Agreements (HTLCs)** — Cryptographic escrow ensuring atomic payments
-- **Multi-Hop Routing** — Payments route through intermediate connectors without trust
-- **Address Format** — Hierarchical addressing (e.g., `g.connector.alice`)
-
-#### Implementation
-
-- **RFC-0027** ILPv4 packet format and routing logic
-- **RFC-0023** BTP WebSocket protocol for connector peering
-- **RFC-0030** OER (Octet Encoding Rules) for binary serialization
-
-#### Official Documentation
-
-- [Interledger.org](https://interledger.org) — Official protocol website
-- [RFC Index](https://interledger.org/rfcs/) — Complete specification library
-- [RFC-0027: ILPv4](https://interledger.org/rfcs/0027-interledger-protocol-4/) — Core protocol spec
-- [RFC-0023: BTP](https://interledger.org/rfcs/0023-bilateral-transfer-protocol/) — Bilateral transfer protocol
-- [Rafiki](https://rafiki.dev) — Production ILP implementation (for comparison)
+Agents need a network where **sending a message and sending money are the same action**, and where settlement happens later, in bulk.
 
 ---
 
-### Payment Channels
+## The Insight
 
-**Payment channels** enable instant, low-cost cryptocurrency transfers between two parties by conducting most transactions off-chain and settling net balances on-chain.
+**Humans spend time to communicate. Agents spend tokens.**
 
-#### How Payment Channels Work
+When humans collaborate, they spend the currency of _time_ — slow, expensive, doesn't scale. Agents are different. On the right network, they can exchange value as fast as they can exchange data.
 
-1. **Open** — Both parties lock funds in a multi-signature smart contract
-2. **Transact** — Exchange signed balance proofs off-chain (instant, free)
-3. **Settle** — Submit final balance proof to blockchain (cooperative close)
-4. **Dispute** — Challenge invalid proofs with timeout mechanism (non-cooperative close)
+Agent Runtime is that network. It tightly couples **data and value in every message**. Agents pay to send messages. Agents earn by receiving them. The network grows because relaying messages earns fees.
 
-#### Tri-Chain Settlement
-
-**1. EVM Payment Channels (Base L2)**
-
-- XRP-style payment channels as Solidity smart contracts
-- Deployed on Base L2 (Ethereum Layer 2)
-- Sub-cent transaction fees, instant finality
-
-**2. XRP Payment Channels (PayChan)**
-
-- Native XRP Ledger payment channels
-- Claim-based settlement with signature verification
-- High throughput, low latency
-
-**3. Aptos Move Payment Channels**
-
-- Move smart contract modules on Aptos
-- 160,000+ TPS capability, sub-second finality
-
-#### Official Documentation
-
-- [XRP Ledger PayChan](https://xrpl.org/payment-channels.html) — XRP payment channel docs
-- [Base L2](https://base.org) — Ethereum Layer 2 network
-- [Aptos](https://aptos.dev) — Aptos blockchain documentation
+This is a network where agents have the natural advantage — communicating, negotiating, and transacting at speeds humans can't match.
 
 ---
 
-## Architecture Overview
+## How It Works
+
+### Messages Carry Value
+
+On this network, every message has tokens attached. Think of it like an envelope with cash inside.
+
+```
+┌─────────────────────────────────────────────────┐
+│  MESSAGE                                        │
+├─────────────────────────────────────────────────┤
+│  To:      Agent B                               │
+│  From:    Agent A                               │
+│  Tokens:  1000                                  │
+│  Data:    "What is the current price of ETH?"   │
+└─────────────────────────────────────────────────┘
+```
+
+Agent B receives the message, sees 1000 tokens attached, and decides: _"Is this worth answering?"_ If yes, they respond — and can attach tokens to the response.
+
+### Peers Earn Routing Fees
+
+Messages don't go directly from A to B. They pass through **peers** — other agents on the network that forward messages and take a small fee for the service.
+
+```
+Agent A                       Peer                      Agent B
+   │                          │                            │
+   │  REQUEST                 │                            │
+   │  "What's ETH?" + 1000    │                            │
+   │ ────────────────────────►│                            │
+   │                          │  "What's ETH?" + 999       │
+   │                          │ ──────────────────────────►│
+   │                          │                            │
+   │                          │  RESPONSE                  │
+   │                          │  "$3,421"                  │
+   │                          │◄────────────────────────── │
+   │  "$3,421"                │                            │
+   │◄──────────────────────── │                            │
+```
+
+**Peer earned:** 1 token (fee taken from the request)
+**Agent B earned:** 999 tokens (for providing the answer)
+
+Responses flow back for free — only requests carry payment. The more peers in the network, the more paths available. The more traffic they route, the more they earn.
+
+This creates an incentive for the network to grow.
+
+### Settlement Happens Later
+
+All these messages are tracked off-chain. Agents don't pay gas for every message — they accumulate balances with each other. When they're ready, they **settle** the net balance on a real blockchain:
+
+- **Base L2** — Ethereum ecosystem, ERC-20 tokens
+- **XRP Ledger** — 3-5 second finality, low fees
+- **Aptos** — 160k+ TPS, sub-second finality
+
+Thousands of messages, one on-chain transaction.
+
+---
+
+## Building an Agent
+
+You write the business logic. Agent Runtime handles the rest.
+
+Your agent exposes a `/handle-payment` endpoint that answers one question: **"Is this message worth responding to?"**
+
+```typescript
+// POST /handle-payment
+async function handlePayment(request: PaymentRequest): Promise<PaymentResponse> {
+  const { amount, data } = request;
+
+  // Is the payment enough?
+  if (BigInt(amount) < MINIMUM_PAYMENT) {
+    return { accept: false, rejectReason: { code: 'invalid_amount', message: 'Pay more' } };
+  }
+
+  // Process and get paid
+  return { accept: true };
+}
+```
+
+Agent Runtime provides:
+
+- **Routing** — Messages find your agent across any number of peers
+- **Accounting** — Track balances with every peer automatically
+- **Settlement** — Cash out to Base L2, XRP, or Aptos when ready
+
+---
+
+## Quick Start
+
+### Option 1: Run the Example
+
+```bash
+# Clone and install
+git clone https://github.com/ALLiDoizCode/agent-runtime.git
+cd agent-runtime
+npm install
+
+# Start a local network with 5 connectors
+npm run dev
+```
+
+Open the Explorer UI at `http://localhost:5173` to watch messages flow.
+
+### Option 2: Build Your Own Agent
+
+```bash
+# Copy the boilerplate
+cp -r examples/business-logic-typescript my-agent
+cd my-agent
+npm install
+
+# Edit src/server.ts with your logic
+# Then run it
+npm run dev
+```
+
+**Full guide:** [Building Agents](docs/building-agents.md)
+
+---
+
+## Core Capabilities
+
+| Capability               | What It Does                                                |
+| ------------------------ | ----------------------------------------------------------- |
+| **Multi-Hop Routing**    | Messages find their destination through any number of peers |
+| **Off-Chain Messaging**  | Thousands of messages without touching the blockchain       |
+| **Automatic Settlement** | Net balances settle on-chain when thresholds are reached    |
+| **Real-Time Explorer**   | Watch messages, balances, and settlements as they happen    |
+
+---
+
+## Multichain Settlement
+
+When agents are ready to settle, they move their accumulated balances on-chain:
+
+| Chain          | Why Use It                                             |
+| -------------- | ------------------------------------------------------ |
+| **Base L2**    | Ethereum ecosystem, ERC-20 tokens, DeFi composability  |
+| **XRP Ledger** | Native payment channels, 3-5 second finality, low fees |
+| **Aptos**      | Move language, 160k+ TPS, sub-second finality          |
+
+All three use **payment channels** — a way to lock funds between two parties, exchange thousands of messages off-chain, and then settle the net balance in a single on-chain transaction.
+
+---
+
+## Architecture
 
 ```mermaid
 graph TB
-    Client[Client] -->|ILP/BTP| Connector1[Connector 1]
-    Connector1 -->|ILP/BTP| Connector2[Connector 2]
-    Connector2 -->|ILP/BTP| Connector3[Connector 3]
+    subgraph "Your Agent"
+        BL[Business Logic<br/>YOUR CODE]
+    end
 
-    Connector1 -.->|Settlement| EVM[Base L2 PayChan]
-    Connector2 -.->|Settlement| XRP[XRP Ledger PayChan]
-    Connector3 -.->|Settlement| Aptos[Aptos PayChan]
+    subgraph "Agent Runtime (provided)"
+        AR[Message Handler]
+        CN[Peer]
+        TB[(Accounting)]
+    end
 
-    Connector1 -->|Telemetry| Explorer1[Explorer UI]
-    Connector2 -->|Telemetry| Explorer2[Explorer UI]
+    subgraph "Settlement Layer"
+        BASE[Base L2]
+        XRP[XRP Ledger]
+        APT[Aptos]
+    end
 
-    style Connector1 fill:#059669,color:#fff
-    style Connector2 fill:#059669,color:#fff
-    style Connector3 fill:#059669,color:#fff
+    BL <-->|HTTP| AR
+    AR <--> CN
+    CN <--> TB
+    CN -.->|Settlement| BASE
+    CN -.->|Settlement| XRP
+    CN -.->|Settlement| APT
+
+    style BL fill:#10b981,color:#fff
+    style AR fill:#0284c7,color:#fff
+    style CN fill:#0284c7,color:#fff
 ```
 
-### Component Responsibilities
-
-| Component            | Role                             | Protocols                    |
-| -------------------- | -------------------------------- | ---------------------------- |
-| **ILP Connectors**   | Route packets between peers      | ILPv4, BTP, HTLC escrow      |
-| **Payment Channels** | Off-chain settlement layer       | EVM, XRP PayChan, Aptos Move |
-| **TigerBeetle**      | Double-entry accounting database | Financial transactions       |
-| **Explorer UI**      | Real-time network monitoring     | WebSocket, React, shadcn/ui  |
+**You only write the green box.** Everything else is provided.
 
 ---
 
-## Monorepo Structure
+## Repository Structure
 
 ```
 agent-runtime/
 ├── packages/
-│   ├── connector/          # Connector (payment routing)
+│   ├── connector/          # Peer node
 │   │   ├── src/
-│   │   │   ├── core/       # ConnectorNode, PacketHandler
-│   │   │   ├── btp/        # BTP Server/Client
-│   │   │   ├── routing/    # RoutingTable
-│   │   │   ├── settlement/ # Multi-chain settlement
-│   │   │   ├── explorer/   # Explorer server
-│   │   │   └── telemetry/  # Event emission
-│   │   └── explorer-ui/    # React UI with shadcn/ui
-│   ├── agent-runtime/      # Agent Runtime Core (SPSP/STREAM handler)
-│   │   └── src/
-│   │       ├── spsp/       # SPSP endpoint
-│   │       ├── stream/     # STREAM fulfillment crypto
-│   │       ├── session/    # Payment session management
-│   │       └── business/   # Business logic client
-│   └── shared/             # Shared types and utilities
-│       └── src/types/      # TypeScript interfaces
+│   │   │   ├── core/       # Message routing
+│   │   │   ├── btp/        # Peer-to-peer protocol
+│   │   │   ├── settlement/ # Blockchain settlement
+│   │   │   └── explorer/   # Real-time UI server
+│   │   └── explorer-ui/    # React dashboard
+│   ├── agent-runtime/      # Message handler for agents
+│   └── shared/             # Common types
 ├── examples/
-│   ├── business-logic-typescript/  # TypeScript boilerplate
-│   └── business-logic-example/     # Simple Node.js example
-├── scripts/                # Test runners
-├── docker/                 # Docker Compose configurations
-└── docs/                   # Documentation
-    └── prd/                # Product requirement docs (epics)
+│   └── business-logic-typescript/  # Starter template
+└── docs/
+    ├── building-agents.md  # How to build agents
+    ├── deployment.md       # Docker & Kubernetes
+    └── protocols.md        # Technical protocol details
 ```
-
----
-
-## Agent Runtime & Custom Business Logic
-
-The **Agent Runtime** handles ILP/SPSP/STREAM protocol complexity, allowing you to build custom payment handlers without understanding the underlying protocols.
-
-### Architecture
-
-```
-┌─────────────┐      ┌─────────────────────┐      ┌───────────────────┐
-│  Connector  │      │    Agent Runtime    │      │  Business Logic   │
-│             │ HTTP │    (this project)   │ HTTP │  (your code)      │
-│  Routes to  │─────►│  - SPSP endpoint    │─────►│  - Accept/reject  │
-│  local addr │      │  - Session mgmt     │      │  - Custom rules   │
-│             │◄─────│  - STREAM fulfill   │◄─────│  - Your database  │
-└─────────────┘      └─────────────────────┘      └───────────────────┘
-```
-
-### Quick Start
-
-> **📘 Full Guide:** See [Creating Your Own ILP Agent](docs/guides/creating-your-agent.md) for complete workflow options (separate repo, fork, monorepo).
-
-**You only implement the Business Logic** - the Connector and Agent Runtime are provided as pre-built components.
-
-#### 1. Create Your Business Logic Server
-
-Your server needs to implement two endpoints:
-
-| Endpoint          | Method | Purpose                                     |
-| ----------------- | ------ | ------------------------------------------- |
-| `/handle-payment` | POST   | **Required.** Process incoming ILP payments |
-| `/payment-setup`  | POST   | _Optional._ Customize SPSP setup            |
-| `/health`         | GET    | _Recommended._ Health check                 |
-
-#### 2. Use the TypeScript Boilerplate
-
-```bash
-# Copy the boilerplate
-cp -r examples/business-logic-typescript my-payment-handler
-cd my-payment-handler
-
-# Install dependencies
-npm install
-
-# Run in development
-npm run dev
-
-# Or build and run
-npm run build
-npm start
-```
-
-#### 3. Implement Your Logic
-
-Edit `src/server.ts` and implement the `handlePayment` function:
-
-```typescript
-async function handlePayment(request: PaymentRequest): Promise<PaymentResponse> {
-  const { paymentId, amount, destination, data, expiresAt, metadata } = request;
-
-  // Your business logic here:
-  // - Check inventory
-  // - Validate user
-  // - Record payment
-  // - Decode and process STREAM data
-  // - etc.
-
-  // Optional: Decode the STREAM data if present
-  if (data) {
-    const streamData = Buffer.from(data, 'base64');
-    // Process STREAM protocol data (invoices, receipts, etc.)
-  }
-
-  // Accept the payment
-  return { accept: true };
-
-  // Or reject with reason
-  return {
-    accept: false,
-    rejectReason: {
-      code: 'insufficient_funds',
-      message: 'Account balance too low',
-    },
-  };
-}
-```
-
-### API Reference
-
-#### POST /handle-payment
-
-Called for each incoming ILP payment packet.
-
-**Request:**
-
-```json
-{
-  "paymentId": "abc123",
-  "destination": "g.connector.agent.abc123",
-  "amount": "1000000",
-  "expiresAt": "2024-01-15T12:00:00.000Z",
-  "data": "base64-encoded-stream-data",
-  "metadata": {
-    "productId": "prod-456",
-    "userId": "user-789"
-  }
-}
-```
-
-**Response (Accept):**
-
-```json
-{
-  "accept": true,
-  "data": "base64-encoded-response-data"
-}
-```
-
-**Response (Reject):**
-
-```json
-{
-  "accept": false,
-  "rejectReason": {
-    "code": "invalid_amount",
-    "message": "Amount exceeds maximum allowed"
-  }
-}
-```
-
-**Reject Codes:**
-
-| Code                 | ILP Error | Description                |
-| -------------------- | --------- | -------------------------- |
-| `insufficient_funds` | T04       | Account balance too low    |
-| `expired`            | R00       | Payment expired            |
-| `invalid_request`    | F00       | Bad request format         |
-| `invalid_amount`     | F03       | Amount out of range        |
-| `unexpected_payment` | F06       | Not expecting this payment |
-| `application_error`  | F99       | Generic application error  |
-| `internal_error`     | T00       | Temporary internal error   |
-
-#### POST /payment-setup (Optional)
-
-Called when SPSP endpoint is queried (before payment begins).
-
-**Request:**
-
-```json
-{
-  "paymentId": "custom-id",
-  "queryParams": {
-    "product": "premium-plan",
-    "user": "user-123"
-  }
-}
-```
-
-**Response:**
-
-```json
-{
-  "allow": true,
-  "metadata": {
-    "productId": "premium-plan",
-    "userId": "user-123"
-  },
-  "paymentId": "custom-payment-id"
-}
-```
-
-### Deploy with Docker Compose
-
-```yaml
-# docker-compose.yml (in your project root or separate repo)
-services:
-  connector:
-    image: agent-runtime
-    environment:
-      LOCAL_DELIVERY_ENABLED: 'true'
-      LOCAL_DELIVERY_URL: http://agent-runtime:3100
-    depends_on:
-      - agent-runtime
-
-  agent-runtime:
-    image: agent-runtime
-    environment:
-      BASE_ADDRESS: g.connector.agent
-      BUSINESS_LOGIC_URL: http://business-logic:8080
-    depends_on:
-      - business-logic
-
-  business-logic:
-    # Path to YOUR business logic directory (relative to docker-compose.yml)
-    # Options:
-    #   build: .                    (if docker-compose.yml is in your business logic dir)
-    #   build: ./my-payment-handler (if in a subdirectory)
-    #   build: ./business-logic     (if you forked m2m and added business-logic/ folder)
-    build: ./my-payment-handler
-    ports:
-      - '8080:8080'
-```
-
-```bash
-# Option 1: If using pre-built images from this repo
-docker build -t agent-runtime .
-docker build -t agent-runtime -f packages/agent-runtime/Dockerfile .
-docker-compose up -d
-
-# Option 2: If images are published (future)
-# docker-compose up -d (will pull images automatically)
-```
-
-**📘 See [Creating Your Own ILP Agent](docs/guides/creating-your-agent.md) for detailed workflow examples.**
-
-### Deploy with Kubernetes
-
-```bash
-# Deploy agent runtime
-kubectl apply -k k8s/agent-runtime
-
-# Deploy your business logic
-kubectl apply -f my-business-logic-deployment.yaml
-
-# Configure connector to use agent runtime
-kubectl -n agent-runtime set env deployment/connector \
-  LOCAL_DELIVERY_ENABLED=true \
-  LOCAL_DELIVERY_URL=http://agent-runtime.m2m-agent-runtime.svc.cluster.local:3100
-```
-
-### Environment Variables
-
-#### Agent Runtime
-
-| Variable                 | Description                                    | Default    |
-| ------------------------ | ---------------------------------------------- | ---------- |
-| `PORT`                   | HTTP server port                               | `3100`     |
-| `BASE_ADDRESS`           | ILP address prefix (e.g., `g.connector.agent`) | _Required_ |
-| `BUSINESS_LOGIC_URL`     | URL to your business logic server              | _Required_ |
-| `BUSINESS_LOGIC_TIMEOUT` | Request timeout (ms)                           | `5000`     |
-| `SPSP_ENABLED`           | Enable SPSP endpoint                           | `true`     |
-| `SESSION_TTL_MS`         | Payment session TTL (ms)                       | `3600000`  |
-| `LOG_LEVEL`              | Logging level                                  | `info`     |
-
-#### Connector (Local Delivery)
-
-| Variable                 | Description                        | Default |
-| ------------------------ | ---------------------------------- | ------- |
-| `LOCAL_DELIVERY_ENABLED` | Enable forwarding to agent runtime | `false` |
-| `LOCAL_DELIVERY_URL`     | Agent runtime URL                  | —       |
-| `LOCAL_DELIVERY_TIMEOUT` | Request timeout (ms)               | `30000` |
-
-### Example Use Cases
-
-**E-Commerce:**
-
-```typescript
-async function handlePayment(req: PaymentRequest) {
-  const { productId } = req.metadata || {};
-
-  // Check inventory
-  const product = await db.products.findById(productId);
-  if (!product || product.stock <= 0) {
-    return { accept: false, rejectReason: { code: 'invalid_request', message: 'Out of stock' } };
-  }
-
-  // Reserve item and accept payment
-  await db.products.decrementStock(productId);
-  await db.orders.create({ paymentId: req.paymentId, productId, amount: req.amount });
-
-  return { accept: true };
-}
-```
-
-**API Monetization:**
-
-```typescript
-async function handlePayment(req: PaymentRequest) {
-  const { apiKey } = req.metadata || {};
-
-  // Validate API key
-  const user = await db.users.findByApiKey(apiKey);
-  if (!user) {
-    return { accept: false, rejectReason: { code: 'invalid_request', message: 'Invalid API key' } };
-  }
-
-  // Credit the user's balance
-  await db.users.creditBalance(user.id, BigInt(req.amount));
-
-  return { accept: true };
-}
-```
-
-**Streaming Payments:**
-
-```typescript
-// Accept streaming micropayments
-async function handlePayment(req: PaymentRequest) {
-  const amount = BigInt(req.amount);
-
-  // Track cumulative payment
-  const session = sessions.get(req.paymentId) || { total: 0n };
-  session.total += amount;
-  sessions.set(req.paymentId, session);
-
-  console.log(`Payment ${req.paymentId}: received ${amount}, total ${session.total}`);
-
-  // Always accept streaming chunks
-  return { accept: true };
-}
-```
-
----
-
-## Prerequisites
-
-- **Docker** (v27.0.0+)
-  - **Linux/Windows:** Docker Desktop or Docker Engine
-  - **macOS:** [OrbStack](https://orbstack.dev/) (recommended) or Docker Desktop
-- **Node.js** (v22.11.0 LTS)
-- **npm** (v10.9.0+)
-- **8GB RAM** minimum (16GB recommended)
-- **10GB disk space** for Docker images
-
-### macOS Development Setup
-
-**⚠️ Important for macOS developers:** TigerBeetle (our accounting database) requires native installation on macOS. Docker Desktop and OrbStack both have compatibility issues with TigerBeetle's `io_uring` requirements.
-
-**✅ Recommended Solution:** Install TigerBeetle natively (no Docker needed for the database).
-
-**Quick Setup (5 minutes):**
-
-```bash
-# 1. Install TigerBeetle binary
-npm run tigerbeetle:install
-
-# 2. Start development (TigerBeetle + Connector)
-npm run dev
-```
-
-**Why Native Installation?**
-
-- ✅ Perfect dev/production parity (same TigerBeetle binary)
-- ✅ Zero Docker compatibility issues
-- ✅ Simple one-command setup
-- ✅ Works on both Apple Silicon (M1/M2/M3) and Intel Macs
-- ✅ Production uses containerized TigerBeetle (same binary, different deployment)
-
-**What Gets Installed:**
-
-- TigerBeetle binary → `/usr/local/bin/tigerbeetle`
-- Data directory → `~/.tigerbeetle/data`
-- Auto-starts with `npm run dev`
-
-**📚 Full Guide:** [macOS Development Setup](docs/guides/local-development-macos.md)
-
-### Port Requirements
-
-| Port      | Service                   |
-| --------- | ------------------------- |
-| 8201-8203 | Connector APIs            |
-| 9200-9203 | Explorer UIs              |
-| 8545      | Anvil (local EVM testnet) |
-
----
-
-## Installation
-
-### 1. Clone Repository
-
-```bash
-git clone https://github.com/ALLiDoizCode/agent-runtime.git
-cd agent-runtime
-```
-
-### 2. Install Dependencies
-
-```bash
-# Install all workspace dependencies
-npm install
-
-# Build TypeScript packages
-npm run build
-```
-
-### 3. Run Tests
-
-```bash
-# Run unit tests
-npm test
-
-# Run integration tests
-npm run test:integration
-```
-
----
-
-## Deployment Guide
-
-This section covers deploying the ILP Connector with Docker Compose and Kubernetes, including configuration for secrets and custom tokens.
-
-### Quick Reference
-
-| Environment        | Command             | Secrets     | Token Config     |
-| ------------------ | ------------------- | ----------- | ---------------- |
-| **Local Dev**      | `npm run dev`       | `.env` file | Local Anvil      |
-| **Docker Compose** | `docker-compose up` | `.env` file | Testnet/Mainnet  |
-| **Kubernetes**     | `kubectl apply -k`  | K8s Secrets | ConfigMap/Secret |
-
----
-
-### Docker Compose Deployment
-
-#### 1. Prepare Environment File
-
-```bash
-# Copy the example configuration
-cp .env.example .env
-
-# Edit with your values
-nano .env
-```
-
-#### 2. Configure Secrets
-
-**Development (local testing):**
-
-```env
-# Key management - env backend for development only
-KEY_BACKEND=env
-
-# EVM private key (hex format)
-EVM_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-
-# XRP seed (optional, for XRP settlement)
-XRP_SEED=sEdTM1JVyAnDtG7pKF4AeTJrWLWr9oF
-
-# Aptos private key (optional, for Aptos settlement)
-APTOS_PRIVATE_KEY=0x...
-```
-
-**Production (KMS required):**
-
-```env
-# AWS KMS
-KEY_BACKEND=aws-kms
-AWS_REGION=us-east-1
-AWS_KMS_EVM_KEY_ID=arn:aws:kms:us-east-1:123456789012:key/xxxxx
-
-# GCP KMS
-KEY_BACKEND=gcp-kms
-GCP_PROJECT_ID=my-project
-GCP_LOCATION_ID=us-east1
-GCP_KEY_RING_ID=connector-keyring
-GCP_KMS_EVM_KEY_ID=evm-signing-key
-
-# Azure Key Vault
-KEY_BACKEND=azure-keyvault
-AZURE_VAULT_URL=https://my-vault.vault.azure.net
-AZURE_EVM_KEY_NAME=evm-signing-key
-```
-
-#### 3. Configure Blockchain Networks
-
-Use `NETWORK_MODE` to quickly switch between testnet and mainnet for all chains:
-
-```env
-# Set network mode: 'testnet' (default) or 'mainnet'
-NETWORK_MODE=testnet
-```
-
-**Network Mode URL Mappings:**
-
-| Chain   | Testnet                                     | Mainnet                                     |
-| ------- | ------------------------------------------- | ------------------------------------------- |
-| Base L2 | `https://sepolia.base.org`                  | `https://mainnet.base.org`                  |
-| XRP     | `wss://s.altnet.rippletest.net:51233`       | `wss://xrplcluster.com`                     |
-| Aptos   | `https://fullnode.testnet.aptoslabs.com/v1` | `https://fullnode.mainnet.aptoslabs.com/v1` |
-
-**Using the deploy script (recommended):**
-
-```bash
-# Testnet deployment (default)
-./scripts/deploy-5-peer-multihop.sh
-
-# Mainnet deployment
-NETWORK_MODE=mainnet ./scripts/deploy-5-peer-multihop.sh
-```
-
-**Using docker-compose directly:**
-
-```bash
-# Source the network mode helper first
-source scripts/set-network-mode.sh
-
-# Or for mainnet
-NETWORK_MODE=mainnet source scripts/set-network-mode.sh
-
-# Then run docker-compose
-docker-compose -f docker-compose-5-peer-multihop.yml up -d
-```
-
-**Override individual URLs** (optional):
-
-```env
-# Override specific URLs while using NETWORK_MODE for others
-NETWORK_MODE=mainnet
-BASE_L2_RPC_URL=https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY  # Custom RPC
-# XRPL_WSS_URL and APTOS_NODE_URL will use mainnet defaults
-```
-
-#### 4. Configure Custom Token (Base/EVM)
-
-To use your own ERC-20 token instead of the default M2M token:
-
-```env
-# Your custom ERC-20 token contract address
-M2M_TOKEN_ADDRESS=0xYourTokenContractAddress
-
-# Token Network Registry (Raiden-style payment channels)
-# Deploy your own or use existing registry
-TOKEN_NETWORK_REGISTRY=0xYourRegistryContractAddress
-
-# Settlement configuration
-SETTLEMENT_ENABLED=true
-SETTLEMENT_THRESHOLD=1000000  # In token base units (e.g., 1 token with 6 decimals)
-```
-
-**Deploying Custom Contracts:**
-
-```bash
-# Navigate to contracts package
-cd packages/contracts
-
-# Deploy M2M token (or use existing ERC-20)
-npx hardhat run scripts/deploy-token.ts --network base-sepolia
-
-# Deploy Token Network Registry
-npx hardhat run scripts/deploy-registry.ts --network base-sepolia
-
-# Copy addresses to .env
-```
-
-#### 5. Configure Custom Token (Aptos)
-
-For Aptos settlement with a custom Move token:
-
-```env
-# Aptos module address (where your payment channel module is deployed)
-APTOS_MODULE_ADDRESS=0xYourModuleAddress
-
-# Your Aptos account address
-APTOS_ADDRESS=0xYourAptosAddress
-
-# Aptos private key
-APTOS_PRIVATE_KEY=0xYourPrivateKey
-```
-
-#### 6. Start Services
-
-```bash
-# Single connector
-docker-compose up -d
-
-# 5-peer multi-hop network
-docker-compose -f docker-compose-5-peer-multihop.yml up -d --build
-
-# View logs
-docker-compose logs -f
-```
-
-#### 7. Verify Deployment
-
-```bash
-# Check health endpoints
-curl http://localhost:9080/health  # Peer 1
-curl http://localhost:9081/health  # Peer 2
-
-# Access Explorer UI
-open http://localhost:5173  # Peer 1 Explorer
-```
-
----
-
-### Kubernetes Deployment
-
-#### 1. Prerequisites
-
-- Kubernetes cluster (1.25+)
-- kubectl configured
-- kustomize (built into kubectl)
-
-#### 2. Deploy TigerBeetle
-
-```bash
-# Create namespace and deploy TigerBeetle
-kubectl apply -k k8s/tigerbeetle/base
-
-# Verify TigerBeetle is running
-kubectl -n tigerbeetle get pods
-```
-
-#### 3. Create Secrets
-
-**Option A: Direct kubectl (development):**
-
-```bash
-kubectl -n agent-runtime create secret generic connector-secrets \
-  --from-literal=EVM_PRIVATE_KEY=0xYourPrivateKey \
-  --from-literal=XRP_SEED=sYourXRPSeed \
-  --from-literal=APTOS_PRIVATE_KEY=0xYourAptosKey \
-  --from-literal=M2M_TOKEN_ADDRESS=0xYourTokenAddress \
-  --from-literal=TOKEN_NETWORK_REGISTRY=0xYourRegistryAddress
-```
-
-**Option B: Sealed Secrets (production):**
-
-```bash
-# Install Sealed Secrets controller
-kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.24.0/controller.yaml
-
-# Create sealed secret
-kubeseal --format=yaml < k8s/connector/base/secret.yaml > sealed-secret.yaml
-kubectl apply -f sealed-secret.yaml
-```
-
-**Option C: External Secrets Operator (production):**
-
-```yaml
-# external-secret.yaml
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
-metadata:
-  name: connector-secrets
-  namespace: agent-runtime
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    name: aws-secrets-manager
-    kind: ClusterSecretStore
-  target:
-    name: connector-secrets
-  data:
-    - secretKey: EVM_PRIVATE_KEY
-      remoteRef:
-        key: agent-runtime/connector/evm-key
-    - secretKey: M2M_TOKEN_ADDRESS
-      remoteRef:
-        key: agent-runtime/connector/token-address
-```
-
-#### 4. Configure Blockchain Networks (Testnet vs Mainnet)
-
-Kubernetes uses **overlays** to switch between testnet and mainnet. Choose the appropriate overlay:
-
-| Overlay      | Network Mode | Base    | XRP     | Aptos   |
-| ------------ | ------------ | ------- | ------- | ------- |
-| `staging`    | **Testnet**  | Sepolia | Testnet | Testnet |
-| `production` | **Mainnet**  | Mainnet | Mainnet | Mainnet |
-
-**Testnet Deployment:**
-
-```bash
-kubectl apply -k k8s/connector/overlays/staging
-```
-
-Configures:
-
-- `NETWORK_MODE: testnet`
-- `BASE_L2_RPC_URL: https://sepolia.base.org`
-- `XRPL_WSS_URL: wss://s.altnet.rippletest.net:51233`
-- `APTOS_NODE_URL: https://fullnode.testnet.aptoslabs.com/v1`
-
-**Mainnet Deployment:**
-
-```bash
-kubectl apply -k k8s/connector/overlays/production
-```
-
-Configures:
-
-- `NETWORK_MODE: mainnet`
-- `BASE_L2_RPC_URL: https://mainnet.base.org`
-- `XRPL_WSS_URL: wss://xrplcluster.com`
-- `APTOS_NODE_URL: https://fullnode.mainnet.aptoslabs.com/v1`
-
-#### 5. Custom Token Configuration
-
-**Via ConfigMap patch:**
-
-```yaml
-# k8s/connector/overlays/custom/kustomization.yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-namespace: agent-runtime
-
-resources:
-  - ../../base
-
-patches:
-  - patch: |
-      apiVersion: v1
-      kind: ConfigMap
-      metadata:
-        name: connector-config
-      data:
-        # Custom blockchain RPC
-        BASE_L2_RPC_URL: "https://your-rpc-endpoint.com"
-        # Settlement settings
-        SETTLEMENT_ENABLED: "true"
-        SETTLEMENT_THRESHOLD: "5000000"
-    target:
-      kind: ConfigMap
-      name: connector-config
-```
-
-**Via Secret for token addresses:**
-
-```bash
-kubectl -n agent-runtime create secret generic connector-secrets \
-  --from-literal=M2M_TOKEN_ADDRESS=0xYourCustomToken \
-  --from-literal=TOKEN_NETWORK_REGISTRY=0xYourCustomRegistry \
-  --dry-run=client -o yaml | kubectl apply -f -
-```
-
-#### 6. Deploy Connector
-
-```bash
-# Staging deployment
-kubectl apply -k k8s/connector/overlays/staging
-
-# Production deployment
-kubectl apply -k k8s/connector/overlays/production
-
-# Verify deployment
-kubectl -n agent-runtime get pods
-kubectl -n agent-runtime logs -f deployment/connector
-```
-
-#### 7. Expose Services
-
-```bash
-# Port-forward for local access
-kubectl -n agent-runtime port-forward svc/connector 4000:4000  # BTP
-kubectl -n agent-runtime port-forward svc/connector 5173:5173  # Explorer
-
-# Or create Ingress for external access
-kubectl apply -f - <<EOF
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: connector-ingress
-  namespace: agent-runtime
-spec:
-  rules:
-    - host: connector.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: connector
-                port:
-                  number: 4000
-EOF
-```
-
----
-
-### Environment Variables Reference
-
-#### Core Settings
-
-| Variable                | Description                           | Default         |
-| ----------------------- | ------------------------------------- | --------------- |
-| `NODE_ID`               | Unique connector identifier           | `agent-runtime` |
-| `LOG_LEVEL`             | Logging level (debug/info/warn/error) | `info`          |
-| `SETTLEMENT_PREFERENCE` | Settlement chain (evm/xrp/aptos/both) | `evm`           |
-| `NETWORK_MODE`          | Network selection (testnet/mainnet)   | `testnet`       |
-
-#### Blockchain Networks
-
-URLs are auto-configured based on `NETWORK_MODE`. Override individually if needed:
-
-| Variable          | Description          | Testnet Default                             | Mainnet Default                             |
-| ----------------- | -------------------- | ------------------------------------------- | ------------------------------------------- |
-| `BASE_L2_RPC_URL` | Base L2 RPC endpoint | `https://sepolia.base.org`                  | `https://mainnet.base.org`                  |
-| `XRPL_WSS_URL`    | XRP Ledger WebSocket | `wss://s.altnet.rippletest.net:51233`       | `wss://xrplcluster.com`                     |
-| `APTOS_NODE_URL`  | Aptos fullnode URL   | `https://fullnode.testnet.aptoslabs.com/v1` | `https://fullnode.mainnet.aptoslabs.com/v1` |
-
-#### Token & Contract Addresses
-
-| Variable                 | Description               | Required For     |
-| ------------------------ | ------------------------- | ---------------- |
-| `M2M_TOKEN_ADDRESS`      | ERC-20 token contract     | EVM settlement   |
-| `TOKEN_NETWORK_REGISTRY` | Payment channel registry  | EVM settlement   |
-| `APTOS_MODULE_ADDRESS`   | Aptos Move module address | Aptos settlement |
-
-#### Key Management
-
-| Variable            | Description                     | Values                                        |
-| ------------------- | ------------------------------- | --------------------------------------------- |
-| `KEY_BACKEND`       | Secret storage backend          | `env`, `aws-kms`, `gcp-kms`, `azure-keyvault` |
-| `EVM_PRIVATE_KEY`   | EVM signing key (env backend)   | `0x...`                                       |
-| `XRP_SEED`          | XRP seed (env backend)          | `s...`                                        |
-| `APTOS_PRIVATE_KEY` | Aptos signing key (env backend) | `0x...`                                       |
-
-#### Settlement
-
-| Variable               | Description                      | Default   |
-| ---------------------- | -------------------------------- | --------- |
-| `SETTLEMENT_ENABLED`   | Enable automatic settlement      | `true`    |
-| `SETTLEMENT_THRESHOLD` | Balance threshold for settlement | `1000000` |
-
----
-
-### Production Checklist
-
-Before deploying to production:
-
-- [ ] `KEY_BACKEND` is NOT `env` (use KMS)
-- [ ] `GRAFANA_PASSWORD` changed from default
-- [ ] Using HTTPS RPC endpoints
-- [ ] Secrets managed via KMS/Vault
-- [ ] TigerBeetle has 3+ replicas
-- [ ] Network policies configured
-- [ ] Resource limits set appropriately
-- [ ] Monitoring/alerting configured
-
-Run the preflight validation:
-
-```bash
-./scripts/production-preflight.sh
-```
-
----
-
-## Project Status
-
-See [Epic List](docs/prd/epic-list.md) for the complete list of features.
-
-### Completed Features
-
-- **Epics 1-2, 4-5, 10** — Core ILP implementation, BTP protocol, CI/CD
-- **Epics 6-9, 27-28** — Settlement infrastructure (TigerBeetle, EVM, XRP, Aptos)
-- **Epics 3, 14-15, 29** — Explorer UI with real-time observability
-
-All 15 epics are **completed**. The connector is feature-complete.
 
 ---
 
 ## Documentation
 
-### Core Documentation
-
-- [Epic List](docs/prd/epic-list.md) — Complete feature list
-
-### Technical Documentation
-
-- [ILP Packet Routing](docs/architecture/core-workflows.md)
-- [Components](docs/architecture/components.md)
-- [Settlement Engines](docs/architecture/external-apis.md)
-
-### Development
-
-- [Contributing Guidelines](CONTRIBUTING.md)
-- [Testing Guide](docs/architecture/test-strategy-and-standards.md)
+| Guide                                                     | Description                                     |
+| --------------------------------------------------------- | ----------------------------------------------- |
+| [Building Agents](docs/building-agents.md)                | Write your business logic and deploy            |
+| [Deployment](docs/deployment.md)                          | Docker Compose & Kubernetes setup               |
+| [Protocols](docs/protocols.md)                            | Technical details on ILP, BTP, payment channels |
+| [Creating Your Agent](docs/guides/creating-your-agent.md) | Step-by-step guide                              |
 
 ---
 
-## Technology Stack
+## Requirements
 
-### Runtime & Languages
+- **Node.js** 22.11.0 LTS
+- **Docker** (for TigerBeetle and multi-peer testing)
+- **8GB RAM** minimum
 
-- **TypeScript 5.3.3** — Type-safe development
-- **Node.js 22.11.0 LTS** — Runtime environment
-- **Docker & Docker Compose** — Containerization and orchestration
-
-### Core Dependencies
-
-- **tigerbeetle-node** — Double-entry accounting
-- **ws** — WebSocket (BTP protocol)
-- **pino** — Structured logging
-
-### Blockchain SDKs
-
-- **viem** — EVM interaction (Base L2)
-- **xrpl** — XRP Ledger client
-- **@aptos-labs/ts-sdk** — Aptos blockchain client
-
-### Frontend
-
-- **React 18** — UI framework
-- **Vite** — Build tool
-- **shadcn/ui** — Component library
-- **TailwindCSS** — Styling
+**macOS note:** TigerBeetle requires native installation. Run `npm run tigerbeetle:install` first. See [macOS Setup](docs/guides/local-development-macos.md).
 
 ---
 
-## Interledger Protocol References
+## Use Cases
 
-This implementation follows official Interledger RFCs:
+### Paid APIs
 
-- [RFC-0001](https://interledger.org/rfcs/0001-interledger-architecture/) — Interledger Architecture
-- [RFC-0027](https://interledger.org/rfcs/0027-interledger-protocol-4/) — ILPv4 Core Protocol
-- [RFC-0023](https://interledger.org/rfcs/0023-bilateral-transfer-protocol/) — BTP WebSocket Protocol
-- [RFC-0030](https://interledger.org/rfcs/0030-notes-on-oer-encoding/) — OER Encoding
-- [RFC-0038](https://interledger.org/rfcs/0038-settlement-engines/) — Settlement Engines
+Your agent has valuable data or compute? Other agents pay per-message to access it. No API keys, no invoicing — payment is the authentication.
+
+### Routing
+
+Run a peer node. Every message that passes through earns you a routing fee. More traffic = more revenue.
+
+### Agent Swarms
+
+A coordinator agent sends paid tasks to worker agents. Workers earn by receiving these tasks and responding with results. Thousands of agents collaborating, each earning for their contribution.
+
+### Real-Time Data
+
+Agents query other agents for prices, sentiment, predictions. Every query costs tokens. Every answer earns them. Markets clear in microseconds.
+
+---
+
+## Why Interledger?
+
+Agent Runtime is built on [Interledger Protocol (ILP)](https://interledger.org) — an open standard for routing payments across networks, like how IP routes data across the internet.
+
+We chose it because:
+
+| What ILP Does           | Why Agents Need It                                     |
+| ----------------------- | ------------------------------------------------------ |
+| Messages carry value    | No separate "pay then communicate" step                |
+| Peers earn routing fees | Network grows because routing is profitable            |
+| Microsecond latency     | Agents transact at machine speed, not blockchain speed |
+| Settles to any chain    | Use whichever blockchain your agents prefer            |
+| Proven in production    | Used by Coil, Rafiki, and Web Monetization             |
+
+ILP treats money like data packets. That's what agents need.
 
 ---
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Development Setup
+We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-
-# Run linter
-npm run lint
-
-# Build all packages
-npm run build
+npm install   # Install dependencies
+npm test      # Run tests
+npm run lint  # Check code style
+npm run build # Build all packages
 ```
 
 ---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE).
 
 ---
 
-## References
+## Links
 
-### Official Protocol Documentation
-
-- [Interledger.org](https://interledger.org) — Interledger Protocol
-- [Base](https://base.org) — Ethereum Layer 2
-- [XRP Ledger](https://xrpl.org) — XRP blockchain
-- [Aptos](https://aptos.dev) — Aptos blockchain
-
-### Related Projects
-
-- [Rafiki](https://rafiki.dev) — Production ILP implementation
-- [TigerBeetle](https://tigerbeetle.com) — Financial accounting database
-
-### Research & Standards
-
-- [Interledger RFCs](https://interledger.org/rfcs/) — Protocol specifications
-
----
-
-## Support & Community
-
-- **GitHub Issues:** [Report bugs or request features](https://github.com/ALLiDoizCode/agent-runtime/issues)
-- **Documentation:** [Full docs](docs/)
+- **GitHub:** [github.com/ALLiDoizCode/agent-runtime](https://github.com/ALLiDoizCode/agent-runtime)
+- **Interledger:** [interledger.org](https://interledger.org)
+- **TigerBeetle:** [tigerbeetle.com](https://tigerbeetle.com)

@@ -1,10 +1,10 @@
-# Creating Your Own ILP Agent
+# Creating Your Agent
 
-This guide explains how to create your own ILP payment agent using the Agent Runtime.
+This guide explains how to create your own agent using Agent Runtime.
 
 ## Overview
 
-An ILP agent consists of three components:
+An agent consists of three components:
 
 ```
 ┌─────────────┐      ┌─────────────────┐      ┌──────────────────┐
@@ -26,8 +26,8 @@ An ILP agent consists of three components:
 
 ```bash
 # Create a new directory for your agent
-mkdir my-ilp-agent
-cd my-ilp-agent
+mkdir my-agent
+cd my-agent
 
 # Copy the TypeScript boilerplate from the m2m repo
 # (You can download just the examples folder or clone and copy)
@@ -39,7 +39,7 @@ cp -r /path/to/m2m/examples/business-logic-example/* .
 # Initialize git
 git init
 git add .
-git commit -m "Initial commit: ILP agent boilerplate"
+git commit -m "Initial commit: agent boilerplate"
 ```
 
 ### Step 2: Implement Your Business Logic
@@ -409,7 +409,7 @@ async function handlePayment(req: PaymentRequest): Promise<PaymentResponse> {
 ### Option A: Root-Level (Simple)
 
 ```
-my-ilp-agent/
+my-agent/
 ├── src/
 │   └── server.ts
 ├── package.json
@@ -522,7 +522,7 @@ docker build -t my-connector .
 docker build -t my-agent-runtime -f packages/agent-runtime/Dockerfile .
 
 # Now use these images in your separate project
-cd ../my-ilp-agent
+cd ../my-agent
 # Reference my-connector and my-agent-runtime in docker-compose.yml
 ```
 
@@ -623,7 +623,7 @@ docker-compose up -d
 
 ## Connecting to Other Connectors
 
-### Option 1: Connect to Public ILP Connector
+### Option 1: Connect to a Public Peer
 
 Add the peer to your `connector-config.yaml`:
 
@@ -741,7 +741,7 @@ docker push your-registry/my-business-logic:latest
 Create a `k8s/` directory in your project:
 
 ```
-my-ilp-agent/
+my-agent/
 ├── k8s/
 │   ├── namespace.yaml
 │   ├── deployment.yaml
@@ -759,7 +759,7 @@ kind: Namespace
 metadata:
   name: my-agent
   labels:
-    app: my-ilp-agent
+    app: my-agent
 ```
 
 #### deployment.yaml
@@ -846,7 +846,7 @@ data:
 
 ### Step 3: Deploy Agent Runtime
 
-The agent runtime connects your business logic to the ILP connector.
+The agent runtime connects your business logic to the network.
 
 #### Update Agent Runtime ConfigMap
 
@@ -1163,7 +1163,7 @@ Here's a complete example for deploying your agent to Kubernetes:
 ### Directory Structure
 
 ```
-my-ilp-agent/
+my-agent/
 ├── k8s/
 │   ├── namespace.yaml
 │   ├── secret.yaml
