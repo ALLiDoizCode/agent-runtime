@@ -665,7 +665,7 @@
   "refresh": "30s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["ilp-connector", "health"],
+  "tags": ["agent-runtime", "health"],
   "templating": {
     "list": [
       {

@@ -36,7 +36,7 @@ Before deploying the multi-hop network, ensure you have:
 2. **Built connector image**
 
    ```bash
-   docker build -t ilp-connector .
+   docker build -t agent-runtime .
    ```
 
 3. **Environment variables configured**

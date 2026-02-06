@@ -2,12 +2,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: m2m-agent-runtime
+namespace: agent-runtime-core
 
 labels:
   - includeSelectors: false
     pairs:
-      app.kubernetes.io/part-of: m2m
+      app.kubernetes.io/part-of: agent-runtime
       app.kubernetes.io/managed-by: kustomize
 
 resources:
@@ -18,5 +18,5 @@ resources:
   - service.yaml
 
 images:
-  - name: m2m/agent-runtime
+  - name: agent-runtime/core
     newTag: latest

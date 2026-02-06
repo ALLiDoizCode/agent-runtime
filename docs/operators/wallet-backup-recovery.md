@@ -89,7 +89,7 @@ Prevent conflicting writes during restore:
 ```bash
 docker-compose down
 # OR
-systemctl stop m2m-connector
+systemctl stop agent-runtime
 ```
 
 ### Step 2: Locate Backup File
@@ -150,7 +150,7 @@ Once restore completes and balance reconciliation is verified:
 ```bash
 docker-compose up -d
 # OR
-systemctl start m2m-connector
+systemctl start agent-runtime
 ```
 
 ## Backup Storage Best Practices

@@ -36,7 +36,7 @@ COPY packages/shared/src ./packages/shared/src
 
 # Build all packages (TypeScript compilation)
 # Build shared first, then agent-runtime (dependency order)
-RUN npm run build --workspace=@m2m/shared && npm run build --workspace=@m2m/agent-runtime
+RUN npm run build --workspace=@agent-runtime/shared && npm run build --workspace=@agent-runtime/core
 
 # ============================================
 # Stage 2: Runtime

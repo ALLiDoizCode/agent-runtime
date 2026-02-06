@@ -1895,7 +1895,7 @@ history timeline)
 
    ```typescript
    // packages/connector/src/http/http-ledger-plugin.ts
-   import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@m2m/shared';
+   import { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@agent-runtime/shared';
 
    export interface ILedgerPlugin {
      sendPacket(packet: ILPPreparePacket): Promise<ILPFulfillPacket | ILPRejectPacket>;

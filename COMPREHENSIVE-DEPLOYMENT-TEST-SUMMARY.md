@@ -170,7 +170,7 @@ $ kubectl -n tigerbeetle get pods
 NAME            READY   STATUS    RESTARTS   AGE
 tigerbeetle-0   1/1     Running   1          96m
 
-$ kubectl -n m2m-connector get pods
+$ kubectl -n agent-runtime get pods
 NAME                         READY   STATUS    RESTARTS   AGE
 connector-b7fd4d655-8bzkb    1/1     Running   0          5m
 ```
@@ -180,7 +180,7 @@ connector-b7fd4d655-8bzkb    1/1     Running   0          5m
 **Health Check (via port-forward):**
 
 ```bash
-$ kubectl -n m2m-connector port-forward svc/connector 8080:8080
+$ kubectl -n agent-runtime port-forward svc/connector 8080:8080
 $ curl http://localhost:8080/health
 {
   "status": "healthy",
@@ -196,7 +196,7 @@ $ curl http://localhost:8080/health
 **Explorer UI (via port-forward):**
 
 ```bash
-$ kubectl -n m2m-connector port-forward svc/connector-explorer 5173:5173
+$ kubectl -n agent-runtime port-forward svc/connector-explorer 5173:5173
 $ open http://localhost:5173  # ✅ Accessible
 ```
 
@@ -361,7 +361,7 @@ kubectl apply -k k8s/tigerbeetle/
 kubectl -n tigerbeetle scale statefulset tigerbeetle --replicas=1  # For single-node
 
 # Create secrets
-kubectl -n m2m-connector create secret generic connector-secrets \
+kubectl -n agent-runtime create secret generic connector-secrets \
   --from-literal=EVM_PRIVATE_KEY=0x... \
   --from-literal=M2M_TOKEN_ADDRESS=0x... \
   --from-literal=TOKEN_NETWORK_REGISTRY=0x...
@@ -370,8 +370,8 @@ kubectl -n m2m-connector create secret generic connector-secrets \
 kubectl apply -k k8s/connector/
 
 # Access services
-kubectl -n m2m-connector port-forward svc/connector 8080:8080
-kubectl -n m2m-connector port-forward svc/connector-explorer 5173:5173
+kubectl -n agent-runtime port-forward svc/connector 8080:8080
+kubectl -n agent-runtime port-forward svc/connector-explorer 5173:5173
 ```
 
 ---

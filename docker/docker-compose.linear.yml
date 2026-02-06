@@ -23,7 +23,7 @@
 #   Stop:  docker-compose -f docker/docker-compose.linear.yml down
 #
 # Prerequisites:
-#   Build the connector image: docker build -t ilp-connector .
+#   Build the connector image: docker build -t agent-runtime .
 #
 # Configuration:
 #   Each connector loads its configuration from a YAML file mounted as a volume.
@@ -36,7 +36,7 @@ services:
   # Connector A - First node in linear chain
   # Explorer UI: http://localhost:3010
   connector-a:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-a
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -51,7 +51,7 @@ services:
       - "3000:3000"
       - "3010:3010"
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -63,7 +63,7 @@ services:
   # Connector B - Middle node in linear chain
   # Explorer UI: http://localhost:3011
   connector-b:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-b
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -78,7 +78,7 @@ services:
       - "3001:3001"
       - "3011:3011"
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       - connector-a
     restart: unless-stopped
@@ -92,7 +92,7 @@ services:
   # Connector C - Last node in linear chain
   # Explorer UI: http://localhost:3012
   connector-c:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-c
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -107,7 +107,7 @@ services:
       - "3002:3002"
       - "3012:3012"
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       - connector-a
       - connector-b
@@ -120,5 +120,5 @@ services:
       start_period: 10s
 
 networks:
-  ilp-network:
+  agent-network:
     driver: bridge

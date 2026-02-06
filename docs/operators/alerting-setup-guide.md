@@ -155,7 +155,7 @@ Alertmanager supports Go templating for message content. Useful template variabl
 
 - `{{ .GroupLabels.alertname }}`: Alert name (e.g., "HighPacketErrorRate")
 - `{{ .GroupLabels.severity }}`: Alert severity (critical, high, warning)
-- `{{ .GroupLabels.instance }}`: Instance identifier (e.g., "m2m-connector")
+- `{{ .GroupLabels.instance }}`: Instance identifier (e.g., "agent-runtime")
 - `{{ .Status }}`: Alert status ("firing" or "resolved")
 - `{{ range .Alerts }}...{{ end }}`: Iterate over all alerts in group
 - `{{ .Annotations.summary }}`: Alert summary text

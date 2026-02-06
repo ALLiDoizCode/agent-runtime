@@ -15,7 +15,7 @@
 #   - Aptos: Move-based payment channels
 #
 # Prerequisites:
-#   1. Build connector image: docker build -t m2m/connector:latest .
+#   1. Build connector image: docker build -t agent-runtime/connector:latest .
 #   2. Initialize TigerBeetle (one-time):
 #      docker run --rm --security-opt seccomp=unconfined -v tigerbeetle-data:/data \
 #        ghcr.io/tigerbeetle/tigerbeetle:0.16.68 \
@@ -84,14 +84,14 @@ services:
   # M2M ILP Connector - Core Payment Processing
   # ===========================================================================
   connector:
-    image: m2m/connector:latest
+    image: agent-runtime/connector:latest
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: m2m-connector
+    container_name: agent-runtime
     environment:
       # Core Configuration
-      NODE_ID: ${NODE_ID:-m2m-connector}
+      NODE_ID: ${NODE_ID:-agent-runtime}
       CONFIG_FILE: /app/config.yaml
       LOG_LEVEL: ${LOG_LEVEL:-info}
 

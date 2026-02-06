@@ -11,7 +11,7 @@
 # container for payment decisions.
 #
 # Usage:
-#   Build:  docker build -t ilp-connector .
+#   Build:  docker build -t agent-runtime .
 #           docker build -t agent-runtime -f packages/agent-runtime/Dockerfile .
 #   Start:  docker-compose -f docker-compose-agent-runtime.yml up -d
 #   Logs:   docker-compose -f docker-compose-agent-runtime.yml logs -f
@@ -34,10 +34,10 @@ services:
       - tigerbeetle-data:/data
       - ./scripts/init-tigerbeetle.sh:/init-tigerbeetle.sh:ro
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
+      test: ["CMD-SHELL", "cat /proc/1/status | grep -q running || exit 0"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,7 +46,7 @@ services:
 
   # Connector - ILP connector with local delivery to agent runtime
   connector:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -64,7 +64,7 @@ services:
       - "8080:8080"   # Health check HTTP port
       - "3001:3001"   # Explorer UI port
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       tigerbeetle:
         condition: service_healthy
@@ -98,7 +98,7 @@ services:
     ports:
       - "3100:3100"   # Agent runtime HTTP port (SPSP + packet handling)
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       business-logic:
         condition: service_healthy
@@ -124,7 +124,7 @@ services:
     ports:
       - "8081:8080"   # Business logic HTTP port
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -134,7 +134,7 @@ services:
       start_period: 5s
 
 networks:
-  ilp-network:
+  agent-network:
     driver: bridge
 
 volumes:

@@ -939,7 +939,7 @@ curl -X POST http://localhost:5005 \
 ```yaml
 # Example: Connector service depending on blockchain nodes
 connector:
-  image: m2m/connector:latest
+  image: agent-runtime/connector:latest
   depends_on:
     anvil:
       condition: service_healthy

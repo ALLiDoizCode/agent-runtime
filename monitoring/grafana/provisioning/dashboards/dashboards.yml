@@ -7,7 +7,7 @@ providers:
   - name: 'ILP Connector Dashboards'
     orgId: 1
     folder: 'ILP Connector'
-    folderUid: 'ilp-connector'
+    folderUid: 'agent-runtime'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30

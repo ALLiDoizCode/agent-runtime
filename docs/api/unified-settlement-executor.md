@@ -12,7 +12,7 @@ The `UnifiedSettlementExecutor` class orchestrates dual-chain settlement routing
 - Integration with TigerBeetle accounting layer
 - Event-driven architecture
 
-**Module:** `@m2m/connector/settlement/unified-settlement-executor`
+**Module:** `@agent-runtime/connector/settlement/unified-settlement-executor`
 
 ## Settlement Routing Logic
 
@@ -116,7 +116,7 @@ Creates a new UnifiedSettlementExecutor instance.
 **Example:**
 
 ```typescript
-import { UnifiedSettlementExecutor } from '@m2m/connector';
+import { UnifiedSettlementExecutor } from '@agent-runtime/connector';
 
 const config: UnifiedSettlementExecutorConfig = {
   peers: new Map([
@@ -240,7 +240,7 @@ The executor throws an error when:
 ### Example 1: Dual-Settlement Configuration
 
 ```typescript
-import { UnifiedSettlementExecutor, PeerConfig } from '@m2m/connector';
+import { UnifiedSettlementExecutor, PeerConfig } from '@agent-runtime/connector';
 
 // Configure peers with different settlement preferences
 const config: UnifiedSettlementExecutorConfig = {
@@ -328,7 +328,7 @@ settlementMonitor.emit('SETTLEMENT_REQUIRED', {
 ### Example 3: Error Handling
 
 ```typescript
-import { UnifiedSettlementExecutor } from '@m2m/connector';
+import { UnifiedSettlementExecutor } from '@agent-runtime/connector';
 
 const executor = new UnifiedSettlementExecutor(
   config,
@@ -360,7 +360,7 @@ try {
 The UnifiedSettlementExecutor listens to the SettlementMonitor's `SETTLEMENT_REQUIRED` event:
 
 ```typescript
-import { SettlementMonitor } from '@m2m/connector';
+import { SettlementMonitor } from '@agent-runtime/connector';
 
 // SettlementMonitor emits events when settlement thresholds reached
 const settlementMonitor = new SettlementMonitor(config, accountManager, logger);

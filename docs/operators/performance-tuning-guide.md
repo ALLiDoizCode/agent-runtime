@@ -377,7 +377,7 @@ Nice=-10
 # docker-compose.yml
 services:
   connector:
-    image: m2m-connector:latest
+    image: agent-runtime:latest
     cpus: '8.0' # Limit to 8 CPUs
     cpu_shares: 2048 # Higher priority
 ```

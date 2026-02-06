@@ -13,7 +13,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: m2m-connector
+namespace: agent-runtime
 
 resources:
   - ../../base
@@ -68,7 +68,7 @@ patches:
 
 # Production image
 images:
-  - name: m2m/connector
+  - name: agent-runtime/connector
     newTag: production
 
 commonAnnotations:

@@ -62,7 +62,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 
    ```bash
    # Filter for error-level logs
-   docker logs ilp-connector --since 10m 2>&1 | grep '"level":"error"'
+   docker logs agent-runtime --since 10m 2>&1 | grep '"level":"error"'
    ```
 
 3. **Check peer connection status:**
@@ -74,7 +74,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 4. **Identify affected destinations:**
    ```bash
    # Check if errors are concentrated on specific routes
-   docker logs ilp-connector --since 10m 2>&1 | grep 'T0[0-9]_' | head -20
+   docker logs agent-runtime --since 10m 2>&1 | grep 'T0[0-9]_' | head -20
    ```
 
 ### Resolution Steps
@@ -91,7 +91,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
    - Review route priorities
 
 3. **If resource constraints:**
-   - Check memory usage: `docker stats ilp-connector`
+   - Check memory usage: `docker stats agent-runtime`
    - Check CPU usage
    - Consider scaling horizontally
 
@@ -123,7 +123,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 1. **Check settlement error logs:**
 
    ```bash
-   docker logs ilp-connector --since 10m 2>&1 | grep -E 'settlement|Settlement'
+   docker logs agent-runtime --since 10m 2>&1 | grep -E 'settlement|Settlement'
    ```
 
 2. **Verify TigerBeetle connectivity:**
@@ -199,7 +199,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 
    ```bash
    # From connector container
-   docker exec ilp-connector nc -zv tigerbeetle 3000
+   docker exec agent-runtime nc -zv tigerbeetle 3000
    ```
 
 3. **Check TigerBeetle cluster health:**
@@ -280,7 +280,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 2. **Check channel dispute logs:**
 
    ```bash
-   docker logs ilp-connector --since 1h 2>&1 | grep -i dispute
+   docker logs agent-runtime --since 1h 2>&1 | grep -i dispute
    ```
 
 3. **Review channel details:**
@@ -290,7 +290,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 4. **Identify the counterparty:**
    ```bash
    # Review recent channel operations for the peer
-   docker logs ilp-connector --since 1h 2>&1 | grep 'channel' | grep 'peer-id'
+   docker logs agent-runtime --since 1h 2>&1 | grep 'channel' | grep 'peer-id'
    ```
 
 ### Resolution Steps
@@ -354,7 +354,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 2. **Check resource utilization:**
 
    ```bash
-   docker stats ilp-connector --no-stream
+   docker stats agent-runtime --no-stream
    ```
 
 3. **Review TigerBeetle latency:**
@@ -365,7 +365,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 
 4. **Check for garbage collection pauses:**
    ```bash
-   docker logs ilp-connector --since 10m 2>&1 | grep -i 'gc\|garbage'
+   docker logs agent-runtime --since 10m 2>&1 | grep -i 'gc\|garbage'
    ```
 
 ### Resolution Steps
@@ -433,7 +433,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 
 4. **Review for errors affecting throughput:**
    ```bash
-   docker logs ilp-connector --since 10m 2>&1 | grep '"level":"error"' | wc -l
+   docker logs agent-runtime --since 10m 2>&1 | grep '"level":"error"' | wc -l
    ```
 
 ### Resolution Steps
@@ -483,15 +483,15 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 1. **Check container status:**
 
    ```bash
-   docker ps | grep ilp-connector
-   docker logs ilp-connector --tail 100
+   docker ps | grep agent-runtime
+   docker logs agent-runtime --tail 100
    ```
 
 2. **Check for OOM kill:**
 
    ```bash
    dmesg | grep -i 'killed process'
-   docker inspect ilp-connector | jq '.[0].State'
+   docker inspect agent-runtime | jq '.[0].State'
    ```
 
 3. **Check system resources:**
@@ -512,13 +512,13 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 
    ```bash
    # Check logs for crash reason
-   docker logs ilp-connector --tail 200
+   docker logs agent-runtime --tail 200
 
    # Restart container
-   docker restart ilp-connector
+   docker restart agent-runtime
 
    # Monitor startup
-   docker logs -f ilp-connector
+   docker logs -f agent-runtime
    ```
 
 2. **If OOM killed:**
@@ -561,7 +561,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 1. **Check current memory usage:**
 
    ```bash
-   docker stats ilp-connector --no-stream
+   docker stats agent-runtime --no-stream
    ```
 
 2. **Check memory trend:**
@@ -573,12 +573,12 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 3. **Generate heap dump (if supported):**
 
    ```bash
-   docker exec ilp-connector node --inspect --expose-gc -e "global.gc()"
+   docker exec agent-runtime node --inspect --expose-gc -e "global.gc()"
    ```
 
 4. **Check for connection leaks:**
    ```bash
-   docker exec ilp-connector netstat -an | grep ESTABLISHED | wc -l
+   docker exec agent-runtime netstat -an | grep ESTABLISHED | wc -l
    ```
 
 ### Resolution Steps
@@ -623,14 +623,14 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 1. **Identify error types:**
 
    ```bash
-   docker logs ilp-connector --since 5m 2>&1 | grep '"level":"error"' | jq -r '.err.type // .err // .msg' | sort | uniq -c | sort -rn
+   docker logs agent-runtime --since 5m 2>&1 | grep '"level":"error"' | jq -r '.err.type // .err // .msg' | sort | uniq -c | sort -rn
    ```
 
 2. **Check for patterns:**
 
    ```bash
    # Review timestamps for error clustering
-   docker logs ilp-connector --since 5m 2>&1 | grep '"level":"error"' | jq -r '.time' | cut -d: -f1-2 | uniq -c
+   docker logs agent-runtime --since 5m 2>&1 | grep '"level":"error"' | jq -r '.time' | cut -d: -f1-2 | uniq -c
    ```
 
 3. **Review dependency health:**
@@ -729,7 +729,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
 
 ### Communication Channels
 
-- **Slack:** #ilp-connector-alerts
+- **Slack:** #agent-runtime-alerts
 - **PagerDuty:** ILP Connector Service
 - **Status Page:** Update for customer-visible incidents
 
@@ -770,13 +770,13 @@ payment_channels_active
 
 ```bash
 # Count errors by type
-docker logs ilp-connector --since 1h 2>&1 | grep '"level":"error"' | jq -r '.msg' | sort | uniq -c | sort -rn
+docker logs agent-runtime --since 1h 2>&1 | grep '"level":"error"' | jq -r '.msg' | sort | uniq -c | sort -rn
 
 # Find correlation IDs for tracking
-docker logs ilp-connector --since 1h 2>&1 | grep 'pkt_' | head -20
+docker logs agent-runtime --since 1h 2>&1 | grep 'pkt_' | head -20
 
 # Extract packet flow
-docker logs ilp-connector --since 1h 2>&1 | jq 'select(.correlationId) | {time, correlationId, msg}'
+docker logs agent-runtime --since 1h 2>&1 | jq 'select(.correlationId) | {time, correlationId, msg}'
 ```
 
 ### Health Checks

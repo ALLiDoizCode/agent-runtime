@@ -160,9 +160,9 @@ acceptance_criteria_validation:
     evidence: "docker-compose.yml exists with 3 connector services (connector-a, connector-b, connector-c)"
 
   2:
-    description: "Each connector service uses the same ilp-connector image with unique container name"
+    description: "Each connector service uses the same agent-runtime image with unique container name"
     status: PASS
-    evidence: "All services use image: ilp-connector with unique container_name values"
+    evidence: "All services use image: agent-runtime with unique container_name values"
 
   3:
     description: "Connector services configured with environment variables for node ID, BTP server port, and peer connection URLs"
@@ -182,7 +182,7 @@ acceptance_criteria_validation:
   6:
     description: "Docker network created for inter-connector communication"
     status: PASS
-    evidence: "ilp-network defined in networks section with bridge driver, all services attached"
+    evidence: "agent-network defined in networks section with bridge driver, all services attached"
 
   7:
     description: "Services include health checks that verify connectors are ready"
@@ -218,7 +218,7 @@ definition_of_done_checklist:
       status: COMPLETE
       evidence: "NODE_ID, BTP_SERVER_PORT, LOG_LEVEL, BTP_PEER_* variables configured"
 
-    - item: "Docker network ilp-network defined"
+    - item: "Docker network agent-network defined"
       status: COMPLETE
       evidence: "Bridge network defined in networks section"
 

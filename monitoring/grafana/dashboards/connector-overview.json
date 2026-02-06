@@ -559,7 +559,7 @@
   "refresh": "30s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["ilp-connector", "overview"],
+  "tags": ["agent-runtime", "overview"],
   "templating": {
     "list": [
       {

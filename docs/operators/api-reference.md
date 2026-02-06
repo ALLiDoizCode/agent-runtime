@@ -464,7 +464,7 @@ nodejs_heap_size_total_bytes 100000000
 ```yaml
 # prometheus.yml
 scrape_configs:
-  - job_name: 'ilp-connector'
+  - job_name: 'agent-runtime'
     static_configs:
       - targets: ['connector:8080']
     metrics_path: /metrics
@@ -735,7 +735,7 @@ groups:
   - name: connector-api
     rules:
       - alert: HealthEndpointDown
-        expr: up{job="ilp-connector"} == 0
+        expr: up{job="agent-runtime"} == 0
         for: 1m
         labels:
           severity: critical
@@ -743,7 +743,7 @@ groups:
           summary: 'Connector health endpoint unreachable'
 
       - alert: ConnectorUnhealthy
-        expr: probe_success{job="ilp-connector-health"} == 0
+        expr: probe_success{job="agent-runtime-health"} == 0
         for: 2m
         labels:
           severity: critical
@@ -755,7 +755,7 @@ groups:
 
 ```promql
 # Connector status (1 = healthy, 0 = unhealthy)
-probe_success{job="ilp-connector-health"}
+probe_success{job="agent-runtime-health"}
 
 # Packet throughput
 rate(ilp_packets_processed_total[5m])

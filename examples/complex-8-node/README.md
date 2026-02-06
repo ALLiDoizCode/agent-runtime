@@ -65,7 +65,7 @@ Hub-1 → Hub-2 → Spoke-2a
 1. Build the connector image:
 
    ```bash
-   docker build -t ilp-connector .
+   docker build -t agent-runtime .
    ```
 
 2. Build the dashboard image:
@@ -163,7 +163,7 @@ This topology demonstrates:
 
 **Containers fail to start**:
 
-- Ensure connector image is built: `docker images | grep ilp-connector`
+- Ensure connector image is built: `docker images | grep agent-runtime`
 - Check port conflicts: `lsof -i :3000-3007`
 
 **Unhealthy containers**:

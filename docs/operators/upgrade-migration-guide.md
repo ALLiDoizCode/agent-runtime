@@ -101,7 +101,7 @@ Complete all items before beginning an upgrade:
 
 - [ ] **Record current version**
   ```bash
-  docker inspect m2m-connector --format='{{.Config.Image}}' > .current-version
+  docker inspect agent-runtime --format='{{.Config.Image}}' > .current-version
   cat .current-version
   ```
 
@@ -141,7 +141,7 @@ Complete all items before beginning an upgrade:
 
 - [ ] **Pull new image (pre-fetch to reduce downtime)**
   ```bash
-  docker pull ghcr.io/your-org/m2m-connector:v1.2.0
+  docker pull ghcr.io/your-org/agent-runtime:v1.2.0
   ```
 
 ---
@@ -188,13 +188,13 @@ For environments without CI/CD:
 cd /opt/m2m
 
 # Save current version for rollback
-docker inspect m2m-connector --format='{{.Config.Image}}' | cut -d: -f2 > .previous-tag
+docker inspect agent-runtime --format='{{.Config.Image}}' | cut -d: -f2 > .previous-tag
 
 # Stop current connector (gracefully)
 docker compose -f docker-compose-production.yml stop connector
 
 # Pull new image
-docker pull ghcr.io/your-org/m2m-connector:v1.2.0
+docker pull ghcr.io/your-org/agent-runtime:v1.2.0
 
 # Update image tag
 export IMAGE_TAG=v1.2.0
@@ -255,10 +255,10 @@ The CD pipeline automatically rolls back if health checks fail post-deployment.
 
 ```bash
 # Using the rollback script (reads from .previous-tag)
-IMAGE_NAME=ghcr.io/your-org/m2m-connector ./scripts/rollback.sh
+IMAGE_NAME=ghcr.io/your-org/agent-runtime ./scripts/rollback.sh
 
 # Or specify a specific version
-IMAGE_NAME=ghcr.io/your-org/m2m-connector ./scripts/rollback.sh v1.1.0
+IMAGE_NAME=ghcr.io/your-org/agent-runtime ./scripts/rollback.sh v1.1.0
 ```
 
 ### Manual Rollback (Docker Compose)
@@ -307,7 +307,7 @@ docker compose -f docker-compose-production.yml logs -f connector
 4. **Test in staging first**: Before production rollback, verify the old version works
 5. **Preserve logs**: Save logs from the failed deployment for analysis
    ```bash
-   docker logs m2m-connector > failed-deployment-$(date +%Y%m%d%H%M%S).log 2>&1
+   docker logs agent-runtime > failed-deployment-$(date +%Y%m%d%H%M%S).log 2>&1
    ```
 
 ---
@@ -401,7 +401,7 @@ docker compose -f docker-compose-production.yml stop connector
 cp data/wallet/agent-wallets.db data/wallet/agent-wallets.db.backup
 
 # Run migration script (if provided)
-npx @m2m/connector migrate-wallet --from=1.0 --to=2.0
+npx @agent-runtime/connector migrate-wallet --from=1.0 --to=2.0
 
 # Verify migration
 sqlite3 data/wallet/agent-wallets.db "SELECT count(*) FROM wallets;"
@@ -489,10 +489,10 @@ docker compose -f docker-compose-green.yml down
 curl http://localhost:8080/health | jq .
 
 # 2. Verify version
-docker inspect m2m-connector --format='{{.Config.Image}}'
+docker inspect agent-runtime --format='{{.Config.Image}}'
 
 # 3. Check logs for errors
-docker logs m2m-connector --since 5m 2>&1 | grep -i error
+docker logs agent-runtime --since 5m 2>&1 | grep -i error
 
 # 4. Verify peer connections
 curl http://localhost:8080/health | jq '.peers'
@@ -539,7 +539,7 @@ watch -n 30 'curl -s http://localhost:8080/metrics | grep settlement'
 
 ```bash
 # Check container logs
-docker logs m2m-connector --tail 200
+docker logs agent-runtime --tail 200
 
 # Common causes:
 # 1. Missing environment variables
@@ -566,7 +566,7 @@ netstat -tlnp | grep 8080
 docker logs tigerbeetle --tail 100
 
 # Verify network connectivity
-docker exec m2m-connector nc -zv tigerbeetle 3000
+docker exec agent-runtime nc -zv tigerbeetle 3000
 
 # Restart TigerBeetle if needed
 docker compose -f docker-compose-production.yml restart tigerbeetle
@@ -586,7 +586,7 @@ docker compose -f docker-compose-production.yml restart tigerbeetle
 cat examples/production-single-node.yaml
 
 # Verify BTP connectivity
-docker logs m2m-connector 2>&1 | grep -i btp
+docker logs agent-runtime 2>&1 | grep -i btp
 
 # Check firewall rules
 sudo ufw status
@@ -600,10 +600,10 @@ sudo ufw status
 
 ```bash
 # Check available images
-docker images | grep m2m-connector
+docker images | grep agent-runtime
 
 # Pull specific version if needed
-docker pull ghcr.io/your-org/m2m-connector:v1.1.0
+docker pull ghcr.io/your-org/agent-runtime:v1.1.0
 
 # Try rollback again
 ./scripts/rollback.sh v1.1.0

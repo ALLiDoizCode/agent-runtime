@@ -645,7 +645,7 @@
   "refresh": "30s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["ilp-connector", "settlement"],
+  "tags": ["agent-runtime", "settlement"],
   "templating": {
     "list": [
       {

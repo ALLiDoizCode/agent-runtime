@@ -167,9 +167,9 @@ This project uses **Conventional Commits** for clear and structured commit histo
 
 The scope specifies which package or component is affected:
 
-- `connector` - Changes to @m2m/connector package
-- `dashboard` - Changes to @m2m/dashboard package
-- `shared` - Changes to @m2m/shared package
+- `connector` - Changes to @agent-runtime/connector package
+- `dashboard` - Changes to @agent-runtime/dashboard package
+- `shared` - Changes to @agent-runtime/shared package
 - `monorepo` - Changes affecting the entire monorepo
 - `btp` - BTP protocol implementation
 - `routing` - Routing logic
@@ -310,9 +310,9 @@ All pull requests must pass:
 - ✅ Prettier formatting checks
 - ✅ TypeScript compilation (all packages)
 - ✅ Jest tests with coverage thresholds:
-  - `@m2m/shared`: ≥90% coverage
-  - `@m2m/connector`: ≥80% coverage
-  - `@m2m/dashboard`: ≥70% coverage
+  - `@agent-runtime/shared`: ≥90% coverage
+  - `@agent-runtime/connector`: ≥80% coverage
+  - `@agent-runtime/dashboard`: ≥70% coverage
 
 ## Code Review Guidelines
 
@@ -334,9 +334,9 @@ All pull requests must pass:
 
 ### Test Coverage Thresholds
 
-- **@m2m/shared**: Minimum 90% line coverage (critical protocol logic)
-- **@m2m/connector**: Minimum 80% line coverage
-- **@m2m/dashboard**: Minimum 70% line coverage
+- **@agent-runtime/shared**: Minimum 90% line coverage (critical protocol logic)
+- **@agent-runtime/connector**: Minimum 80% line coverage
+- **@agent-runtime/dashboard**: Minimum 70% line coverage
 
 ### Test Organization
 

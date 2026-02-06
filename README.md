@@ -1,18 +1,18 @@
-# ILP Connector
+# Agent Runtime
 
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](CHANGELOG.md)
-[![CI](https://github.com/yourusername/ilp-connector/workflows/CI/badge.svg)](https://github.com/yourusername/ilp-connector/actions)
+[![CI](https://github.com/ALLiDoizCode/agent-runtime/workflows/CI/badge.svg)](https://github.com/ALLiDoizCode/agent-runtime/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-22.11.0-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> A TypeScript implementation of an Interledger Protocol (ILP) connector with tri-chain settlement and real-time observability.
+> A runtime for deploying autonomous agents with tri-chain settlement and real-time observability.
 
 ---
 
 ## TL;DR
 
-**ILP Connector** is a production-ready implementation of the Interledger Protocol that routes payments across different payment networks. It features **tri-chain settlement** (EVM, XRP, Aptos), **TigerBeetle accounting**, and a built-in **Explorer UI** for real-time packet inspection.
+**Agent Runtime** is a production-ready platform for deploying autonomous agents that can transact across different payment networks. It features **tri-chain settlement** (EVM, XRP, Aptos), **TigerBeetle accounting**, and a built-in **Explorer UI** for real-time packet inspection.
 
 ### Key Capabilities
 
@@ -124,9 +124,9 @@ graph TB
 ## Monorepo Structure
 
 ```
-ilp-connector/
+agent-runtime/
 ├── packages/
-│   ├── connector/          # ILP Connector
+│   ├── connector/          # Connector (payment routing)
 │   │   ├── src/
 │   │   │   ├── core/       # ConnectorNode, PacketHandler
 │   │   │   ├── btp/        # BTP Server/Client
@@ -135,7 +135,7 @@ ilp-connector/
 │   │   │   ├── explorer/   # Explorer server
 │   │   │   └── telemetry/  # Event emission
 │   │   └── explorer-ui/    # React UI with shadcn/ui
-│   ├── agent-runtime/      # Agent Runtime (SPSP/STREAM handler)
+│   ├── agent-runtime/      # Agent Runtime Core (SPSP/STREAM handler)
 │   │   └── src/
 │   │       ├── spsp/       # SPSP endpoint
 │   │       ├── stream/     # STREAM fulfillment crypto
@@ -329,7 +329,7 @@ Called when SPSP endpoint is queried (before payment begins).
 # docker-compose.yml (in your project root or separate repo)
 services:
   connector:
-    image: ilp-connector
+    image: agent-runtime
     environment:
       LOCAL_DELIVERY_ENABLED: 'true'
       LOCAL_DELIVERY_URL: http://agent-runtime:3100
@@ -357,7 +357,7 @@ services:
 
 ```bash
 # Option 1: If using pre-built images from this repo
-docker build -t ilp-connector .
+docker build -t agent-runtime .
 docker build -t agent-runtime -f packages/agent-runtime/Dockerfile .
 docker-compose up -d
 
@@ -377,7 +377,7 @@ kubectl apply -k k8s/agent-runtime
 kubectl apply -f my-business-logic-deployment.yaml
 
 # Configure connector to use agent runtime
-kubectl -n m2m-connector set env deployment/connector \
+kubectl -n agent-runtime set env deployment/connector \
   LOCAL_DELIVERY_ENABLED=true \
   LOCAL_DELIVERY_URL=http://agent-runtime.m2m-agent-runtime.svc.cluster.local:3100
 ```
@@ -523,8 +523,8 @@ npm run dev
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/ilp-connector.git
-cd ilp-connector
+git clone https://github.com/ALLiDoizCode/agent-runtime.git
+cd agent-runtime
 ```
 
 ### 2. Install Dependencies
@@ -759,7 +759,7 @@ kubectl -n tigerbeetle get pods
 **Option A: Direct kubectl (development):**
 
 ```bash
-kubectl -n m2m-connector create secret generic connector-secrets \
+kubectl -n agent-runtime create secret generic connector-secrets \
   --from-literal=EVM_PRIVATE_KEY=0xYourPrivateKey \
   --from-literal=XRP_SEED=sYourXRPSeed \
   --from-literal=APTOS_PRIVATE_KEY=0xYourAptosKey \
@@ -786,7 +786,7 @@ apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
   name: connector-secrets
-  namespace: m2m-connector
+  namespace: agent-runtime
 spec:
   refreshInterval: 1h
   secretStoreRef:
@@ -797,10 +797,10 @@ spec:
   data:
     - secretKey: EVM_PRIVATE_KEY
       remoteRef:
-        key: m2m/connector/evm-key
+        key: agent-runtime/connector/evm-key
     - secretKey: M2M_TOKEN_ADDRESS
       remoteRef:
-        key: m2m/connector/token-address
+        key: agent-runtime/connector/token-address
 ```
 
 #### 4. Configure Blockchain Networks (Testnet vs Mainnet)
@@ -847,7 +847,7 @@ Configures:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: m2m-connector
+namespace: agent-runtime
 
 resources:
   - ../../base
@@ -872,7 +872,7 @@ patches:
 **Via Secret for token addresses:**
 
 ```bash
-kubectl -n m2m-connector create secret generic connector-secrets \
+kubectl -n agent-runtime create secret generic connector-secrets \
   --from-literal=M2M_TOKEN_ADDRESS=0xYourCustomToken \
   --from-literal=TOKEN_NETWORK_REGISTRY=0xYourCustomRegistry \
   --dry-run=client -o yaml | kubectl apply -f -
@@ -888,16 +888,16 @@ kubectl apply -k k8s/connector/overlays/staging
 kubectl apply -k k8s/connector/overlays/production
 
 # Verify deployment
-kubectl -n m2m-connector get pods
-kubectl -n m2m-connector logs -f deployment/connector
+kubectl -n agent-runtime get pods
+kubectl -n agent-runtime logs -f deployment/connector
 ```
 
 #### 7. Expose Services
 
 ```bash
 # Port-forward for local access
-kubectl -n m2m-connector port-forward svc/connector 4000:4000  # BTP
-kubectl -n m2m-connector port-forward svc/connector 5173:5173  # Explorer
+kubectl -n agent-runtime port-forward svc/connector 4000:4000  # BTP
+kubectl -n agent-runtime port-forward svc/connector 5173:5173  # Explorer
 
 # Or create Ingress for external access
 kubectl apply -f - <<EOF
@@ -905,7 +905,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: connector-ingress
-  namespace: m2m-connector
+  namespace: agent-runtime
 spec:
   rules:
     - host: connector.example.com
@@ -929,7 +929,7 @@ EOF
 
 | Variable                | Description                           | Default         |
 | ----------------------- | ------------------------------------- | --------------- |
-| `NODE_ID`               | Unique connector identifier           | `m2m-connector` |
+| `NODE_ID`               | Unique connector identifier           | `agent-runtime` |
 | `LOG_LEVEL`             | Logging level (debug/info/warn/error) | `info`          |
 | `SETTLEMENT_PREFERENCE` | Settlement chain (evm/xrp/aptos/both) | `evm`           |
 | `NETWORK_MODE`          | Network selection (testnet/mainnet)   | `testnet`       |
@@ -1115,5 +1115,5 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support & Community
 
-- **GitHub Issues:** [Report bugs or request features](https://github.com/yourusername/ilp-connector/issues)
+- **GitHub Issues:** [Report bugs or request features](https://github.com/ALLiDoizCode/agent-runtime/issues)
 - **Documentation:** [Full docs](docs/)

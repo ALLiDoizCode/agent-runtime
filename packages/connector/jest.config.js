@@ -40,7 +40,7 @@ module.exports = {
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
-    '^@m2m/shared$': '<rootDir>/../shared/src/index.ts',
+    '^@agent-runtime/shared$': '<rootDir>/../shared/src/index.ts',
   },
   transform: {
     '^.+\\.ts$': [

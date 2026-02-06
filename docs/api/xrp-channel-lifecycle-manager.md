@@ -12,7 +12,7 @@ The `XRPChannelLifecycleManager` class manages automatic XRP payment channel lif
 - Expiration-based closure (CancelAfter handling)
 - Periodic lifecycle checks (hourly)
 
-**Module:** `@m2m/connector/settlement/xrp-channel-lifecycle`
+**Module:** `@agent-runtime/connector/settlement/xrp-channel-lifecycle`
 
 ## Lifecycle State Machine
 
@@ -127,7 +127,7 @@ Creates a new XRPChannelLifecycleManager instance.
 **Example:**
 
 ```typescript
-import { XRPChannelLifecycleManager } from '@m2m/connector';
+import { XRPChannelLifecycleManager } from '@agent-runtime/connector';
 
 const config: XRPChannelLifecycleConfig = {
   enabled: true,
@@ -390,7 +390,7 @@ if (lifecycleManager.needsFunding('peer-alice')) {
 ### Example 1: Basic Lifecycle Management
 
 ```typescript
-import { XRPChannelLifecycleManager } from '@m2m/connector';
+import { XRPChannelLifecycleManager } from '@agent-runtime/connector';
 
 const config: XRPChannelLifecycleConfig = {
   enabled: true,
@@ -435,7 +435,7 @@ import {
   UnifiedSettlementExecutor,
   XRPChannelLifecycleManager,
   XRPChannelSDK,
-} from '@m2m/connector';
+} from '@agent-runtime/connector';
 
 // Initialize lifecycle manager
 const lifecycleManager = new XRPChannelLifecycleManager(lifecycleConfig, xrpChannelSDK, logger);
