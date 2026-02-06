@@ -30,7 +30,7 @@ services:
       - '--web.enable-admin-api'
       - '--storage.tsdb.retention.time=15d'
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
@@ -57,7 +57,7 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       - prometheus
     restart: unless-stopped
@@ -82,7 +82,7 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9093/-/healthy"]
@@ -105,7 +105,7 @@ services:
       - SPAN_STORAGE_TYPE=memory
       - MEMORY_MAX_TRACES=100000
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:16686/"]
@@ -124,6 +124,6 @@ volumes:
     driver: local
 
 networks:
-  ilp-network:
+  agent-network:
     external: true
-    name: m2m_ilp-network
+    name: m2m_agent-network

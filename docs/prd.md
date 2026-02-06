@@ -498,7 +498,7 @@ so that I can deploy connector nodes as containers.
 4. Dockerfile exposes BTP server port (3000) for incoming connections
 5. Dockerfile sets appropriate working directory and non-root user for security
 6. Dockerfile includes HEALTHCHECK instruction that verifies connector process is running
-7. Docker image builds successfully with `docker build -t ilp-connector .`
+7. Docker image builds successfully with `docker build -t agent-runtime .`
 8. Docker image size optimized (<200MB for Alpine-based image)
 9. Container starts successfully and logs appear via `docker logs`
 10. Environment variables can be passed to container to configure BTP ports, peer connections, and log level
@@ -514,7 +514,7 @@ so that I can run a multi-node ILP network with one command.
 #### Acceptance Criteria
 
 1. `docker-compose.yml` created defining services for configurable number of connector nodes (3 nodes for default example)
-2. Each connector service uses the same `ilp-connector` image with unique container name
+2. Each connector service uses the same `agent-runtime` image with unique container name
 3. Connector services configured with environment variables for node ID, BTP server port, and peer connection URLs
 4. Network topology configured as linear chain (Node A → Node B → Node C) using routing table configuration
 5. Shared secrets for BTP authentication configured via environment variables

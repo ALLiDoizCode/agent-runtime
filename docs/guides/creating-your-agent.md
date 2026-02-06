@@ -99,7 +99,7 @@ services:
 
   # Agent Runtime (pre-built from m2m repo)
   agent-runtime:
-    image: ghcr.io/yourusername/m2m-agent-runtime:latest
+    image: ghcr.io/ALLiDoizCode/agent-runtime-agent-runtime:latest
     environment:
       BASE_ADDRESS: g.connector.myagent
       BUSINESS_LOGIC_URL: http://business-logic:8080
@@ -112,7 +112,7 @@ services:
 
   # Connector (pre-built from m2m repo)
   connector:
-    image: ghcr.io/yourusername/m2m-connector:latest
+    image: ghcr.io/ALLiDoizCode/agent-runtime:latest
     environment:
       NODE_ID: myagent-connector
       LOCAL_DELIVERY_ENABLED: 'true'
@@ -167,7 +167,7 @@ curl http://localhost:3100/.well-known/pay
 
 ```bash
 # Fork on GitHub, then clone your fork
-git clone https://github.com/yourusername/m2m.git
+git clone https://github.com/ALLiDoizCode/agent-runtime.git
 cd m2m
 ```
 
@@ -253,10 +253,10 @@ cd packages/my-agent
 
 ```json
 {
-  "name": "@m2m/my-agent",
+  "name": "@agent-runtime/my-agent",
   "version": "1.0.0",
   "dependencies": {
-    "@m2m/shared": "*",
+    "@agent-runtime/shared": "*",
     "express": "^4.18.2"
   }
 }
@@ -486,10 +486,10 @@ services:
     build: . # Current directory
 
   agent-runtime:
-    image: ghcr.io/yourusername/m2m-agent-runtime:latest
+    image: ghcr.io/ALLiDoizCode/agent-runtime-agent-runtime:latest
 
   connector:
-    image: ghcr.io/yourusername/m2m-connector:latest
+    image: ghcr.io/ALLiDoizCode/agent-runtime:latest
 ```
 
 5. **Deploy:** `docker-compose up -d`
@@ -504,8 +504,8 @@ If the m2m project publishes Docker images to GitHub Container Registry:
 
 ```bash
 # Pull pre-built images
-docker pull ghcr.io/yourusername/m2m-connector:latest
-docker pull ghcr.io/yourusername/m2m-agent-runtime:latest
+docker pull ghcr.io/ALLiDoizCode/agent-runtime:latest
+docker pull ghcr.io/ALLiDoizCode/agent-runtime-agent-runtime:latest
 
 # Use in your docker-compose.yml (no need to fork)
 ```
@@ -575,7 +575,7 @@ services:
 
   # Pre-built connector
   connector:
-    image: ghcr.io/allidoizcode/m2m-connector:latest
+    image: ghcr.io/allidoizcode/agent-runtime:latest
     environment:
       NODE_ID: myagent
       LOCAL_DELIVERY_ENABLED: 'true'
@@ -882,12 +882,12 @@ Update the connector deployment to enable local delivery:
 
 ```bash
 # Option A: Using kubectl set env
-kubectl -n m2m-connector set env deployment/connector \
+kubectl -n agent-runtime set env deployment/connector \
   LOCAL_DELIVERY_ENABLED=true \
   LOCAL_DELIVERY_URL=http://agent-runtime.m2m-agent-runtime.svc.cluster.local:3100
 
 # Option B: Patch the deployment
-kubectl -n m2m-connector patch deployment connector --type=json -p='[
+kubectl -n agent-runtime patch deployment connector --type=json -p='[
   {
     "op": "add",
     "path": "/spec/template/spec/containers/0/env/-",
@@ -915,7 +915,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: connector-config
-  namespace: m2m-connector
+  namespace: agent-runtime
 data:
   # ... existing config ...
   LOCAL_DELIVERY_ENABLED: 'true'
@@ -947,12 +947,12 @@ kubectl apply -k k8s/
 # Check all pods are running
 kubectl get pods -n my-agent
 kubectl get pods -n m2m-agent-runtime
-kubectl get pods -n m2m-connector
+kubectl get pods -n agent-runtime
 
 # Check logs
 kubectl -n my-agent logs -f deployment/business-logic
 kubectl -n m2m-agent-runtime logs -f deployment/agent-runtime
-kubectl -n m2m-connector logs -f deployment/connector
+kubectl -n agent-runtime logs -f deployment/connector
 
 # Test SPSP endpoint
 kubectl -n m2m-agent-runtime port-forward svc/agent-runtime 3100:3100
@@ -975,7 +975,7 @@ Or use the Admin API:
 
 ```bash
 # Port-forward admin API
-kubectl -n m2m-connector port-forward svc/connector 8081:8081
+kubectl -n agent-runtime port-forward svc/connector 8081:8081
 
 # Add route dynamically
 curl -X POST http://localhost:8081/routes \
@@ -995,7 +995,7 @@ curl -X POST http://localhost:8081/routes \
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ Namespace: m2m-connector                            │
+│ Namespace: agent-runtime                            │
 │                                                     │
 │  ┌──────────────────────────────────────┐          │
 │  │ Deployment: connector                │          │
@@ -1225,14 +1225,14 @@ kubectl -n m2m-agent-runtime rollout restart deployment/agent-runtime
 kubectl apply -k /path/to/m2m/k8s/connector
 
 # Configure connector for local delivery
-kubectl -n m2m-connector set env deployment/connector \
+kubectl -n agent-runtime set env deployment/connector \
   LOCAL_DELIVERY_ENABLED=true \
   LOCAL_DELIVERY_URL=http://agent-runtime.m2m-agent-runtime.svc.cluster.local:3100
 
 # Verify everything is running
 kubectl get pods -n my-agent
 kubectl get pods -n m2m-agent-runtime
-kubectl get pods -n m2m-connector
+kubectl get pods -n agent-runtime
 ```
 
 ### Cross-Namespace Service Discovery

@@ -76,7 +76,7 @@ docker compose -f docker-compose-production.yml logs -f connector
 curl http://localhost:8080/metrics
 
 # Manual rollback
-IMAGE_NAME=your-org/m2m-connector ./scripts/rollback.sh v1.2.0
+IMAGE_NAME=your-org/agent-runtime ./scripts/rollback.sh v1.2.0
 
 # Create backup
 ./scripts/backup.sh --full --verify --upload

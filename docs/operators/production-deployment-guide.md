@@ -69,14 +69,14 @@ For experienced operators, here's the fastest path to deployment:
 
 ```bash
 # 1. Run the onboarding wizard
-npx @m2m/connector setup
+npx @agent-runtime/connector setup
 
 # 2. Initialize TigerBeetle (one-time)
 docker run --rm -v tigerbeetle-data:/data tigerbeetle/tigerbeetle \
   format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
 
 # 3. Build the connector image
-docker build -t m2m/connector:latest .
+docker build -t agent-runtime/connector:latest .
 
 # 4. Start all services
 docker compose -f docker-compose-production.yml up -d
@@ -94,7 +94,7 @@ curl http://localhost:8080/health
 Run the onboarding wizard to generate your configuration:
 
 ```bash
-npx @m2m/connector setup
+npx @agent-runtime/connector setup
 ```
 
 The wizard will prompt you for:
@@ -171,7 +171,7 @@ docker run --rm -v tigerbeetle-data:/data tigerbeetle/tigerbeetle \
 ### Step 4: Build the Connector Image
 
 ```bash
-docker build -t m2m/connector:latest .
+docker build -t agent-runtime/connector:latest .
 ```
 
 ### Step 5: Configure Peer Connections
@@ -291,7 +291,7 @@ docker compose -f docker-compose-production.yml start
 git pull
 
 # Rebuild connector image
-docker build -t m2m/connector:latest .
+docker build -t agent-runtime/connector:latest .
 
 # Restart with new image
 docker compose -f docker-compose-production.yml up -d
@@ -339,7 +339,7 @@ The CD pipeline automatically attempts rollback if health checks fail post-deplo
 
 ```bash
 # Using the rollback script
-IMAGE_NAME=ghcr.io/your-org/m2m-connector ./scripts/rollback.sh v1.2.2
+IMAGE_NAME=ghcr.io/your-org/agent-runtime ./scripts/rollback.sh v1.2.2
 
 # Or manually with Docker Compose
 export IMAGE_TAG=v1.2.2
@@ -405,7 +405,7 @@ Common causes:
 curl -s http://localhost:8080/health | jq .
 
 # Check container health
-docker inspect m2m-connector --format='{{.State.Health.Status}}'
+docker inspect agent-runtime --format='{{.State.Health.Status}}'
 ```
 
 ### TigerBeetle Connection Issues

@@ -171,7 +171,7 @@ kubectl apply -k k8s/tigerbeetle/
 kubectl apply -k k8s/connector/overlays/production/
 
 # Access Explorer UI
-kubectl -n m2m-connector port-forward svc/connector-explorer 5173:5173
+kubectl -n agent-runtime port-forward svc/connector-explorer 5173:5173
 ```
 
 ---

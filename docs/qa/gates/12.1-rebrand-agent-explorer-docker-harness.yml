@@ -15,7 +15,7 @@ risk_summary:
   recommendations:
     must_fix: []
     monitor:
-      - "package-lock.json still references @m2m/explorer-ui — regenerate with npm install (cosmetic)"
+      - "package-lock.json still references @agent-runtime/explorer-ui — regenerate with npm install (cosmetic)"
 
 quality_score: 100
 expires: "2026-02-10T00:00:00Z"

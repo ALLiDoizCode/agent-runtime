@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: m2m-connector
+  name: agent-runtime
   labels:
-    app.kubernetes.io/name: m2m-connector
-    app.kubernetes.io/part-of: m2m
+    app.kubernetes.io/name: agent-runtime
+    app.kubernetes.io/part-of: agent-runtime

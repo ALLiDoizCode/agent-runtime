@@ -23,7 +23,7 @@ Complete guide for deploying an ILP agent on Kubernetes with the full stack:
           └──────────────────┴──────────────────┘
                              │
 ┌────────────────────────────┼─────────────────────────────┐
-│ Namespace: m2m-connector   │                             │
+│ Namespace: agent-runtime   │                             │
 │                            ▼                             │
 │  ┌─────────────────────────────────────────┐            │
 │  │ Deployment: connector                   │            │
@@ -94,8 +94,8 @@ The TigerBeetle StatefulSet creates 3 replicas with persistent volumes for data 
 cd /path/to/m2m
 
 # Build connector image
-docker build -t your-registry/m2m-connector:v1.0.0 .
-docker push your-registry/m2m-connector:v1.0.0
+docker build -t your-registry/agent-runtime:v1.0.0 .
+docker push your-registry/agent-runtime:v1.0.0
 
 # Build agent-runtime image
 docker build -t your-registry/m2m-agent-runtime:v1.0.0 \
@@ -120,7 +120,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: connector-config
-  namespace: m2m-connector
+  namespace: agent-runtime
 data:
   NODE_ID: 'agent-connector'
   LOG_LEVEL: 'info'
@@ -157,8 +157,8 @@ cd k8s/connector/base
 kubectl apply -k k8s/connector/base
 
 # Patch the image if needed
-kubectl -n m2m-connector set image deployment/connector \
-  connector=your-registry/m2m-connector:v1.0.0
+kubectl -n agent-runtime set image deployment/connector \
+  connector=your-registry/agent-runtime:v1.0.0
 ```
 
 ### 4. Deploy Agent Runtime
@@ -337,14 +337,14 @@ explorer:
 Create ConfigMap:
 
 ```bash
-kubectl -n m2m-connector create configmap connector-app-config \
+kubectl -n agent-runtime create configmap connector-app-config \
   --from-file=config.yaml=connector-app-config.yaml
 ```
 
 Update connector deployment to mount this config:
 
 ```bash
-kubectl -n m2m-connector patch deployment connector --type=json -p='[
+kubectl -n agent-runtime patch deployment connector --type=json -p='[
   {
     "op": "add",
     "path": "/spec/template/spec/volumes",
@@ -371,7 +371,7 @@ kubectl -n m2m-connector patch deployment connector --type=json -p='[
 Or configure via environment variables (no YAML config file):
 
 ```bash
-kubectl -n m2m-connector set env deployment/connector \
+kubectl -n agent-runtime set env deployment/connector \
   NODE_ID=agent-connector \
   SETTLEMENT_ENABLED=true \
   TIGERBEETLE_CLUSTER_ID=0 \
@@ -385,13 +385,13 @@ kubectl -n m2m-connector set env deployment/connector \
 ```bash
 # Check all components
 kubectl get pods -n tigerbeetle
-kubectl get pods -n m2m-connector
+kubectl get pods -n agent-runtime
 kubectl get pods -n m2m-agent-runtime
 kubectl get pods -n my-agent
 
 # Check services
 kubectl get svc -n tigerbeetle
-kubectl get svc -n m2m-connector
+kubectl get svc -n agent-runtime
 kubectl get svc -n m2m-agent-runtime
 kubectl get svc -n my-agent
 
@@ -403,7 +403,7 @@ kubectl -n m2m-agent-runtime port-forward svc/agent-runtime 3100:3100
 curl http://localhost:3100/.well-known/pay
 
 # 3. Check connector Explorer UI
-kubectl -n m2m-connector port-forward svc/connector 5173:5173
+kubectl -n agent-runtime port-forward svc/connector 5173:5173
 open http://localhost:5173
 ```
 
@@ -411,7 +411,7 @@ open http://localhost:5173
 
 ```bash
 # Watch connector logs
-kubectl -n m2m-connector logs -f deployment/connector
+kubectl -n agent-runtime logs -f deployment/connector
 
 # Watch agent-runtime logs
 kubectl -n m2m-agent-runtime logs -f deployment/agent-runtime
@@ -591,12 +591,12 @@ echo "Deploying ILP Connector..."
 kubectl apply -k k8s/connector/overlays/production
 
 # Configure connector for TigerBeetle and local delivery
-kubectl -n m2m-connector create configmap connector-app-config \
+kubectl -n agent-runtime create configmap connector-app-config \
   --from-file=config.yaml=connector-config.yaml \
   --dry-run=client -o yaml | kubectl apply -f -
 
 # Wait for connector
-kubectl -n m2m-connector wait --for=condition=available deployment/connector --timeout=120s
+kubectl -n agent-runtime wait --for=condition=available deployment/connector --timeout=120s
 
 # 3. Deploy Agent Runtime
 echo "Deploying Agent Runtime..."
@@ -620,7 +620,7 @@ kubectl -n my-agent wait --for=condition=available deployment/business-logic --t
 # 5. Verify deployment
 echo "Verifying deployment..."
 kubectl get pods -n tigerbeetle
-kubectl get pods -n m2m-connector
+kubectl get pods -n agent-runtime
 kubectl get pods -n m2m-agent-runtime
 kubectl get pods -n my-agent
 
@@ -631,7 +631,7 @@ echo "  kubectl -n m2m-agent-runtime port-forward svc/agent-runtime 3100:3100"
 echo "  curl http://localhost:3100/.well-known/pay"
 echo ""
 echo "Access Explorer UI:"
-echo "  kubectl -n m2m-connector port-forward svc/connector 5173:5173"
+echo "  kubectl -n agent-runtime port-forward svc/connector 5173:5173"
 echo "  open http://localhost:5173"
 ```
 
@@ -694,7 +694,7 @@ Check DNS resolution:
 
 ```bash
 # Exec into connector pod
-kubectl -n m2m-connector exec -it deployment/connector -- sh
+kubectl -n agent-runtime exec -it deployment/connector -- sh
 
 # Test DNS resolution
 nslookup tigerbeetle-0.tigerbeetle-headless.tigerbeetle.svc.cluster.local
@@ -724,10 +724,10 @@ Check logs:
 
 ```bash
 # Look for local delivery errors
-kubectl -n m2m-connector logs deployment/connector | grep -i "local delivery"
+kubectl -n agent-runtime logs deployment/connector | grep -i "local delivery"
 
 # Check environment variables
-kubectl -n m2m-connector get deployment connector -o yaml | grep -A5 LOCAL_DELIVERY
+kubectl -n agent-runtime get deployment connector -o yaml | grep -A5 LOCAL_DELIVERY
 ```
 
 ---
@@ -822,7 +822,7 @@ TigerBeetle cluster size is fixed after initialization. To change:
          ▼                       ▼
 ┌────────────────┐      ┌────────────────┐
 │   Connector    │      │ Agent Runtime  │
-│ (m2m-connector)│◄────►│(m2m-agent-rt)  │
+│ (agent-runtime)│◄────►│(m2m-agent-rt)  │
 └────┬───────────┘      └────┬───────────┘
      │                       │
      ▼                       ▼

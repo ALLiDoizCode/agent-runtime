@@ -7,4 +7,4 @@ metadata:
   labels:
     app.kubernetes.io/name: tigerbeetle
     app.kubernetes.io/component: accounting-database
-    app.kubernetes.io/part-of: m2m
+    app.kubernetes.io/part-of: agent-runtime

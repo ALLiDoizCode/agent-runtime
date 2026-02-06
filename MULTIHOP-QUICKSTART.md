@@ -6,7 +6,7 @@ Deploy and test a 5-peer ILP network with multi-hop packet routing in minutes.
 
 ```bash
 # 1. Build the connector
-docker build -t ilp-connector .
+docker build -t agent-runtime .
 
 # 2. Configure environment
 cp .env.example .env
@@ -46,7 +46,7 @@ g.peer1          g.peer2          g.peer3          g.peer4          g.peer5
 2. **Built Connector Image**
 
    ```bash
-   docker build -t ilp-connector .
+   docker build -t agent-runtime .
    ```
 
 3. **Environment Configuration**
@@ -390,4 +390,4 @@ For detailed documentation, see:
 For issues or questions:
 
 - Check logs: `docker-compose -f docker-compose-5-peer-multihop.yml logs`
-- Open GitHub issue: https://github.com/yourusername/m2m/issues
+- Open GitHub issue: https://github.com/ALLiDoizCode/agent-runtime/issues

@@ -28,7 +28,7 @@
 #   Stop:  docker-compose -f docker-compose-hub-spoke.yml down
 #
 # Prerequisites:
-#   1. Build the connector image: docker build -t ilp-connector -f packages/connector/Dockerfile .
+#   1. Build the connector image: docker build -t agent-runtime -f packages/connector/Dockerfile .
 #   2. Build the dashboard image: docker build -t ilp-dashboard -f packages/dashboard/Dockerfile .
 #   3. Docker Engine 20.10+ and Docker Compose 2.x installed
 #
@@ -48,7 +48,7 @@ services:
   # Hub Connector - Central relay point for spoke connectors
   # The hub must start first as spokes initiate BTP connections to it
   connector-hub:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-hub
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -67,7 +67,7 @@ services:
       - "3000:3000"  # BTP server port
       - "9080:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -79,7 +79,7 @@ services:
   # Spoke-1 - First spoke connector
   # Depends on hub being available for BTP connection
   spoke-1:
-    image: ilp-connector
+    image: agent-runtime
     container_name: spoke-1
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -94,7 +94,7 @@ services:
       - "3001:3001"  # BTP server port
       - "9081:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       - connector-hub
     restart: unless-stopped
@@ -108,7 +108,7 @@ services:
   # Spoke-2 - Second spoke connector
   # Depends on hub being available for BTP connection
   spoke-2:
-    image: ilp-connector
+    image: agent-runtime
     container_name: spoke-2
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -121,7 +121,7 @@ services:
       - "3002:3002"  # BTP server port
       - "9082:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       - connector-hub
     restart: unless-stopped
@@ -135,7 +135,7 @@ services:
   # Spoke-3 - Third spoke connector
   # Depends on hub being available for BTP connection
   spoke-3:
-    image: ilp-connector
+    image: agent-runtime
     container_name: spoke-3
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -148,7 +148,7 @@ services:
       - "3003:3003"  # BTP server port
       - "9083:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       - connector-hub
     restart: unless-stopped
@@ -163,5 +163,5 @@ services:
   # Visualization deferred to future standalone project.
 
 networks:
-  ilp-network:
+  agent-network:
     driver: bridge

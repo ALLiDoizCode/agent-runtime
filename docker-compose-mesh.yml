@@ -26,7 +26,7 @@
 #   Stop:  docker-compose -f docker-compose-mesh.yml down
 #
 # Prerequisites:
-#   1. Build the connector image: docker build -t ilp-connector -f packages/connector/Dockerfile .
+#   1. Build the connector image: docker build -t agent-runtime -f packages/connector/Dockerfile .
 #   2. Build the dashboard image: docker build -t ilp-dashboard -f packages/dashboard/Dockerfile .
 #   3. Docker Engine 20.10+ and Docker Compose 2.x installed
 #
@@ -45,7 +45,7 @@ version: '3.8'
 services:
   # Connector A - Node A in mesh
   connector-a:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-a
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -64,7 +64,7 @@ services:
       - "3000:3000"  # BTP server port
       - "9080:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -75,7 +75,7 @@ services:
 
   # Connector B - Node B in mesh
   connector-b:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-b
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -92,7 +92,7 @@ services:
       - "3001:3001"  # BTP server port
       - "9081:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -103,7 +103,7 @@ services:
 
   # Connector C - Node C in mesh
   connector-c:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-c
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -120,7 +120,7 @@ services:
       - "3002:3002"  # BTP server port
       - "9082:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -131,7 +131,7 @@ services:
 
   # Connector D - Node D in mesh (NEW for mesh topology)
   connector-d:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-d
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -148,7 +148,7 @@ services:
       - "3003:3003"  # BTP server port
       - "9083:8080"  # Health check HTTP port
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -161,5 +161,5 @@ services:
   # Visualization deferred to future standalone project.
 
 networks:
-  ilp-network:
+  agent-network:
     driver: bridge

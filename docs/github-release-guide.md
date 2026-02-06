@@ -122,7 +122,7 @@ git push origin v0.1.0
 
 ### Step 3: Create GitHub Release
 
-1. **Navigate to Releases** page: `https://github.com/yourusername/m2m/releases`
+1. **Navigate to Releases** page: `https://github.com/ALLiDoizCode/agent-runtime/releases`
 
 2. **Click "Draft a new release"**
 
@@ -198,11 +198,11 @@ Initial MVP release of the M2M ILP Connector - a complete educational implementa
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/m2m.git
+git clone https://github.com/ALLiDoizCode/agent-runtime.git
 cd m2m
 
 # Build Docker images
-docker build -t ilp-connector .
+docker build -t agent-runtime .
 docker build -t ilp-dashboard -f packages/dashboard/Dockerfile .
 
 # Start 3-node linear topology
@@ -257,7 +257,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-**Full Changelog**: https://github.com/yourusername/m2m/commits/v0.1.0
+**Full Changelog**: https://github.com/ALLiDoizCode/agent-runtime/commits/v0.1.0
 
 ````
 

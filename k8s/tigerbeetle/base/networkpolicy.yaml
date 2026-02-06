@@ -1,7 +1,7 @@
 # TigerBeetle NetworkPolicy
 # Restricts network access to TigerBeetle pods:
 #   - Allow inter-replica communication (consensus)
-#   - Allow access from m2m namespace (connectors)
+#   - Allow access from agent-runtime namespace (connectors)
 #   - Deny all other ingress
 #
 # IMPORTANT: Requires a CNI that supports NetworkPolicy (Calico, Cilium, etc.)
@@ -28,12 +28,12 @@ spec:
         - protocol: TCP
           port: 3000
 
-    # Allow access from m2m connector namespace
+    # Allow access from agent-runtime connector namespace
     # Adjust namespace label as needed for your deployment
     - from:
         - namespaceSelector:
             matchLabels:
-              app.kubernetes.io/part-of: m2m
+              app.kubernetes.io/part-of: agent-runtime
       ports:
         - protocol: TCP
           port: 3000

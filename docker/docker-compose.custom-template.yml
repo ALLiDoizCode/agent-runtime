@@ -37,7 +37,7 @@ services:
 
   # Example Connector 1
   connector-example-1:
-    image: ilp-connector
+    image: agent-runtime
     container_name: connector-example-1           # TODO: Change to unique name
     environment:
       CONFIG_FILE: /app/config.yaml               # Path to config file in container
@@ -49,7 +49,7 @@ services:
     ports:
       - "3000:3000"                               # TODO: Match btpServerPort in YAML config
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     healthcheck:
       interval: 30s
@@ -60,7 +60,7 @@ services:
   # Example Connector 2
   # TODO: Uncomment and customize this service
   # connector-example-2:
-  #   image: ilp-connector
+  #   image: agent-runtime
   #   container_name: connector-example-2
   #   environment:
   #     CONFIG_FILE: /app/config.yaml
@@ -71,7 +71,7 @@ services:
   #   ports:
   #     - "3001:3001"
   #   networks:
-  #     - ilp-network
+  #     - agent-network
   #   depends_on:
   #     - connector-example-1
   #   restart: unless-stopped
@@ -85,7 +85,7 @@ services:
   # Follow the pattern above, incrementing ports and creating corresponding YAML configs
 
 networks:
-  ilp-network:
+  agent-network:
     driver: bridge
 
 # Tips for Custom Topologies:

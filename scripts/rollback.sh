@@ -9,7 +9,7 @@
 # Environment Variables:
 #   DEPLOY_PATH: Path to deployment directory (default: /opt/m2m)
 #   REGISTRY: Docker registry (default: ghcr.io)
-#   IMAGE_NAME: Docker image name (default: <org>/m2m-connector)
+#   IMAGE_NAME: Docker image name (default: <org>/agent-runtime)
 #   HEALTH_CHECK_URL: Health check endpoint (default: http://localhost:8080/health)
 #   HEALTH_CHECK_TIMEOUT: Timeout in seconds (default: 60)
 #
@@ -161,8 +161,8 @@ usage() {
     echo "  HEALTH_CHECK_TIMEOUT Timeout in seconds (default: 60)"
     echo ""
     echo "Example:"
-    echo "  IMAGE_NAME=myorg/m2m-connector $0 v1.2.3"
-    echo "  IMAGE_NAME=myorg/m2m-connector $0  # Uses .previous-tag"
+    echo "  IMAGE_NAME=myorg/agent-runtime $0 v1.2.3"
+    echo "  IMAGE_NAME=myorg/agent-runtime $0  # Uses .previous-tag"
 }
 
 # Main entry point

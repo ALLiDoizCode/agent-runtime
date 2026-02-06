@@ -668,7 +668,7 @@ chmod 644 /etc/ssl/certs/connector.crt
 #### Option 1: Nginx Reverse Proxy (Recommended)
 
 ```nginx
-# /etc/nginx/sites-available/m2m-connector
+# /etc/nginx/sites-available/agent-runtime
 
 upstream connector_btp {
     server 127.0.0.1:4000;
@@ -752,7 +752,7 @@ services:
       - 'letsencrypt:/letsencrypt'
 
   connector:
-    image: m2m/connector:latest
+    image: agent-runtime/connector:latest
     labels:
       - 'traefik.enable=true'
       - 'traefik.http.routers.connector.rule=Host(`connector.example.com`)'
@@ -877,7 +877,7 @@ gcloud kms keys update evm-signing-key \
 ```bash
 # Environment configuration
 KEY_BACKEND=azure-kv
-AZURE_VAULT_URL=https://m2m-connector-vault.vault.azure.net
+AZURE_VAULT_URL=https://agent-runtime-vault.vault.azure.net
 AZURE_EVM_KEY_NAME=evm-signing-key
 AZURE_XRP_KEY_NAME=xrp-signing-key
 AZURE_TENANT_ID=00000000-0000-0000-0000-000000000000
@@ -889,28 +889,28 @@ AZURE_CLIENT_ID=00000000-0000-0000-0000-000000000000
 ```bash
 # Create Key Vault
 az keyvault create \
-  --name m2m-connector-vault \
+  --name agent-runtime-vault \
   --resource-group m2m-production \
   --location eastus \
   --sku premium  # Use premium for HSM-backed keys
 
 # Create EVM signing key
 az keyvault key create \
-  --vault-name m2m-connector-vault \
+  --vault-name agent-runtime-vault \
   --name evm-signing-key \
   --kty EC \
   --curve P-256K
 
 # Create XRP signing key
 az keyvault key create \
-  --vault-name m2m-connector-vault \
+  --vault-name agent-runtime-vault \
   --name xrp-signing-key \
   --kty EC \
   --curve Ed25519
 
 # Set up rotation policy
 az keyvault key rotation-policy update \
-  --vault-name m2m-connector-vault \
+  --vault-name agent-runtime-vault \
   --name evm-signing-key \
   --value @rotation-policy.json
 ```
@@ -935,11 +935,11 @@ PRIVATE_KEY=0x1234567890abcdef...
 ```bash
 # Store secret in AWS Secrets Manager
 aws secretsmanager create-secret \
-  --name m2m/connector/api-key \
+  --name agent-runtime/connector/api-key \
   --secret-string "your-api-key"
 
 # Reference in application (not .env)
-API_KEY=$(aws secretsmanager get-secret-value --secret-id m2m/connector/api-key --query SecretString --output text)
+API_KEY=$(aws secretsmanager get-secret-value --secret-id agent-runtime/connector/api-key --query SecretString --output text)
 ```
 
 2. **Docker Secrets (Swarm)**
@@ -992,7 +992,7 @@ NEW_KEY=$(openssl rand -hex 32)
 
 # Update in secrets manager
 aws secretsmanager update-secret \
-  --secret-id m2m/connector/api-key \
+  --secret-id agent-runtime/connector/api-key \
   --secret-string "$NEW_KEY"
 
 # Restart connector to pick up new secret
@@ -1219,7 +1219,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # docker-compose-production.yml
 services:
   connector:
-    image: m2m/connector:v1.2.0
+    image: agent-runtime/connector:v1.2.0
     user: '1000:1000' # Run as non-root
     read_only: true # Read-only filesystem
     security_opt:
@@ -1241,13 +1241,13 @@ services:
 
 ```bash
 # Scan image for vulnerabilities
-docker scout cves m2m/connector:v1.2.0
+docker scout cves agent-runtime/connector:v1.2.0
 
 # Or use Trivy
-trivy image m2m/connector:v1.2.0
+trivy image agent-runtime/connector:v1.2.0
 
 # Fail CI on critical vulnerabilities
-trivy image --exit-code 1 --severity CRITICAL m2m/connector:v1.2.0
+trivy image --exit-code 1 --severity CRITICAL agent-runtime/connector:v1.2.0
 ```
 
 ---

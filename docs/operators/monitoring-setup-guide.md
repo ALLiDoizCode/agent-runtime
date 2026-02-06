@@ -172,7 +172,7 @@ rule_files:
 
 scrape_configs:
   # ILP Connector metrics
-  - job_name: 'ilp-connector'
+  - job_name: 'agent-runtime'
     static_configs:
       - targets: ['connector:8080']
     metrics_path: /metrics
@@ -354,7 +354,7 @@ route:
 receivers:
   - name: 'slack-notifications'
     slack_configs:
-      - channel: '#ilp-connector-alerts'
+      - channel: '#agent-runtime-alerts'
         send_resolved: true
         title: '{{ .Status | toUpper }}: {{ .CommonAnnotations.summary }}'
         text: '{{ .CommonAnnotations.description }}'
@@ -404,7 +404,7 @@ Enable tracing in the connector configuration:
 observability:
   opentelemetry:
     enabled: true
-    serviceName: 'ilp-connector'
+    serviceName: 'agent-runtime'
     exporterEndpoint: 'http://jaeger:4318/v1/traces'
     samplingRatio: 1.0 # 100% sampling for dev, reduce in production
 ```
@@ -413,7 +413,7 @@ Or via environment variables:
 
 ```bash
 OTEL_ENABLED=true
-OTEL_SERVICE_NAME=ilp-connector
+OTEL_SERVICE_NAME=agent-runtime
 OTEL_EXPORTER_ENDPOINT=http://jaeger:4318/v1/traces
 OTEL_SAMPLING_RATIO=1.0
 ```
@@ -504,7 +504,7 @@ filebeat.inputs:
 
 output.elasticsearch:
   hosts: ['elasticsearch:9200']
-  index: 'ilp-connector-%{+yyyy.MM.dd}'
+  index: 'agent-runtime-%{+yyyy.MM.dd}'
 ```
 
 #### Logstash Configuration
@@ -530,7 +530,7 @@ filter {
 output {
   elasticsearch {
     hosts => ["elasticsearch:9200"]
-    index => "ilp-connector-%{+YYYY.MM.dd}"
+    index => "agent-runtime-%{+YYYY.MM.dd}"
   }
 }
 ```
@@ -558,7 +558,7 @@ Add labels to connector container:
 services:
   connector:
     labels:
-      com.datadoghq.ad.logs: '[{"source": "ilp-connector", "service": "ilp-connector"}]'
+      com.datadoghq.ad.logs: '[{"source": "agent-runtime", "service": "agent-runtime"}]'
 ```
 
 ### AWS CloudWatch Integration
@@ -584,8 +584,8 @@ CloudWatch agent configuration:
       "files": {
         "collect_list": [
           {
-            "file_path": "/var/log/containers/ilp-connector*.log",
-            "log_group_name": "/ilp-connector/logs",
+            "file_path": "/var/log/containers/agent-runtime*.log",
+            "log_group_name": "/agent-runtime/logs",
             "log_stream_name": "{instance_id}",
             "timezone": "UTC"
           }
@@ -697,7 +697,7 @@ observability:
 
   opentelemetry:
     enabled: true # Enable distributed tracing
-    serviceName: 'ilp-connector' # Service name in traces
+    serviceName: 'agent-runtime' # Service name in traces
     exporterEndpoint: 'http://jaeger:4318/v1/traces' # OTLP endpoint
     samplingRatio: 0.1 # Sample 10% of traces
 
@@ -714,7 +714,7 @@ observability:
 | `PROMETHEUS_ENABLED`               | Enable Prometheus metrics    | `true`                  |
 | `PROMETHEUS_METRICS_PATH`          | Metrics endpoint path        | `/metrics`              |
 | `OTEL_ENABLED`                     | Enable OpenTelemetry tracing | `false`                 |
-| `OTEL_SERVICE_NAME`                | Service name for traces      | `ilp-connector`         |
+| `OTEL_SERVICE_NAME`                | Service name for traces      | `agent-runtime`         |
 | `OTEL_EXPORTER_ENDPOINT`           | OTLP exporter endpoint       | `http://localhost:4318` |
 | `OTEL_SAMPLING_RATIO`              | Trace sampling ratio         | `1.0`                   |
 | `SLA_PACKET_SUCCESS_THRESHOLD`     | Packet success rate SLA      | `0.999`                 |

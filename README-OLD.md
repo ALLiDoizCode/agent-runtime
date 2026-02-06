@@ -1,7 +1,7 @@
 # M2M - Multi-node Interledger Connector
 
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](CHANGELOG.md)
-[![CI](https://github.com/yourusername/m2m/workflows/CI/badge.svg)](https://github.com/yourusername/m2m/actions)
+[![CI](https://github.com/ALLiDoizCode/agent-runtime/workflows/CI/badge.svg)](https://github.com/ALLiDoizCode/agent-runtime/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-22.11.0-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -98,10 +98,10 @@ m2m/
 
 ### Package Purposes
 
-- **@m2m/connector**: Node.js service that implements ILPv4 routing, BTP protocol, and telemetry emission
-- **@m2m/shared**: Pure TypeScript package with ILP packet types, OER encoding, and validation utilities
+- **@agent-runtime/connector**: Node.js service that implements ILPv4 routing, BTP protocol, and telemetry emission
+- **@agent-runtime/shared**: Pure TypeScript package with ILP packet types, OER encoding, and validation utilities
 
-> **Note**: The `@m2m/dashboard` package has been deferred - see [DASHBOARD-DEFERRED.md](DASHBOARD-DEFERRED.md) for details.
+> **Note**: The `@agent-runtime/dashboard` package has been deferred - see [DASHBOARD-DEFERRED.md](DASHBOARD-DEFERRED.md) for details.
 
 ## Prerequisites
 
@@ -191,7 +191,7 @@ The development environment includes local blockchain nodes and settlement infra
 **Step 1: Clone Repository and Install Dependencies**
 
 ```bash
-git clone https://github.com/yourusername/m2m.git
+git clone https://github.com/ALLiDoizCode/agent-runtime.git
 cd m2m
 npm install
 ```
@@ -528,21 +528,21 @@ Get up and running with a 3-node ILP network in under 10 minutes:
 ### 1. Clone the Repository (~5 seconds)
 
 ```bash
-git clone https://github.com/yourusername/m2m.git
+git clone https://github.com/ALLiDoizCode/agent-runtime.git
 cd m2m
 ```
 
 ### 2. Build Docker Image (~2 minutes)
 
 ```bash
-docker build -t ilp-connector .
+docker build -t agent-runtime .
 ```
 
 **Expected Output:**
 
 ```
 Successfully built abc123def456
-Successfully tagged ilp-connector:latest
+Successfully tagged agent-runtime:latest
 ```
 
 ### 3. Start the Network (~30 seconds)
@@ -738,7 +738,7 @@ For rapid development with hot module replacement:
 
 ```bash
 # Start connector in watch mode
-npm run dev --workspace=@m2m/connector
+npm run dev --workspace=@agent-runtime/connector
 ```
 
 ### Running Tests with Coverage
@@ -773,7 +773,7 @@ The E2E test validates full system integration by deploying a 3-node network, se
 
 - Docker and Docker Compose installed
 - Docker daemon running
-- Built connector image: `docker build -t ilp-connector .`
+- Built connector image: `docker build -t agent-runtime .`
 
 **Running the E2E Test:**
 
@@ -865,7 +865,7 @@ The connector can be deployed as a Docker container for production or testing.
 #### Build Docker Image
 
 ```bash
-docker build -t ilp-connector .
+docker build -t agent-runtime .
 ```
 
 The multi-stage Dockerfile produces an optimized Alpine-based image (~150-200MB) with:
@@ -885,7 +885,7 @@ docker run -d \
   -e BTP_SERVER_PORT=3000 \
   -p 3000:3000 \
   --name connector-a \
-  ilp-connector
+  agent-runtime
 ```
 
 **With custom configuration:**
@@ -897,7 +897,7 @@ docker run -d \
   -e LOG_LEVEL=debug \
   -p 4000:4000 \
   --name my-connector \
-  ilp-connector
+  agent-runtime
 ```
 
 #### Environment Variables
@@ -948,7 +948,7 @@ docker inspect --format='{{.State.Health.Status}}' connector-a
 lsof -i :3000
 
 # Use a different port
-docker run -e BTP_SERVER_PORT=3001 -p 3001:3001 ilp-connector
+docker run -e BTP_SERVER_PORT=3001 -p 3001:3001 agent-runtime
 ```
 
 **Container fails to start:**
@@ -1169,7 +1169,7 @@ Deploy a multi-node ILP network with a single command using Docker Compose. This
 
 - **Docker Engine**: 20.10+ ([Install Docker](https://docs.docker.com/engine/install/))
 - **Docker Compose**: 2.x ([Install Docker Compose](https://docs.docker.com/compose/install/))
-- **Connector Image**: Build the image first: `docker build -t ilp-connector .`
+- **Connector Image**: Build the image first: `docker build -t agent-runtime .`
 
 ### Quick Start
 
@@ -1177,7 +1177,7 @@ Deploy a multi-node ILP network with a single command using Docker Compose. This
 
 ```bash
 # Build the connector image
-docker build -t ilp-connector .
+docker build -t agent-runtime .
 
 # Start the network (connectors only)
 docker-compose up -d
@@ -1302,7 +1302,7 @@ To add or remove connectors, follow these steps:
 
 ```yaml
 connector-new:
-  image: ilp-connector
+  image: agent-runtime
   container_name: connector-new
   environment:
     NODE_ID: connector-new
@@ -1827,8 +1827,8 @@ ports:
 
 **Solutions**:
 
-1. Check if image was built: `docker images | grep ilp-connector`
-2. Rebuild image: `docker build -t ilp-connector .`
+1. Check if image was built: `docker images | grep agent-runtime`
+2. Rebuild image: `docker build -t agent-runtime .`
 3. View container logs: `docker-compose logs <service-name>`
 4. Check for port conflicts: `lsof -i :3000` (or relevant port)
 
@@ -1913,14 +1913,14 @@ Deploy a production-ready ILP connector stack with TigerBeetle accounting, monit
 
 ```bash
 # 1. Run the onboarding wizard to generate configuration
-npx @m2m/connector setup
+npx @agent-runtime/connector setup
 
 # 2. Initialize TigerBeetle (one-time)
 docker run --rm -v tigerbeetle-data:/data tigerbeetle/tigerbeetle \
   format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
 
 # 3. Build the connector image
-docker build -t m2m/connector:latest .
+docker build -t agent-runtime/connector:latest .
 
 # 4. Start all services
 docker compose -f docker-compose-production.yml up -d
@@ -1973,7 +1973,7 @@ The production deployment configuration (`docker-compose-production.yml`) is opt
 
 - **Docker Engine**: 20.10+ ([Install Docker](https://docs.docker.com/engine/install/))
 - **Docker Compose**: 2.x ([Install Docker Compose](https://docs.docker.com/compose/install/))
-- **Connector Image**: Build the image first: `docker build -t ilp-connector .`
+- **Connector Image**: Build the image first: `docker build -t agent-runtime .`
 
 ### Quick Start
 
@@ -2519,7 +2519,7 @@ Enable distributed tracing to track packet flow across multi-hop connector netwo
 observability:
   opentelemetry:
     enabled: true
-    serviceName: 'ilp-connector'
+    serviceName: 'agent-runtime'
     exporterEndpoint: 'http://jaeger:4318/v1/traces'
     samplingRatio: 1.0 # 100% sampling (reduce in production)
 ```

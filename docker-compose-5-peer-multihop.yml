@@ -12,7 +12,7 @@
 #
 # Prerequisites:
 # - Docker and Docker Compose installed
-# - Built connector image: docker build -t ilp-connector .
+# - Built connector image: docker build -t agent-runtime .
 # - TigerBeetle cluster is automatically initialized on first deployment
 #
 # Usage:
@@ -47,7 +47,7 @@ services:
     volumes:
       - /tmp/m2m-tigerbeetle:/data
     networks:
-      - ilp-network
+      - agent-network
     restart: unless-stopped
     # TigerBeetle healthcheck: The minimal image has no shell/nc, so we disable
     # the healthcheck and rely on start_period + depends_on: service_started
@@ -60,7 +60,7 @@ services:
 
   # Peer 1 - Entry node (receives external packets)
   peer1:
-    image: ilp-connector
+    image: agent-runtime
     container_name: peer1
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -101,7 +101,7 @@ services:
       - "5173:5173"  # Explorer UI
       - "8181:8081"  # Admin API (internal network access recommended)
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       tigerbeetle-5peer:
         condition: service_started
@@ -118,7 +118,7 @@ services:
 
   # Peer 2 - Transit node 1
   peer2:
-    image: ilp-connector
+    image: agent-runtime
     container_name: peer2
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -163,7 +163,7 @@ services:
       - "5174:5174"  # Explorer UI
       - "8182:8081"  # Admin API (internal network access recommended)
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       tigerbeetle-5peer:
         condition: service_started
@@ -182,7 +182,7 @@ services:
 
   # Peer 3 - Transit node 2 (middle)
   peer3:
-    image: ilp-connector
+    image: agent-runtime
     container_name: peer3
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -227,7 +227,7 @@ services:
       - "5175:5175"  # Explorer UI
       - "8183:8081"  # Admin API (internal network access recommended)
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       tigerbeetle-5peer:
         condition: service_started
@@ -246,7 +246,7 @@ services:
 
   # Peer 4 - Transit node 3
   peer4:
-    image: ilp-connector
+    image: agent-runtime
     container_name: peer4
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -293,7 +293,7 @@ services:
       - "5176:5176"  # Explorer UI
       - "8184:8081"  # Admin API (internal network access recommended)
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       tigerbeetle-5peer:
         condition: service_started
@@ -312,7 +312,7 @@ services:
 
   # Peer 5 - Exit node (destination)
   peer5:
-    image: ilp-connector
+    image: agent-runtime
     container_name: peer5
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -352,7 +352,7 @@ services:
       - "5177:5177"  # Explorer UI
       - "8185:8081"  # Admin API (internal network access recommended)
     networks:
-      - ilp-network
+      - agent-network
     depends_on:
       tigerbeetle-5peer:
         condition: service_started
@@ -378,10 +378,10 @@ services:
   #   ports:
   #     - "8545:8545"
   #   networks:
-  #     - ilp-network
+  #     - agent-network
 
 networks:
-  ilp-network:
+  agent-network:
     driver: bridge
 
 # ===========================================================================

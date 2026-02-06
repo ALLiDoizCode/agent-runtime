@@ -20,7 +20,7 @@
 #
 # Prerequisites:
 #   1. OrbStack installed and running (https://orbstack.dev)
-#   2. Built connector image: docker build -t ilp-connector .
+#   2. Built connector image: docker build -t agent-runtime .
 #   3. Treasury wallet configured in .env (TREASURY_EVM_PRIVATE_KEY, TREASURY_XRP_PRIVATE_KEY)
 #   4. Base L2 RPC running (Anvil or Base testnet)
 #   5. XRP Ledger testnet access
@@ -201,10 +201,10 @@ fi
 echo -e "${GREEN}✓ Docker Compose is available (via OrbStack)${NC}"
 
 # Check connector image (uses OrbStack's docker CLI)
-if ! docker images ilp-connector:latest --format "{{.Repository}}" | grep -q "ilp-connector"; then
+if ! docker images agent-runtime:latest --format "{{.Repository}}" | grep -q "agent-runtime"; then
   echo -e "${YELLOW}⚠ Connector image not found. Building with OrbStack...${NC}"
   cd "${PROJECT_ROOT}"
-  docker build -t ilp-connector .
+  docker build -t agent-runtime .
 fi
 echo -e "${GREEN}✓ Connector image available${NC}"
 

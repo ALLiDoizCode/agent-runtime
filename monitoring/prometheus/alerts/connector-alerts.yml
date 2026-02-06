@@ -2,7 +2,7 @@
 # Defines alerts for monitoring connector health, performance, and settlement operations
 
 groups:
-  - name: ilp-connector-alerts
+  - name: agent-runtime-alerts
     rules:
       # High Packet Error Rate - Warning if >5% error rate for 2 minutes
       - alert: HighPacketErrorRate
@@ -77,7 +77,7 @@ groups:
 
       # Connector Down - Critical if connector is unreachable
       - alert: ConnectorDown
-        expr: up{job="ilp-connector"} == 0
+        expr: up{job="agent-runtime"} == 0
         for: 1m
         labels:
           severity: critical

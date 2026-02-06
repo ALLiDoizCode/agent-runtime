@@ -288,7 +288,7 @@ echo "[$(date)] Weekly full backup completed"
 docker compose -f docker-compose-production.yml ps
 
 # 2. Check logs
-docker logs m2m-connector --tail 100
+docker logs agent-runtime --tail 100
 
 # 3. Restart failed container
 docker compose -f docker-compose-production.yml restart connector

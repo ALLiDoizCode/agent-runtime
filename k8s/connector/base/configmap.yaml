@@ -9,13 +9,13 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: connector-config
-  namespace: m2m-connector
+  namespace: agent-runtime
   labels:
-    app.kubernetes.io/name: m2m-connector
+    app.kubernetes.io/name: agent-runtime
     app.kubernetes.io/component: config
 data:
   # Core Settings
-  NODE_ID: "m2m-connector"
+  NODE_ID: "agent-runtime"
   LOG_LEVEL: "info"
 
   # Network Mode: 'testnet' | 'mainnet'

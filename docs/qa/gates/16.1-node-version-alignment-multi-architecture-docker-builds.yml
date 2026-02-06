@@ -66,7 +66,7 @@ recommendations:
       refs: []
       priority: "low"
       owner: "dev"
-      command: "docker buildx imagetools inspect ghcr.io/<owner>/m2m-connector:latest"
+      command: "docker buildx imagetools inspect ghcr.io/<owner>/agent-runtime:latest"
 
   future:
     - action: "Monitor CI build times - if exceeds 15 min, consider matrix build strategy"

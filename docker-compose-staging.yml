@@ -13,7 +13,7 @@
 # public testnet nodes - no local blockchain containers needed.
 #
 # Prerequisites:
-#   1. Build connector image: docker build -t m2m/connector:latest .
+#   1. Build connector image: docker build -t agent-runtime/connector:latest .
 #   2. Initialize TigerBeetle (one-time):
 #      docker run --rm -v tigerbeetle-staging-data:/data tigerbeetle/tigerbeetle \
 #        format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
@@ -63,7 +63,7 @@ services:
   # M2M ILP Connector - Core Payment Processing (Staging / Testnets)
   # ===========================================================================
   connector:
-    image: m2m/connector:latest
+    image: agent-runtime/connector:latest
     build:
       context: .
       dockerfile: Dockerfile

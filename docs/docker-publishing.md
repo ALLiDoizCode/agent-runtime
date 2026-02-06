@@ -23,12 +23,12 @@ The M2M project currently builds Docker images locally for use with Docker Compo
 
 ```bash
 # Connector image
-docker tag ilp-connector:latest yourusername/ilp-connector:0.1.0
-docker tag ilp-connector:latest yourusername/ilp-connector:latest
+docker tag agent-runtime:latest ALLiDoizCode/agent-runtime:0.1.0
+docker tag agent-runtime:latest ALLiDoizCode/agent-runtime:latest
 
 # Dashboard image
-docker tag ilp-dashboard:latest yourusername/ilp-dashboard:0.1.0
-docker tag ilp-dashboard:latest yourusername/ilp-dashboard:latest
+docker tag ilp-dashboard:latest ALLiDoizCode/ilp-dashboard:0.1.0
+docker tag ilp-dashboard:latest ALLiDoizCode/ilp-dashboard:latest
 ```
 
 ### 2. Push Images
@@ -38,12 +38,12 @@ docker tag ilp-dashboard:latest yourusername/ilp-dashboard:latest
 docker login
 
 # Push connector
-docker push yourusername/ilp-connector:0.1.0
-docker push yourusername/ilp-connector:latest
+docker push ALLiDoizCode/agent-runtime:0.1.0
+docker push ALLiDoizCode/agent-runtime:latest
 
 # Push dashboard
-docker push yourusername/ilp-dashboard:0.1.0
-docker push yourusername/ilp-dashboard:latest
+docker push ALLiDoizCode/ilp-dashboard:0.1.0
+docker push ALLiDoizCode/ilp-dashboard:latest
 ```
 
 ### 3. Update Docker Compose
@@ -53,7 +53,7 @@ Update `docker-compose.yml` and other compose files to use published images:
 ```yaml
 services:
   connector-a:
-    image: yourusername/ilp-connector:0.1.0
+    image: ALLiDoizCode/agent-runtime:0.1.0
     # Remove 'build:' directive
 ```
 
@@ -74,12 +74,12 @@ echo YOUR_TOKEN | docker login ghcr.io -u YOUR_USERNAME --password-stdin
 
 ```bash
 # Connector
-docker tag ilp-connector:latest ghcr.io/yourusername/ilp-connector:0.1.0
-docker push ghcr.io/yourusername/ilp-connector:0.1.0
+docker tag agent-runtime:latest ghcr.io/ALLiDoizCode/agent-runtime:0.1.0
+docker push ghcr.io/ALLiDoizCode/agent-runtime:0.1.0
 
 # Dashboard
-docker tag ilp-dashboard:latest ghcr.io/yourusername/ilp-dashboard:0.1.0
-docker push ghcr.io/yourusername/ilp-dashboard:0.1.0
+docker tag ilp-dashboard:latest ghcr.io/ALLiDoizCode/ilp-dashboard:0.1.0
+docker push ghcr.io/ALLiDoizCode/ilp-dashboard:0.1.0
 ```
 
 ## Automated Publishing with GitHub Actions
@@ -170,21 +170,21 @@ Follow semantic versioning for image tags:
 Example tagging for v0.1.0 release:
 
 ```bash
-docker tag ilp-connector:latest yourusername/ilp-connector:0.1.0
-docker tag ilp-connector:latest yourusername/ilp-connector:0.1
-docker tag ilp-connector:latest yourusername/ilp-connector:0
-docker tag ilp-connector:latest yourusername/ilp-connector:latest
+docker tag agent-runtime:latest ALLiDoizCode/agent-runtime:0.1.0
+docker tag agent-runtime:latest ALLiDoizCode/agent-runtime:0.1
+docker tag agent-runtime:latest ALLiDoizCode/agent-runtime:0
+docker tag agent-runtime:latest ALLiDoizCode/agent-runtime:latest
 ```
 
 ## Security Considerations
 
 - **Image Scanning**: Scan images for vulnerabilities before publishing
   ```bash
-  docker scan yourusername/ilp-connector:0.1.0
+  docker scan ALLiDoizCode/agent-runtime:0.1.0
   ```
 - **Multi-arch**: Consider building for multiple architectures (amd64, arm64)
   ```bash
-  docker buildx build --platform linux/amd64,linux/arm64 -t yourusername/ilp-connector:0.1.0 --push .
+  docker buildx build --platform linux/amd64,linux/arm64 -t ALLiDoizCode/agent-runtime:0.1.0 --push .
   ```
 - **Secrets**: Never include secrets in images - use environment variables
 - **Private Registries**: For production, use private registries with access controls
@@ -195,10 +195,10 @@ Users can pull and run published images:
 
 ```bash
 # Pull connector
-docker pull yourusername/ilp-connector:0.1.0
+docker pull ALLiDoizCode/agent-runtime:0.1.0
 
 # Pull dashboard
-docker pull yourusername/ilp-dashboard:0.1.0
+docker pull ALLiDoizCode/ilp-dashboard:0.1.0
 
 # Run with docker-compose (using published images)
 docker-compose up -d
@@ -216,7 +216,7 @@ docker-compose up -d
 **As of v0.1.0**: Docker images are NOT published to any public registry. Users must build images locally using:
 
 ```bash
-docker build -t ilp-connector .
+docker build -t agent-runtime .
 docker build -t ilp-dashboard -f packages/dashboard/Dockerfile .
 ```
 

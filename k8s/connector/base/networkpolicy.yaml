@@ -4,13 +4,13 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: connector
-  namespace: m2m-connector
+  namespace: agent-runtime
   labels:
-    app.kubernetes.io/name: m2m-connector
+    app.kubernetes.io/name: agent-runtime
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: m2m-connector
+      app.kubernetes.io/name: agent-runtime
   policyTypes:
     - Ingress
     - Egress
