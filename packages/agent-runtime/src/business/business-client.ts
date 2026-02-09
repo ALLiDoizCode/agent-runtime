@@ -2,17 +2,11 @@
  * Business Logic Client
  *
  * HTTP client for communicating with the user's business logic container.
- * Handles payment handling and optional SPSP setup hooks.
+ * Handles payment requests.
  */
 
 import { Logger } from 'pino';
-import {
-  PaymentRequest,
-  PaymentResponse,
-  PaymentSetupRequest,
-  PaymentSetupResponse,
-  REJECT_CODE_MAP,
-} from '../types';
+import { PaymentRequest, PaymentResponse, REJECT_CODE_MAP } from '../types';
 
 export interface BusinessClientConfig {
   /** URL to business logic handler */
@@ -106,87 +100,6 @@ export class BusinessClient {
           code: 'internal_error',
           message: error instanceof Error ? error.message : 'Unknown error calling business logic',
         },
-      };
-    }
-  }
-
-  /**
-   * Call the optional payment setup hook.
-   *
-   * POST /payment-setup
-   *
-   * This is called when an SPSP endpoint is queried, allowing
-   * business logic to customize the payment setup.
-   *
-   * @param request - Payment setup request
-   * @returns Payment setup response, or default allow response if endpoint not found
-   */
-  async paymentSetup(request: PaymentSetupRequest): Promise<PaymentSetupResponse> {
-    const url = `${this.config.businessLogicUrl}/payment-setup`;
-
-    this.logger.debug({ paymentId: request.paymentId, url }, 'Calling payment setup hook');
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      // 404 means the hook is not implemented - allow by default
-      if (response.status === 404) {
-        this.logger.debug('Payment setup hook not implemented, allowing by default');
-        return { allow: true };
-      }
-
-      if (!response.ok) {
-        this.logger.warn({ status: response.status }, 'Payment setup hook returned error status');
-
-        return {
-          allow: false,
-          errorMessage: `Payment setup hook returned status ${response.status}`,
-        };
-      }
-
-      const result = (await response.json()) as PaymentSetupResponse;
-
-      this.logger.debug(
-        { paymentId: request.paymentId, allow: result.allow },
-        'Payment setup hook response'
-      );
-
-      return result;
-    } catch (error) {
-      // Connection errors (endpoint not available) - allow by default
-      if (
-        error instanceof Error &&
-        (error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed'))
-      ) {
-        this.logger.debug('Business logic not available, allowing payment setup by default');
-        return { allow: true };
-      }
-
-      this.logger.error({ error }, 'Failed to call payment setup hook');
-
-      if (error instanceof Error && error.name === 'AbortError') {
-        return {
-          allow: false,
-          errorMessage: 'Payment setup hook timed out',
-        };
-      }
-
-      return {
-        allow: false,
-        errorMessage:
-          error instanceof Error ? error.message : 'Unknown error calling payment setup',
       };
     }
   }

@@ -10,7 +10,7 @@
  * Received when an ILP payment packet arrives.
  */
 export interface PaymentRequest {
-  /** Unique payment identifier (from SPSP session) */
+  /** Unique payment identifier */
   paymentId: string;
   /** Full ILP destination address */
   destination: string;
@@ -18,9 +18,9 @@ export interface PaymentRequest {
   amount: string;
   /** ISO 8601 expiration timestamp */
   expiresAt: string;
-  /** Base64-encoded STREAM data (optional) */
+  /** Base64-encoded application data (optional) */
   data?: string;
-  /** Metadata from SPSP setup (optional) */
+  /** Metadata (optional) */
   metadata?: Record<string, string>;
 }
 
@@ -49,30 +49,4 @@ export interface PaymentResponse {
     /** Human-readable error message */
     message: string;
   };
-}
-
-/**
- * Payment setup request from Agent Runtime.
- * Called when SPSP endpoint is queried (before payment begins).
- */
-export interface PaymentSetupRequest {
-  /** Payment ID from SPSP query path (optional) */
-  paymentId?: string;
-  /** Query parameters from SPSP request */
-  queryParams?: Record<string, string>;
-}
-
-/**
- * Payment setup response to Agent Runtime.
- * Controls whether the payment setup is allowed.
- */
-export interface PaymentSetupResponse {
-  /** Whether to allow this payment setup */
-  allow: boolean;
-  /** Metadata to attach to the payment session (optional) */
-  metadata?: Record<string, string>;
-  /** Custom payment ID (optional, generated if not provided) */
-  paymentId?: string;
-  /** Error message if allow is false */
-  errorMessage?: string;
 }

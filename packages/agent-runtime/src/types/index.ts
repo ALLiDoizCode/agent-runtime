@@ -1,30 +1,10 @@
 /**
  * Agent Runtime Type Definitions
  *
- * This module provides TypeScript type definitions for the Agent Runtime,
- * which handles ILP/SPSP/STREAM protocol complexity for business logic agents.
+ * ILP middleware type definitions for the Agent Runtime.
  */
 
 import type { ILPPreparePacket, ILPFulfillPacket, ILPRejectPacket } from '@agent-runtime/shared';
-
-/**
- * Payment session stored by the runtime.
- * Contains the shared secret for STREAM fulfillment computation.
- */
-export interface PaymentSession {
-  /** Unique payment identifier (used as ILP address suffix) */
-  paymentId: string;
-  /** 32-byte STREAM shared secret for fulfillment computation */
-  sharedSecret: Buffer;
-  /** Full ILP destination address for this payment */
-  destinationAddress: string;
-  /** Optional metadata from SPSP setup */
-  metadata?: Record<string, string>;
-  /** When the session was created */
-  createdAt: Date;
-  /** When the session expires (optional) */
-  expiresAt?: Date;
-}
 
 /**
  * Payment request sent to business logic handler.
@@ -39,9 +19,9 @@ export interface PaymentRequest {
   amount: string;
   /** ISO 8601 expiration timestamp */
   expiresAt: string;
-  /** Decoded STREAM data (base64) */
+  /** Base64-encoded application data (optional) */
   data?: string;
-  /** Session metadata from SPSP setup */
+  /** Session metadata (optional) */
   metadata?: Record<string, string>;
 }
 
@@ -106,44 +86,6 @@ export interface LocalDeliveryResponse {
 }
 
 /**
- * SPSP (Simple Payment Setup Protocol) response.
- * Returned when a sender queries the SPSP endpoint.
- *
- * @see https://interledger.org/rfcs/0009-simple-payment-setup-protocol/
- */
-export interface SPSPResponse {
-  /** Full ILP destination address for this payment */
-  destination_account: string;
-  /** Base64-encoded shared secret for STREAM */
-  shared_secret: string;
-}
-
-/**
- * Optional hook called when SPSP endpoint is queried.
- * Allows business logic to customize payment setup.
- */
-export interface PaymentSetupRequest {
-  /** Payment ID from the SPSP query path */
-  paymentId?: string;
-  /** Query parameters from SPSP request */
-  queryParams?: Record<string, string>;
-}
-
-/**
- * Response from payment setup hook.
- */
-export interface PaymentSetupResponse {
-  /** Whether to allow this payment setup */
-  allow: boolean;
-  /** Optional metadata to attach to the session */
-  metadata?: Record<string, string>;
-  /** Custom payment ID (if not provided, one is generated) */
-  paymentId?: string;
-  /** Error message if allow is false */
-  errorMessage?: string;
-}
-
-/**
  * Agent Runtime configuration.
  */
 export interface AgentRuntimeConfig {
@@ -155,10 +97,8 @@ export interface AgentRuntimeConfig {
   businessLogicUrl: string;
   /** Timeout for business logic calls in ms (default: 5000) */
   businessLogicTimeout?: number;
-  /** Enable SPSP endpoint (default: true) */
-  spspEnabled?: boolean;
-  /** Session TTL in ms (default: 3600000 = 1 hour) */
-  sessionTtlMs?: number;
+  /** WebSocket URL of the local connector BTP endpoint (e.g., "ws://localhost:8081") */
+  connectorBtpUrl?: string;
   /** Log level (default: 'info') */
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
   /** Node ID for logging (default: 'agent-runtime') */
@@ -176,8 +116,6 @@ export interface ResolvedAgentRuntimeConfig extends Required<AgentRuntimeConfig>
 export const DEFAULT_CONFIG: Partial<AgentRuntimeConfig> = {
   port: 3100,
   businessLogicTimeout: 5000,
-  spspEnabled: true,
-  sessionTtlMs: 3600000, // 1 hour
   logLevel: 'info',
   nodeId: 'agent-runtime',
 };

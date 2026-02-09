@@ -2,16 +2,12 @@
  * Agent Runtime
  *
  * Main orchestrator class that brings together all components:
- * - Session management
- * - SPSP server
- * - Packet handling
+ * - Packet handling (stateless SHA-256 fulfillment)
  * - Business logic client
  * - HTTP server
  */
 
 import pino, { Logger } from 'pino';
-import { SessionManager } from './session/session-manager';
-import { SPSPServer } from './spsp/spsp-server';
 import { PacketHandler } from './packet/packet-handler';
 import { BusinessClient } from './business/business-client';
 import { HttpServer } from './http/http-server';
@@ -26,8 +22,8 @@ import { OutboundBTPClient } from './btp/outbound-btp-client';
 /**
  * Main Agent Runtime class.
  *
- * Handles ILP/SPSP/STREAM protocol complexity, allowing users to build
- * custom business logic agents without understanding the underlying protocols.
+ * ILP middleware that forwards packets between the connector and a user-defined
+ * business logic service. Uses stateless SHA-256 fulfillment.
  *
  * @example
  * ```typescript
@@ -43,9 +39,7 @@ import { OutboundBTPClient } from './btp/outbound-btp-client';
 export class AgentRuntime {
   private readonly config: ResolvedAgentRuntimeConfig;
   private readonly logger: Logger;
-  private readonly sessionManager: SessionManager;
   private readonly businessClient: BusinessClient;
-  private readonly spspServer: SPSPServer;
   private readonly packetHandler: PacketHandler;
   private readonly httpServer: HttpServer;
   private readonly sender: IPacketSender | null;
@@ -64,14 +58,6 @@ export class AgentRuntime {
     this.logger.info({ config: this.sanitizeConfig(this.config) }, 'Initializing Agent Runtime');
 
     // Create components
-    this.sessionManager = new SessionManager(
-      {
-        baseAddress: this.config.baseAddress,
-        sessionTtlMs: this.config.sessionTtlMs,
-      },
-      this.logger
-    );
-
     this.businessClient = new BusinessClient(
       {
         businessLogicUrl: this.config.businessLogicUrl,
@@ -80,20 +66,10 @@ export class AgentRuntime {
       this.logger
     );
 
-    this.spspServer = new SPSPServer(
-      {
-        enabled: this.config.spspEnabled,
-      },
-      this.sessionManager,
-      this.businessClient,
-      this.logger
-    );
-
     this.packetHandler = new PacketHandler(
       {
         baseAddress: this.config.baseAddress,
       },
-      this.sessionManager,
       this.businessClient,
       this.logger
     );
@@ -105,9 +81,7 @@ export class AgentRuntime {
         port: this.config.port,
         nodeId: this.config.nodeId,
       },
-      this.spspServer,
       this.packetHandler,
-      this.sessionManager,
       this.logger,
       this.sender
     );
@@ -141,7 +115,6 @@ export class AgentRuntime {
       {
         port: this.config.port,
         baseAddress: this.config.baseAddress,
-        spspEnabled: this.config.spspEnabled,
       },
       'Agent Runtime started'
     );
@@ -168,17 +141,9 @@ export class AgentRuntime {
     }
 
     await this.httpServer.stop();
-    this.sessionManager.shutdown();
     this.started = false;
 
     this.logger.info('Agent Runtime stopped');
-  }
-
-  /**
-   * Get the session manager (for advanced use cases).
-   */
-  getSessionManager(): SessionManager {
-    return this.sessionManager;
   }
 
   /**
@@ -211,8 +176,7 @@ export class AgentRuntime {
       baseAddress: config.baseAddress,
       businessLogicUrl: config.businessLogicUrl,
       businessLogicTimeout: config.businessLogicTimeout ?? DEFAULT_CONFIG.businessLogicTimeout!,
-      spspEnabled: config.spspEnabled ?? DEFAULT_CONFIG.spspEnabled!,
-      sessionTtlMs: config.sessionTtlMs ?? DEFAULT_CONFIG.sessionTtlMs!,
+      connectorBtpUrl: config.connectorBtpUrl ?? '',
       logLevel: config.logLevel ?? DEFAULT_CONFIG.logLevel!,
       nodeId: config.nodeId ?? DEFAULT_CONFIG.nodeId!,
     };
@@ -227,8 +191,6 @@ export class AgentRuntime {
       baseAddress: config.baseAddress,
       businessLogicUrl: config.businessLogicUrl,
       businessLogicTimeout: config.businessLogicTimeout,
-      spspEnabled: config.spspEnabled,
-      sessionTtlMs: config.sessionTtlMs,
       logLevel: config.logLevel,
       nodeId: config.nodeId,
     };
@@ -243,8 +205,6 @@ export class AgentRuntime {
  * - BASE_ADDRESS: ILP address prefix (required)
  * - BUSINESS_LOGIC_URL: URL to business logic handler (required)
  * - BUSINESS_LOGIC_TIMEOUT: Request timeout in ms (default: 5000)
- * - SPSP_ENABLED: Enable SPSP endpoint (default: true)
- * - SESSION_TTL_MS: Session TTL in ms (default: 3600000)
  * - LOG_LEVEL: Log level (default: info)
  * - NODE_ID: Node ID for logging (default: agent-runtime)
  * - CONNECTOR_BTP_URL: WebSocket URL of local connector BTP endpoint (optional)
@@ -258,10 +218,6 @@ export async function startFromEnv(): Promise<AgentRuntime> {
     businessLogicUrl: process.env['BUSINESS_LOGIC_URL'] ?? '',
     businessLogicTimeout: process.env['BUSINESS_LOGIC_TIMEOUT']
       ? parseInt(process.env['BUSINESS_LOGIC_TIMEOUT'], 10)
-      : undefined,
-    spspEnabled: process.env['SPSP_ENABLED'] !== 'false',
-    sessionTtlMs: process.env['SESSION_TTL_MS']
-      ? parseInt(process.env['SESSION_TTL_MS'], 10)
       : undefined,
     logLevel: (process.env['LOG_LEVEL'] as AgentRuntimeConfig['logLevel']) ?? 'info',
     nodeId: process.env['NODE_ID'] ?? 'agent-runtime',
