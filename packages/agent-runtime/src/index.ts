@@ -1,8 +1,8 @@
 /**
  * Agent Runtime Package
  *
- * Handles ILP/SPSP/STREAM protocol complexity, allowing users to build
- * custom business logic agents without understanding the underlying protocols.
+ * ILP middleware that forwards packets between the connector and a user-defined
+ * business logic service. Uses stateless SHA-256 fulfillment.
  *
  * @packageDocumentation
  */
@@ -13,16 +13,11 @@ export { AgentRuntime, startFromEnv } from './agent-runtime';
 // Type definitions
 export {
   // Payment types
-  PaymentSession,
   PaymentRequest,
   PaymentResponse,
   // Local delivery types (connector <-> runtime)
   LocalDeliveryRequest,
   LocalDeliveryResponse,
-  // SPSP types
-  SPSPResponse,
-  PaymentSetupRequest,
-  PaymentSetupResponse,
   // Configuration
   AgentRuntimeConfig,
   ResolvedAgentRuntimeConfig,
@@ -43,22 +38,12 @@ export {
 } from './btp/outbound-btp-client';
 
 // Components (for advanced use cases)
-export { SessionManager, SessionManagerConfig } from './session/session-manager';
 export { BusinessClient, BusinessClientConfig } from './business/business-client';
 export { PacketHandler, PacketHandlerConfig } from './packet/packet-handler';
-export { SPSPServer, SPSPServerConfig } from './spsp/spsp-server';
 export { HttpServer, HttpServerConfig } from './http/http-server';
 
-// STREAM crypto utilities
-export {
-  computeFulfillment,
-  computeCondition,
-  computeExpectedCondition,
-  verifyCondition,
-  deriveFulfillmentKey,
-  generateSharedSecret,
-  generatePaymentId,
-} from './stream/fulfillment';
+// Fulfillment utilities
+export { computeFulfillmentFromData, generatePaymentId } from './stream/fulfillment';
 
 // CLI entry point
 import { startFromEnv as startCli } from './agent-runtime';

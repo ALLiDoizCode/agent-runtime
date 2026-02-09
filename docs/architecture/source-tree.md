@@ -126,15 +126,25 @@ m2m/                                  # Monorepo root
 │       ├── package.json
 │       └── tsconfig.json
 │
-├── docker/                           # Docker configurations
-│   ├── docker-compose.yml                 # Default 3-node linear topology
-│   ├── docker-compose.mesh.yml            # 4-node mesh topology
-│   └── docker-compose.custom.yml          # Custom topology template
+├── docker-compose-5-peer-multihop.yml    # 5-peer linear topology (TigerBeetle + 5 connectors)
+├── docker-compose-5-peer-agent-runtime.yml # Agent-runtime middleware + mock BLS
+├── docker-compose-5-peer-nostr-spsp.yml  # Agent-society (BLS + Nostr relay) services
+├── docker-compose-unified.yml            # Full 3-layer stack (16 services)
+├── docker-compose.yml                    # Default 3-node linear topology
+├── docker-compose-dev.yml                # Local dev infrastructure (Anvil + TigerBeetle)
 │
-├── examples/                         # Example topology configurations
-│   ├── linear-3-nodes.yaml                # Linear chain topology config
-│   ├── mesh-4-nodes.yaml                  # Full mesh topology config
-│   └── hub-spoke.yaml                     # Hub-and-spoke topology config
+├── docker/                           # Legacy Docker Compose templates
+│   ├── docker-compose.linear.yml          # Linear topology template
+│   ├── docker-compose.mesh.yml            # Mesh topology template
+│   ├── docker-compose.hub-spoke.yml       # Hub-spoke topology template
+│   └── docker-compose.custom-template.yml # Custom topology template
+│
+├── examples/                         # Topology configuration files
+│   ├── multihop-peer{1..5}.yaml           # 5-peer multihop connector configs
+│   ├── linear-3-nodes-{a,b,c}.yaml       # Linear chain topology configs
+│   ├── mesh-4-nodes-{a,b,c,d}.yaml       # Full mesh topology configs
+│   ├── hub-spoke-{hub,spoke1..3}.yaml     # Hub-and-spoke topology configs
+│   └── business-logic-typescript/         # Example BLS implementation
 │
 ├── docs/                             # Documentation
 │   ├── architecture.md                    # This file

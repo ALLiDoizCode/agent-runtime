@@ -2,17 +2,15 @@
  * HTTP Server
  *
  * Express server that combines all agent runtime endpoints:
- * - SPSP endpoints for payment setup
  * - ILP packet handling endpoint
+ * - ILP send endpoint (outbound)
  * - Health check endpoint
  */
 
 import express, { Express, Request, Response, NextFunction } from 'express';
 import { Server } from 'http';
 import { Logger } from 'pino';
-import { SPSPServer } from '../spsp/spsp-server';
 import { PacketHandler } from '../packet/packet-handler';
-import { SessionManager } from '../session/session-manager';
 import { LocalDeliveryRequest, LocalDeliveryResponse, IPacketSender } from '../types';
 import { IlpSendHandler } from './ilp-send-handler';
 
@@ -29,25 +27,19 @@ export interface HttpServerConfig {
 export class HttpServer {
   private readonly config: HttpServerConfig;
   private readonly app: Express;
-  private readonly spspServer: SPSPServer;
   private readonly packetHandler: PacketHandler;
-  private readonly sessionManager: SessionManager;
   private readonly logger: Logger;
   private readonly sender: IPacketSender | null;
   private server: Server | null = null;
 
   constructor(
     config: HttpServerConfig,
-    spspServer: SPSPServer,
     packetHandler: PacketHandler,
-    sessionManager: SessionManager,
     logger: Logger,
     sender?: IPacketSender | null
   ) {
     this.config = config;
-    this.spspServer = spspServer;
     this.packetHandler = packetHandler;
-    this.sessionManager = sessionManager;
     this.logger = logger.child({ component: 'HttpServer' });
     this.sender = sender ?? null;
 
@@ -79,7 +71,6 @@ export class HttpServer {
       const health: Record<string, unknown> = {
         status: 'healthy',
         nodeId: this.config.nodeId,
-        activeSessions: this.sessionManager.sessionCount,
         btpConnected: this.sender ? this.sender.isConnected() : false,
         timestamp: new Date().toISOString(),
       };
@@ -122,9 +113,6 @@ export class HttpServer {
     // Outbound ILP send endpoint (Epic 20)
     const ilpSendHandler = new IlpSendHandler(this.sender, this.logger);
     this.app.post('/ilp/send', ilpSendHandler.handle.bind(ilpSendHandler));
-
-    // Mount SPSP routes
-    this.app.use(this.spspServer.getRouter());
 
     // 404 handler
     this.app.use((_req: Request, res: Response) => {

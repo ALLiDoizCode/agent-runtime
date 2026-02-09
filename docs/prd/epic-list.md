@@ -63,11 +63,17 @@ Transform agent-runtime from a one-way inbound proxy into a bidirectional middle
 **Epic 21: Payment Channel Admin APIs**
 Expose payment channel management and balance query endpoints on the connector Admin API. Add `POST /admin/channels` (open), `GET /admin/channels` (list), `GET /admin/channels/:channelId` (inspect), `POST /admin/channels/:channelId/deposit` (fund), `POST /admin/channels/:channelId/close` (close), `GET /admin/balances/:peerId` (balance query), and `GET /admin/settlement/states` (settlement health). Enables the BLS to manage channels via API without direct blockchain SDK access. Required by agent-society Epics 7 & 8.
 
+**Epic 22: Agent-Runtime Middleware Simplification**
+Strip STREAM session management, SPSP HTTP endpoints, and HMAC-based fulfillment from the agent-runtime middleware, replacing the fulfillment model with simple `SHA256(data)`. Removes SessionManager, SPSPServer, and STREAM fulfillment computation. Transforms agent-runtime into a thin stateless bidirectional forwarder where the BLS (agent-society) owns all SPSP/STREAM concerns via Nostr. Implements Phase 1 of the Unified Deployment Plan.
+
+**Epic 23: Unified Deployment Infrastructure**
+Create the unified deployment infrastructure that orchestrates connector, agent-runtime middleware, and agent-society BLS containers into a single deployable stack. Delivers a 16-service Docker Compose file (`docker-compose-unified.yml`), K8s manifests for agent-society (`k8s/agent-society/`), an updated deploy script with `--unified` flag and 7-phase bootstrap verification, and environment configuration for Nostr keypairs and settlement contract addresses. Implements Phases 3-6 of the Unified Deployment Plan.
+
 ---
 
 ## Project Status
 
-Epics 1-18 are **completed** or **in progress**. Epic 19 enables deployment parity. Epics 20-21 enable agent-society integration. The connector is feature-complete with:
+Epics 1-18 are **completed** or **in progress**. Epic 19 enables deployment parity. Epics 20-21 enable agent-society integration. Epics 22-23 implement the Unified Deployment Plan for full agent-runtime + agent-society integration. The connector is feature-complete with:
 
 - RFC-compliant ILPv4 packet routing
 - BTP WebSocket protocol for connector peering
