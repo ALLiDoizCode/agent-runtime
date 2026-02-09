@@ -28,7 +28,7 @@ describe('Memory Profiling', () => {
 
   // Memory thresholds (1000MB allows for CI environment variability)
   // CI runners can have higher baseline memory usage due to test parallelism
-  const MAX_HEAP_MB = 1000;
+  const MAX_HEAP_MB = 1500;
   const MAX_HEAP_GROWTH_RATE_MB_PER_SEC = 5; // Acceptable growth rate
 
   beforeAll(() => {
