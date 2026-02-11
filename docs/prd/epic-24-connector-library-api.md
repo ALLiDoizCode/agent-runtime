@@ -144,6 +144,7 @@ Refactor `ConnectorNode` to accept a config object (not a file path), expose `se
 **Scope:**
 
 - **Add to `ConnectorNode`:**
+
   ```typescript
   async sendPacket(params: {
     destination: string;
@@ -158,6 +159,7 @@ Refactor `ConnectorNode` to accept a config object (not a file path), expose `se
   - Routes through `PacketHandler` (uses RoutingTable to find next hop, sends via BTPClientManager)
   - Returns the ILP Fulfill or Reject response
   - Throws if connector not started
+
 - **Reuse existing routing logic:**
   - `PacketHandler.handlePrepare()` or equivalent routing path
   - Same longest-prefix match, same BTPClientManager dispatch
