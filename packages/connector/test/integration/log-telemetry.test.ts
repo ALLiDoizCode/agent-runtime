@@ -98,7 +98,7 @@ const waitFor = async (
 };
 
 describe('Test 12: LOG Telemetry Integration Test', () => {
-  const TEST_PORT = 9998;
+  const TEST_PORT = 30000 + Math.floor(Math.random() * 10000);
   let mockTelemetryServer: MockTelemetryServer;
   let telemetryEmitter: TelemetryEmitter;
   let mockEmitterLogger: jest.Mocked<Logger>;
@@ -124,7 +124,7 @@ describe('Test 12: LOG Telemetry Integration Test', () => {
 
     // Clear any connection messages
     mockTelemetryServer.clearMessages();
-  });
+  }, 15000);
 
   afterEach(async () => {
     // Wait a bit for any pending log writes to complete
@@ -133,7 +133,7 @@ describe('Test 12: LOG Telemetry Integration Test', () => {
     await mockTelemetryServer.stop();
     // Wait for port to be fully released
     await new Promise((resolve) => setTimeout(resolve, 200));
-  });
+  }, 15000);
 
   it('should emit LOG telemetry event when connector logs a message', async () => {
     // Act
