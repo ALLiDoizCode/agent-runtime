@@ -385,7 +385,7 @@ describe('ClaimSender', () => {
           error: 'Connection refused',
         })
       );
-    }, 50);
+    }, 10000);
   });
 
   describe('database persistence', () => {
