@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.12.0...v1.13.0) (2026-02-12)
+
+### Features
+
+- **epic-26:** npm publish readiness — trim dependencies, configure packages, add validation ([b62fc02](https://github.com/ALLiDoizCode/agent-runtime/commit/b62fc02eb283ad44acfbe8cf32cefe8a173dd0fd))
+
+### Bug Fixes
+
+- **epic-26:** add peer deps to devDependencies and fix CJS/ESM compat in requireOptional ([b2789ae](https://github.com/ALLiDoizCode/agent-runtime/commit/b2789aed31f84462b7025942562f14083e5cdde0))
+- **tests:** increase xrp-channel-lifecycle beforeAll timeout to 15s ([4abe8a9](https://github.com/ALLiDoizCode/agent-runtime/commit/4abe8a9184e25b9604ec5c086dccfef61d65edf9))
+- **tests:** relax wallet-derivation performance thresholds for concurrent execution ([b558007](https://github.com/ALLiDoizCode/agent-runtime/commit/b558007863dc09f804c274fb00c804fd2877a483))
+- **tests:** use OS-assigned ports in btp-server tests to eliminate EADDRINUSE flakiness ([8bc7443](https://github.com/ALLiDoizCode/agent-runtime/commit/8bc74438d4c5e6293dfb2bf4a5b1f992ccd4345a))
+
 ## [1.12.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.11.0...v1.12.0) (2026-02-11)
 
 ### Features
