@@ -15,11 +15,18 @@ export class EnvironmentVariableBackend implements KeyManagerBackend {
   private xrpSeed?: string;
   private logger: Logger;
 
-  constructor(logger: Logger) {
+  /**
+   * @param logger - Pino logger instance
+   * @param options - Optional direct key injection. When `evmPrivateKey` is provided,
+   *   it bypasses `process.env.EVM_PRIVATE_KEY` lookup, enabling multi-node isolation
+   *   without env var mutation.
+   */
+  constructor(logger: Logger, options?: { evmPrivateKey?: string }) {
     this.logger = logger.child({ component: 'EnvironmentVariableBackend' });
 
     // Store EVM private key for lazy wallet initialization (deferred until first use)
-    const evmPrivateKey = process.env.EVM_PRIVATE_KEY;
+    // Direct injection takes precedence over environment variable
+    const evmPrivateKey = options?.evmPrivateKey ?? process.env.EVM_PRIVATE_KEY;
     if (evmPrivateKey) {
       this.evmPrivateKey = evmPrivateKey;
       this.logger.info('EVM private key found in environment (wallet initialization deferred)');

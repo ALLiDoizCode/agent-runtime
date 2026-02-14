@@ -323,11 +323,16 @@ export class ConnectorNode implements HealthStatusProvider {
       }
 
       // Initialize Base L2 Payment Channel infrastructure if enabled
-      const settlementEnabled = process.env.SETTLEMENT_ENABLED === 'true';
-      const baseRpcUrl = process.env.BASE_L2_RPC_URL;
-      const registryAddress = process.env.TOKEN_NETWORK_REGISTRY;
-      const m2mTokenAddress = process.env.M2M_TOKEN_ADDRESS;
-      const treasuryPrivateKey = process.env.TREASURY_EVM_PRIVATE_KEY;
+      // Config-first pattern: settlementInfra config takes precedence, env var fallback
+      const settlementEnabled =
+        this._config.settlementInfra?.enabled ?? process.env.SETTLEMENT_ENABLED === 'true';
+      const baseRpcUrl = this._config.settlementInfra?.rpcUrl ?? process.env.BASE_L2_RPC_URL;
+      const registryAddress =
+        this._config.settlementInfra?.registryAddress ?? process.env.TOKEN_NETWORK_REGISTRY;
+      const m2mTokenAddress =
+        this._config.settlementInfra?.tokenAddress ?? process.env.M2M_TOKEN_ADDRESS;
+      const treasuryPrivateKey =
+        this._config.settlementInfra?.privateKey ?? process.env.TREASURY_EVM_PRIVATE_KEY;
 
       if (
         settlementEnabled &&
@@ -337,25 +342,16 @@ export class ConnectorNode implements HealthStatusProvider {
         treasuryPrivateKey
       ) {
         try {
-          // Initialize KeyManager with Environment backend (using TREASURY_EVM_PRIVATE_KEY)
-          // Temporarily set EVM_PRIVATE_KEY for EnvironmentVariableBackend
-          const originalEvmKey = process.env.EVM_PRIVATE_KEY;
-          process.env.EVM_PRIVATE_KEY = treasuryPrivateKey;
-
+          // Initialize KeyManager with Environment backend using direct private key injection
+          // No process.env mutation needed — enables multi-node isolation
           const keyManager = new KeyManager(
             {
               backend: 'env',
               nodeId: this._config.nodeId,
+              evmPrivateKey: treasuryPrivateKey,
             },
             this._logger
           );
-
-          // Restore original EVM_PRIVATE_KEY
-          if (originalEvmKey) {
-            process.env.EVM_PRIVATE_KEY = originalEvmKey;
-          } else {
-            delete process.env.EVM_PRIVATE_KEY;
-          }
 
           // Use 'evm' as key ID (EnvironmentVariableBackend detects type from keyId)
           const evmKeyId = 'evm';
@@ -374,15 +370,28 @@ export class ConnectorNode implements HealthStatusProvider {
             this._logger
           );
 
-          // Build peer ID to EVM address mapping from environment
+          // Build peer ID to EVM address mapping from config (with env var fallback)
           const peerIdToAddressMap = new Map<string, string>();
-          for (let i = 1; i <= 5; i++) {
-            const peerAddress = process.env[`PEER${i}_EVM_ADDRESS`];
-            if (peerAddress) {
-              peerIdToAddressMap.set(`peer${i}`, peerAddress);
+          for (const peer of this._config.peers) {
+            if (peer.evmAddress) {
+              peerIdToAddressMap.set(peer.id, peer.evmAddress);
               this._logger.debug(
-                { peerId: `peer${i}`, address: peerAddress },
-                'Loaded peer EVM address'
+                { peerId: peer.id, address: peer.evmAddress },
+                'Loaded peer EVM address from config'
+              );
+            }
+          }
+
+          // Env var fallback for peers without evmAddress in config
+          // Supports legacy PEER{N}_EVM_ADDRESS pattern (expanded to 10; will be removed in a future epic)
+          for (let i = 1; i <= 10; i++) {
+            const peerAddress = process.env[`PEER${i}_EVM_ADDRESS`];
+            const peerId = `peer${i}`;
+            if (peerAddress && !peerIdToAddressMap.has(peerId)) {
+              peerIdToAddressMap.set(peerId, peerAddress);
+              this._logger.debug(
+                { peerId, address: peerAddress },
+                'Loaded peer EVM address from env var (fallback)'
               );
             }
           }
@@ -393,11 +402,11 @@ export class ConnectorNode implements HealthStatusProvider {
           tokenAddressMap.set('ILP', m2mTokenAddress); // ILP token maps to M2M for settlement
 
           // Initialize ChannelManager with TigerBeetle accounting if configured
-          const defaultSettlementTimeout = 86400; // 24 hours
-          const initialDepositMultiplier = parseInt(
-            process.env.INITIAL_DEPOSIT_MULTIPLIER ?? '1',
-            10
-          );
+          const defaultSettlementTimeout =
+            this._config.settlementInfra?.settlementTimeoutSecs ?? 86400;
+          const initialDepositMultiplier =
+            this._config.settlementInfra?.initialDepositMultiplier ??
+            parseInt(process.env.INITIAL_DEPOSIT_MULTIPLIER ?? '1', 10);
 
           // Initialize TigerBeetle AccountManager if configured (Story 19.1-19.2)
           // When TigerBeetle is unavailable, falls back to mock AccountManager (graceful degradation)
@@ -508,11 +517,13 @@ export class ConnectorNode implements HealthStatusProvider {
 
           // Build settlement threshold configuration
           // Use settlementThreshold from config or default to 1M (1,000,000)
-          const settlementThreshold = BigInt(process.env.SETTLEMENT_THRESHOLD || '1000000');
-          const settlementPollingInterval = parseInt(
-            process.env.SETTLEMENT_POLLING_INTERVAL ?? '30000',
-            10
+          // Note: threshold is typed as string in SettlementInfraConfig (YAML/JSON cannot represent BigInt)
+          const settlementThreshold = BigInt(
+            this._config.settlementInfra?.threshold ?? process.env.SETTLEMENT_THRESHOLD ?? '1000000'
           );
+          const settlementPollingInterval =
+            this._config.settlementInfra?.pollingIntervalMs ??
+            parseInt(process.env.SETTLEMENT_POLLING_INTERVAL ?? '30000', 10);
 
           this._logger.info(
             {
@@ -1174,8 +1185,13 @@ export class ConnectorNode implements HealthStatusProvider {
    * @private
    */
   private async _createInMemoryAccountManager(): Promise<AccountManager> {
-    const snapshotPath = process.env.LEDGER_SNAPSHOT_PATH || './data/ledger-snapshot.json';
-    const persistIntervalMs = parseInt(process.env.LEDGER_PERSIST_INTERVAL_MS || '30000', 10);
+    const snapshotPath =
+      this._config.settlementInfra?.ledgerSnapshotPath ??
+      process.env.LEDGER_SNAPSHOT_PATH ??
+      './data/ledger-snapshot.json';
+    const persistIntervalMs =
+      this._config.settlementInfra?.ledgerPersistIntervalMs ??
+      parseInt(process.env.LEDGER_PERSIST_INTERVAL_MS || '30000', 10);
 
     let inMemoryClient: InMemoryLedgerClient;
 
