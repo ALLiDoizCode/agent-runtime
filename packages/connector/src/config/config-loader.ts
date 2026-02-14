@@ -24,6 +24,7 @@ import {
   PerformanceConfig,
   AdminApiConfig,
   LocalDeliveryConfig,
+  SettlementInfraConfig,
 } from './types';
 import { validateEnvironment } from './environment-validator';
 
@@ -198,6 +199,7 @@ export class ConfigLoader {
       explorer,
       // Pass through optional fields from input object
       settlement: rawConfig.settlement as SettlementConfig | undefined,
+      settlementInfra: rawConfig.settlementInfra as SettlementInfraConfig | undefined,
       security: rawConfig.security as SecurityConfig | undefined,
       performance: rawConfig.performance as PerformanceConfig | undefined,
       adminApi: rawConfig.adminApi as AdminApiConfig | undefined,

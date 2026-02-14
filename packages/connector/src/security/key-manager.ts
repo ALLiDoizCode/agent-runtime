@@ -76,6 +76,9 @@ export interface KeyRotationConfig {
 export interface KeyManagerConfig {
   backend: 'env' | 'aws-kms' | 'gcp-kms' | 'azure-kv' | 'hsm';
   nodeId: string;
+  /** Optional EVM private key for direct injection. Bypasses process.env.EVM_PRIVATE_KEY.
+   *  Used by config-driven settlement to avoid env var mutation. */
+  evmPrivateKey?: string;
   aws?: AWSConfig;
   gcp?: GCPConfig;
   azure?: AzureConfig;
@@ -125,7 +128,9 @@ export class KeyManager {
         // Lazy import to avoid loading unnecessary dependencies
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { EnvironmentVariableBackend } = require('./backends/environment-backend');
-        this.backend = new EnvironmentVariableBackend(this.logger);
+        this.backend = new EnvironmentVariableBackend(this.logger, {
+          evmPrivateKey: config.evmPrivateKey,
+        });
         break;
       }
       case 'aws-kms': {
