@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.14.0...v1.15.0) (2026-02-14)
+
+### Features
+
+- **epic-28:** add in-memory ledger as zero-dependency default accounting backend ([357083e](https://github.com/ALLiDoizCode/agent-runtime/commit/357083e85ff74c61e704441df5467e67bfc7ce37))
+
+### Bug Fixes
+
+- **epic-28:** fix snapshot persistence test by creating account to set dirty flag ([3699641](https://github.com/ALLiDoizCode/agent-runtime/commit/3699641f17c242954fba846038c8587a1019a620))
+
 ## [1.14.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.13.0...v1.14.0) (2026-02-14)
 
 ### Features
