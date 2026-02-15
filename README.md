@@ -259,18 +259,7 @@ Agents accumulate balances off-chain. When ready, they settle the net balance in
 | **XRP Ledger** | Native payment channels, 3-5 second finality, low fees |
 | **Aptos**      | Move language, 160k+ TPS, sub-second finality          |
 
-Settlement is optional. All chain SDKs are peer dependencies — install only the ones you need:
-
-```bash
-# For Base L2 / EVM settlement
-npm install ethers
-
-# For XRP Ledger settlement
-npm install xrpl
-
-# For Aptos settlement
-npm install @aptos-labs/ts-sdk
-```
+Settlement is optional — just configure the chain you want. All chain SDKs are bundled and loaded lazily at runtime, so there's nothing extra to install.
 
 ## Packages
 
