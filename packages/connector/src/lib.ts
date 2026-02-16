@@ -85,6 +85,9 @@ export type {
 // Re-export settlement types for library consumers
 export type { AdminSettlementConfig } from './settlement/types';
 
+// Re-export channel manager types for library consumers (embedded mode)
+export type { ChannelOpenOptions, ChannelMetadata } from './settlement/channel-manager';
+
 // Re-export payment handler types for library consumers
 export type { PaymentRequest, PaymentResponse, PaymentHandler } from './core/payment-handler';
 

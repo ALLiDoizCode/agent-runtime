@@ -31,7 +31,11 @@ import {
   RemovePeerResult,
 } from '../config/types';
 import { PaymentHandler, createPaymentHandlerAdapter } from './payment-handler';
-import { PeerConfig as SettlementPeerConfig, AdminSettlementConfig } from '../settlement/types';
+import {
+  PeerConfig as SettlementPeerConfig,
+  AdminSettlementConfig,
+  normalizeChannelStatus,
+} from '../settlement/types';
 import { validateSettlementConfig } from '../http/admin-api';
 import {
   ConfigLoader,
@@ -1681,6 +1685,123 @@ export class ConnectorNode implements HealthStatusProvider {
 
     this._routingTable.removeRoute(prefix as ILPAddress);
     this._logger.info({ event: 'route_removed', prefix }, `Removed route: ${prefix}`);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Payment Channel Operations — direct method API
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Open a payment channel for a registered peer.
+   * Equivalent to POST /admin/channels (EVM path) — same validation and behavior.
+   *
+   * @param params - Channel open parameters
+   * @returns Object with channelId and normalized status
+   * @throws ConnectorNotStartedError if connector has not been started
+   * @throws Error('Settlement infrastructure not enabled') if channelManager is null
+   * @throws Error('Peer ... must be registered before opening channels') if peer not found
+   * @throws Error('Channel already exists for peer ...') if active channel exists for peer+token
+   */
+  async openChannel(params: {
+    peerId: string;
+    chain: string;
+    token?: string;
+    tokenNetwork?: string;
+    peerAddress: string;
+    initialDeposit?: string;
+    settlementTimeout?: number;
+  }): Promise<{ channelId: string; status: string }> {
+    if (!this._btpServerStarted) {
+      throw new ConnectorNotStartedError(
+        'Connector is not started. Call start() before openChannel().'
+      );
+    }
+
+    if (!this._channelManager) {
+      throw new Error('Settlement infrastructure not enabled');
+    }
+
+    // Validate peer exists
+    const existingPeers = this._btpClientManager.getPeerIds();
+    if (!existingPeers.includes(params.peerId)) {
+      throw new Error(`Peer '${params.peerId}' must be registered before opening channels`);
+    }
+
+    const tokenId = params.token ?? 'AGENT';
+
+    // Resolve peer address: explicit param, then settlementPeers fallback
+    const peerAddress = params.peerAddress || this._settlementPeers.get(params.peerId)?.evmAddress;
+    if (!peerAddress) {
+      throw new Error('Peer EVM address must be provided in params or peer registration');
+    }
+
+    // Check for existing active channel
+    const existing = this._channelManager.getChannelForPeer(params.peerId, tokenId);
+    if (existing && existing.status !== 'closed') {
+      throw new Error(
+        `Channel already exists for peer ${params.peerId} with token ${tokenId} on chain ${params.chain}`
+      );
+    }
+
+    const channelId = await this._channelManager.ensureChannelExists(params.peerId, tokenId, {
+      initialDeposit: BigInt(params.initialDeposit ?? '0'),
+      settlementTimeout: params.settlementTimeout,
+      chain: params.chain,
+      peerAddress,
+    });
+
+    const metadata = this._channelManager.getChannelById(channelId);
+    const status = metadata ? normalizeChannelStatus(metadata.status, this._logger) : 'opening';
+
+    this._logger.info(
+      { event: 'channel_opened', peerId: params.peerId, chain: params.chain, channelId },
+      'Channel opened via direct API'
+    );
+
+    return { channelId, status };
+  }
+
+  /**
+   * Get the state of a payment channel by ID.
+   * Returns metadata-based state (no on-chain query) — sufficient for embedded mode polling.
+   *
+   * @param channelId - The channel identifier
+   * @returns Object with channelId, normalized status, and chain
+   * @throws ConnectorNotStartedError if connector has not been started
+   * @throws Error('Settlement infrastructure not enabled') if channelManager is null
+   * @throws Error('Channel not found: ...') if channel does not exist
+   */
+  async getChannelState(
+    channelId: string
+  ): Promise<{
+    channelId: string;
+    status: 'opening' | 'open' | 'closed' | 'settled';
+    chain: string;
+  }> {
+    if (!this._btpServerStarted) {
+      throw new ConnectorNotStartedError(
+        'Connector is not started. Call start() before getChannelState().'
+      );
+    }
+
+    if (!this._channelManager) {
+      throw new Error('Settlement infrastructure not enabled');
+    }
+
+    const metadata = this._channelManager.getChannelById(channelId);
+    if (!metadata) {
+      throw new Error(`Channel not found: ${channelId}`);
+    }
+
+    return {
+      channelId: metadata.channelId,
+      status: normalizeChannelStatus(metadata.status, this._logger) as
+        | 'opening'
+        | 'open'
+        | 'closed'
+        | 'settled',
+      chain: metadata.chain,
+    };
   }
 
   /**

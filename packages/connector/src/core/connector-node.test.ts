@@ -1451,6 +1451,218 @@ describe('ConnectorNode', () => {
     });
   });
 
+  describe('openChannel()', () => {
+    beforeEach(async () => {
+      connectorNode = new ConnectorNode(testConfigPath, mockLogger);
+      jest.clearAllMocks();
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']);
+      mockBTPClientManager.getPeerStatus.mockReturnValue(new Map([['peerA', true]]));
+      await connectorNode.start();
+      jest.clearAllMocks();
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']);
+    });
+
+    it('throws ConnectorNotStartedError if not started', async () => {
+      const freshConnector = new ConnectorNode(testConfigPath, mockLogger);
+      await expect(
+        freshConnector.openChannel({
+          peerId: 'peerA',
+          chain: 'evm:base:8453',
+          peerAddress: '0x' + 'ab'.repeat(20),
+        })
+      ).rejects.toThrow(ConnectorNotStartedError);
+    });
+
+    it('throws if settlement infrastructure not enabled (_channelManager is null)', async () => {
+      // _channelManager is null by default (no settlement env vars set)
+      await expect(
+        connectorNode.openChannel({
+          peerId: 'peerA',
+          chain: 'evm:base:8453',
+          peerAddress: '0x' + 'ab'.repeat(20),
+        })
+      ).rejects.toThrow('Settlement infrastructure not enabled');
+    });
+
+    it('throws if peer not registered', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._channelManager = {
+        getChannelForPeer: jest.fn(),
+        ensureChannelExists: jest.fn(),
+        getChannelById: jest.fn(),
+      };
+      mockBTPClientManager.getPeerIds.mockReturnValue([]); // no peers
+
+      await expect(
+        connectorNode.openChannel({
+          peerId: 'unknown-peer',
+          chain: 'evm:base:8453',
+          peerAddress: '0x' + 'ab'.repeat(20),
+        })
+      ).rejects.toThrow("Peer 'unknown-peer' must be registered before opening channels");
+    });
+
+    it('throws if active channel already exists for peer+token', async () => {
+      const mockChannelManager = {
+        getChannelForPeer: jest.fn().mockReturnValue({ status: 'open' }),
+        ensureChannelExists: jest.fn(),
+        getChannelById: jest.fn(),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._channelManager = mockChannelManager;
+
+      await expect(
+        connectorNode.openChannel({
+          peerId: 'peerA',
+          chain: 'evm:base:8453',
+          peerAddress: '0x' + 'ab'.repeat(20),
+        })
+      ).rejects.toThrow('Channel already exists for peer peerA with token AGENT');
+    });
+
+    it('calls channelManager.ensureChannelExists() with correct params and returns result', async () => {
+      const mockChannelManager = {
+        getChannelForPeer: jest.fn().mockReturnValue(null),
+        ensureChannelExists: jest.fn().mockResolvedValue('0xchannel123'),
+        getChannelById: jest.fn().mockReturnValue({
+          channelId: '0xchannel123',
+          status: 'open',
+          chain: 'evm:base:8453',
+        }),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._channelManager = mockChannelManager;
+
+      const result = await connectorNode.openChannel({
+        peerId: 'peerA',
+        chain: 'evm:base:8453',
+        peerAddress: '0x' + 'ab'.repeat(20),
+        initialDeposit: '5000',
+        settlementTimeout: 3600,
+        token: 'M2M',
+      });
+
+      expect(mockChannelManager.ensureChannelExists).toHaveBeenCalledWith('peerA', 'M2M', {
+        initialDeposit: 5000n,
+        settlementTimeout: 3600,
+        chain: 'evm:base:8453',
+        peerAddress: '0x' + 'ab'.repeat(20),
+      });
+      expect(result).toEqual({ channelId: '0xchannel123', status: 'open' });
+    });
+
+    it('uses default tokenId AGENT when token not provided', async () => {
+      const mockChannelManager = {
+        getChannelForPeer: jest.fn().mockReturnValue(null),
+        ensureChannelExists: jest.fn().mockResolvedValue('0xchannel456'),
+        getChannelById: jest.fn().mockReturnValue({
+          channelId: '0xchannel456',
+          status: 'open',
+          chain: 'evm:base:8453',
+        }),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._channelManager = mockChannelManager;
+
+      await connectorNode.openChannel({
+        peerId: 'peerA',
+        chain: 'evm:base:8453',
+        peerAddress: '0x' + 'ab'.repeat(20),
+      });
+
+      expect(mockChannelManager.ensureChannelExists).toHaveBeenCalledWith(
+        'peerA',
+        'AGENT',
+        expect.objectContaining({ initialDeposit: 0n })
+      );
+    });
+
+    it('uses default initialDeposit 0 when not provided', async () => {
+      const mockChannelManager = {
+        getChannelForPeer: jest.fn().mockReturnValue(null),
+        ensureChannelExists: jest.fn().mockResolvedValue('0xchannel789'),
+        getChannelById: jest.fn().mockReturnValue({
+          channelId: '0xchannel789',
+          status: 'opening',
+          chain: 'evm:base:8453',
+        }),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._channelManager = mockChannelManager;
+
+      await connectorNode.openChannel({
+        peerId: 'peerA',
+        chain: 'evm:base:8453',
+        peerAddress: '0x' + 'ab'.repeat(20),
+      });
+
+      expect(mockChannelManager.ensureChannelExists).toHaveBeenCalledWith(
+        'peerA',
+        'AGENT',
+        expect.objectContaining({ initialDeposit: 0n })
+      );
+    });
+  });
+
+  describe('getChannelState()', () => {
+    beforeEach(async () => {
+      connectorNode = new ConnectorNode(testConfigPath, mockLogger);
+      jest.clearAllMocks();
+      mockBTPClientManager.getPeerIds.mockReturnValue(['peerA']);
+      mockBTPClientManager.getPeerStatus.mockReturnValue(new Map([['peerA', true]]));
+      await connectorNode.start();
+      jest.clearAllMocks();
+    });
+
+    it('throws ConnectorNotStartedError if not started', async () => {
+      const freshConnector = new ConnectorNode(testConfigPath, mockLogger);
+      await expect(freshConnector.getChannelState('0xchannel123')).rejects.toThrow(
+        ConnectorNotStartedError
+      );
+    });
+
+    it('throws if settlement infrastructure not enabled', async () => {
+      // _channelManager is null by default
+      await expect(connectorNode.getChannelState('0xchannel123')).rejects.toThrow(
+        'Settlement infrastructure not enabled'
+      );
+    });
+
+    it('throws if channel not found', async () => {
+      const mockChannelManager = {
+        getChannelById: jest.fn().mockReturnValue(null),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._channelManager = mockChannelManager;
+
+      await expect(connectorNode.getChannelState('0xnonexistent')).rejects.toThrow(
+        'Channel not found: 0xnonexistent'
+      );
+    });
+
+    it('returns { channelId, status, chain } from channel metadata', async () => {
+      const mockChannelManager = {
+        getChannelById: jest.fn().mockReturnValue({
+          channelId: '0xchannel123',
+          status: 'active', // will be normalized to 'open'
+          chain: 'evm:base:8453',
+          peerId: 'peerA',
+          tokenId: 'AGENT',
+        }),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (connectorNode as any)._channelManager = mockChannelManager;
+
+      const result = await connectorNode.getChannelState('0xchannel123');
+
+      expect(result).toEqual({
+        channelId: '0xchannel123',
+        status: 'open',
+        chain: 'evm:base:8453',
+      });
+    });
+  });
+
   describe('Lifecycle — reentrant and idempotent', () => {
     beforeEach(() => {
       connectorNode = new ConnectorNode(testConfigPath, mockLogger);
