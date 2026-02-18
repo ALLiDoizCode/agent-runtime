@@ -263,6 +263,48 @@ export interface ConnectorConfig {
   environment: Environment;
 
   /**
+   * Optional deployment mode declaration
+   * Defines how the connector integrates with business logic
+   *
+   * When specified, provides configuration validation and clear intent:
+   * - **embedded**: Connector runs in same process as business logic
+   *   → Validates that `localDelivery.enabled` is false (function handlers used instead)
+   *   → Warns if `adminApi.enabled` is true (typically unnecessary for in-process integration)
+   *   → Use with `setPacketHandler()` or `setLocalDeliveryHandler()` and `node.sendPacket()`
+   *
+   * - **standalone**: Connector runs as separate process/container
+   *   → Validates that `localDelivery.handlerUrl` is set (required for HTTP forwarding)
+   *   → Warns if `adminApi.enabled` is false (external BLS typically needs admin API)
+   *   → Use with HTTP endpoints: `/handle-packet` (incoming) and `/admin/ilp/send` (outgoing)
+   *
+   * When omitted, mode is **inferred** from configuration flags (backward compatible):
+   * - `localDelivery.enabled=false` + `adminApi.enabled=false` → inferred as `embedded`
+   * - `localDelivery.enabled=true` + `adminApi.enabled=true` → inferred as `standalone`
+   * - Other combinations → defaults to `embedded`
+   *
+   * **Recommendation**: Explicitly set this field to document integration intent and enable
+   * configuration validation. Mode inference is provided for backward compatibility only.
+   *
+   * @default undefined (inferred from localDelivery + adminApi flags)
+   *
+   * @example
+   * ```yaml
+   * # Embedded mode (ElizaOS, in-process integration)
+   * deploymentMode: embedded
+   * adminApi: { enabled: false }
+   * localDelivery: { enabled: false }
+   *
+   * # Standalone mode (microservices, separate processes)
+   * deploymentMode: standalone
+   * adminApi: { enabled: true, port: 8081 }
+   * localDelivery:
+   *   enabled: true
+   *   handlerUrl: http://business-logic:8080
+   * ```
+   */
+  deploymentMode?: DeploymentMode;
+
+  /**
    * Optional blockchain configuration for Base L2 and XRP Ledger integration
    * When provided, enables blockchain-specific features (payment channels, smart contracts)
    * Defaults to blockchain integration disabled if not specified
@@ -714,6 +756,63 @@ export interface SettlementInfraConfig {
  * - production: Public mainnets (Base mainnet, XRPL Mainnet)
  */
 export type Environment = 'development' | 'staging' | 'production';
+
+/**
+ * Deployment Mode Type
+ *
+ * Defines how the connector integrates with business logic.
+ * Used to validate configuration and provide clear intent declaration.
+ *
+ * **Embedded Mode** (`'embedded'`):
+ * - Connector runs in the same process as business logic
+ * - Incoming packets handled via `setPacketHandler()` or `setLocalDeliveryHandler()` function callbacks
+ * - Outgoing packets sent via `node.sendPacket()` library calls
+ * - Admin API typically disabled (not needed for in-process communication)
+ * - Local delivery disabled (uses function handlers instead of HTTP)
+ * - **Use cases**: ElizaOS plugins, monolithic applications, direct library integration
+ * - **Example**: ElizaOS agent with connector as a service
+ *
+ * **Standalone Mode** (`'standalone'`):
+ * - Connector runs as a separate process/container from business logic
+ * - Incoming packets forwarded via HTTP POST to `/handle-packet` on external BLS
+ * - Outgoing packets sent via HTTP POST to `/admin/ilp/send` on connector's admin API
+ * - Admin API enabled for external control
+ * - Local delivery enabled with `handlerUrl` pointing to BLS
+ * - **Use cases**: Microservices, multi-language integrations, process isolation
+ * - **Example**: Connector container + separate Python/Go/Rust business logic server
+ *
+ * **Configuration Behavior**:
+ * - When `deploymentMode` is **specified**: Configuration is validated against mode expectations
+ *   - Errors thrown for invalid combinations (e.g., `embedded` + `localDelivery.enabled`)
+ *   - Warnings logged for unusual patterns (e.g., `embedded` + `adminApi.enabled`)
+ * - When `deploymentMode` is **omitted**: Mode is inferred from `localDelivery` and `adminApi` flags
+ *   - Backward compatible with existing configurations (no breaking changes)
+ *   - `getDeploymentMode()` returns inferred mode based on flags
+ *
+ * @example
+ * ```yaml
+ * # Embedded mode (explicit)
+ * deploymentMode: embedded
+ * nodeId: my-agent
+ * adminApi: { enabled: false }     # Not needed
+ * localDelivery: { enabled: false } # Use setPacketHandler() instead
+ *
+ * # Standalone mode (explicit)
+ * deploymentMode: standalone
+ * nodeId: connector-1
+ * adminApi: { enabled: true, port: 8081 }
+ * localDelivery:
+ *   enabled: true
+ *   handlerUrl: http://business-logic:8080
+ *
+ * # Inferred mode (backward compatible)
+ * nodeId: my-connector
+ * # No deploymentMode specified — inferred from flags
+ * # adminApi.enabled=false + localDelivery.enabled=false → embedded
+ * # adminApi.enabled=true + localDelivery.enabled=true → standalone
+ * ```
+ */
+export type DeploymentMode = 'embedded' | 'standalone';
 
 /**
  * Settlement Transfer Metadata Interface
@@ -1616,6 +1715,14 @@ export interface LocalDeliveryConfig {
    * Default: 30000
    */
   timeout?: number;
+
+  /**
+   * Optional bearer token for authenticating outbound requests to the BLS
+   * When set, the connector sends `Authorization: Bearer {authToken}` on
+   * all outbound HTTP requests to the business logic server
+   * Environment variable: LOCAL_DELIVERY_AUTH_TOKEN (no default)
+   */
+  authToken?: string;
 }
 
 /**
@@ -1853,9 +1960,56 @@ export interface AdminApiConfig {
 
   /**
    * Optional API key for authentication
-   * When set, all requests must include X-Api-Key header or apiKey query param
+   * When set, all requests must include X-Api-Key header
    * Environment variable: ADMIN_API_KEY (no default)
    * Recommended for production use
    */
   apiKey?: string;
+
+  /**
+   * Optional IP allowlist for access control
+   * When set, only requests from these IP addresses/ranges are allowed
+   * Supports both individual IPs and CIDR notation
+   *
+   * Examples:
+   * - ['127.0.0.1', '::1'] - Localhost only (IPv4 + IPv6)
+   * - ['10.0.1.5'] - Specific server IP
+   * - ['172.18.0.0/16'] - Docker network range
+   * - ['10.244.0.0/16'] - Kubernetes pod network
+   *
+   * Environment variable: ADMIN_API_ALLOWED_IPS (comma-separated, no default)
+   *
+   * Security notes:
+   * - IP allowlist is checked BEFORE API key validation (fast rejection)
+   * - In production, at least one of apiKey OR allowedIPs must be set
+   * - Both apiKey AND allowedIPs provide defense in depth (recommended)
+   * - When behind a reverse proxy, set trustProxy: true
+   *
+   * @see trustProxy
+   */
+  allowedIPs?: string[];
+
+  /**
+   * Trust X-Forwarded-For header for client IP detection
+   * Only enable when behind a trusted reverse proxy (nginx, traefik, AWS ALB, etc.)
+   *
+   * When true:
+   * - Client IP extracted from X-Forwarded-For header (first IP in list)
+   * - Use when connector is behind a reverse proxy/load balancer
+   *
+   * When false (default):
+   * - Client IP taken from direct socket connection
+   * - Use for direct connections (no proxy)
+   *
+   * Environment variable: ADMIN_API_TRUST_PROXY (default: 'false')
+   * Default: false
+   *
+   * Security warning:
+   * - ONLY enable if your reverse proxy strips/overwrites X-Forwarded-For
+   * - Untrusted proxies can spoof X-Forwarded-For to bypass IP allowlist
+   * - Common trusted proxies: nginx, traefik, Cloudflare, AWS ALB/ELB, GCP Load Balancer
+   *
+   * @see allowedIPs
+   */
+  trustProxy?: boolean;
 }

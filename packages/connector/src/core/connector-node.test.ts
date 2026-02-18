@@ -130,6 +130,7 @@ describe('ConnectorNode', () => {
       processPrepare: jest.fn(),
       setBTPServer: jest.fn(),
       setLocalDeliveryHandler: jest.fn(),
+      setLocalDelivery: jest.fn(),
       handlePreparePacket: jest.fn(),
     } as unknown as jest.Mocked<PacketHandler>;
 
@@ -1786,6 +1787,197 @@ describe('ConnectorNode', () => {
       expect(callOrder.indexOf('settlementExecutor')).toBeLessThan(
         callOrder.indexOf('channelManager')
       );
+    });
+  });
+
+  describe('Deployment Mode Helpers', () => {
+    beforeEach(() => {
+      // Mock validateConfig to return the config (needed when constructing with config object)
+      (ConfigLoader.validateConfig as jest.Mock) = jest
+        .fn()
+        .mockImplementation((cfg: ConnectorConfig) => cfg);
+    });
+
+    describe('getDeploymentMode()', () => {
+      it('should return explicit deploymentMode when set to embedded', () => {
+        // Arrange
+        const config = createTestConfig({ deploymentMode: 'embedded' });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act
+        const mode = node.getDeploymentMode();
+
+        // Assert
+        expect(mode).toBe('embedded');
+      });
+
+      it('should return explicit deploymentMode when set to standalone', () => {
+        // Arrange
+        const config = createTestConfig({ deploymentMode: 'standalone' });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act
+        const mode = node.getDeploymentMode();
+
+        // Assert
+        expect(mode).toBe('standalone');
+      });
+
+      it('should infer standalone when localDelivery.enabled=true and adminApi.enabled=true', () => {
+        // Arrange
+        const config = createTestConfig({
+          localDelivery: { enabled: true, handlerUrl: 'http://bls:8080' },
+          adminApi: { enabled: true, port: 8081 },
+        });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act
+        const mode = node.getDeploymentMode();
+
+        // Assert
+        expect(mode).toBe('standalone');
+      });
+
+      it('should infer embedded when localDelivery.enabled=false and adminApi.enabled=false', () => {
+        // Arrange
+        const config = createTestConfig({
+          localDelivery: { enabled: false },
+          adminApi: { enabled: false },
+        });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act
+        const mode = node.getDeploymentMode();
+
+        // Assert
+        expect(mode).toBe('embedded');
+      });
+
+      it('should infer embedded when localDelivery and adminApi are not configured', () => {
+        // Arrange
+        const config = createTestConfig({});
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act
+        const mode = node.getDeploymentMode();
+
+        // Assert
+        expect(mode).toBe('embedded');
+      });
+
+      it('should default to embedded for hybrid config (adminApi.enabled=true, localDelivery.enabled=false)', () => {
+        // Arrange
+        const config = createTestConfig({
+          localDelivery: { enabled: false },
+          adminApi: { enabled: true, port: 8081 },
+        });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act
+        const mode = node.getDeploymentMode();
+
+        // Assert
+        expect(mode).toBe('embedded'); // Defaults to embedded for unusual configs
+      });
+
+      it('should default to embedded for hybrid config (adminApi.enabled=false, localDelivery.enabled=true)', () => {
+        // Arrange
+        const config = createTestConfig({
+          localDelivery: { enabled: true, handlerUrl: 'http://bls:8080' },
+          adminApi: { enabled: false },
+        });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act
+        const mode = node.getDeploymentMode();
+
+        // Assert
+        expect(mode).toBe('embedded'); // Defaults to embedded for unusual configs
+      });
+
+      it('should prefer explicit deploymentMode over inferred mode', () => {
+        // Arrange - explicit embedded but flags suggest standalone
+        const config = createTestConfig({
+          deploymentMode: 'embedded',
+          localDelivery: { enabled: true, handlerUrl: 'http://bls:8080' },
+          adminApi: { enabled: true, port: 8081 },
+        });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act
+        const mode = node.getDeploymentMode();
+
+        // Assert
+        expect(mode).toBe('embedded'); // Explicit mode wins (validation will catch the conflict)
+      });
+    });
+
+    describe('isEmbedded()', () => {
+      it('should return true when deploymentMode is embedded', () => {
+        // Arrange
+        const config = createTestConfig({ deploymentMode: 'embedded' });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act & Assert
+        expect(node.isEmbedded()).toBe(true);
+        expect(node.isStandalone()).toBe(false);
+      });
+
+      it('should return true when mode is inferred as embedded', () => {
+        // Arrange
+        const config = createTestConfig({
+          localDelivery: { enabled: false },
+          adminApi: { enabled: false },
+        });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act & Assert
+        expect(node.isEmbedded()).toBe(true);
+        expect(node.isStandalone()).toBe(false);
+      });
+
+      it('should return false when deploymentMode is standalone', () => {
+        // Arrange
+        const config = createTestConfig({ deploymentMode: 'standalone' });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act & Assert
+        expect(node.isEmbedded()).toBe(false);
+      });
+    });
+
+    describe('isStandalone()', () => {
+      it('should return true when deploymentMode is standalone', () => {
+        // Arrange
+        const config = createTestConfig({ deploymentMode: 'standalone' });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act & Assert
+        expect(node.isStandalone()).toBe(true);
+        expect(node.isEmbedded()).toBe(false);
+      });
+
+      it('should return true when mode is inferred as standalone', () => {
+        // Arrange
+        const config = createTestConfig({
+          localDelivery: { enabled: true, handlerUrl: 'http://bls:8080' },
+          adminApi: { enabled: true, port: 8081 },
+        });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act & Assert
+        expect(node.isStandalone()).toBe(true);
+        expect(node.isEmbedded()).toBe(false);
+      });
+
+      it('should return false when deploymentMode is embedded', () => {
+        // Arrange
+        const config = createTestConfig({ deploymentMode: 'embedded' });
+        const node = new ConnectorNode(config, mockLogger);
+
+        // Act & Assert
+        expect(node.isStandalone()).toBe(false);
+      });
     });
   });
 });

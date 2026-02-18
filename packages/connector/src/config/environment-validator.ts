@@ -73,6 +73,12 @@ export function validateEnvironment(config: ConnectorConfig): void {
   else if (config.environment === 'staging') {
     logStagingWarnings(config);
   }
+
+  // Validate deployment mode configuration (applies to all environments)
+  validateDeploymentMode(config);
+
+  // Validate IP allowlist configuration (applies to all environments)
+  validateIPAllowlist(config);
 }
 
 /**
@@ -97,6 +103,19 @@ export function validateEnvironment(config: ConnectorConfig): void {
  * @private
  */
 function validateProductionEnvironment(config: ConnectorConfig): void {
+  // Validate admin API security: require API key OR IP allowlist in production
+  if (config.adminApi?.enabled) {
+    const hasApiKey = !!config.adminApi.apiKey;
+    const hasIPAllowlist = !!config.adminApi.allowedIPs && config.adminApi.allowedIPs.length > 0;
+
+    if (!hasApiKey && !hasIPAllowlist) {
+      throw new ConfigurationError(
+        'Admin API is enabled in production without authentication. ' +
+          'Set ADMIN_API_KEY or ADMIN_API_ALLOWED_IPS to secure the admin API.'
+      );
+    }
+  }
+
   // Validate Base blockchain if enabled
   if (config.blockchain?.base?.enabled) {
     const base = config.blockchain.base;
@@ -267,6 +286,195 @@ function logStagingWarnings(config: ConnectorConfig): void {
           'Use https://s.altnet.rippletest.net:51234 for public testnet.'
       );
     }
+  }
+}
+
+/**
+ * Validate Deployment Mode Configuration
+ *
+ * Validates deployment mode configuration for consistency and best practices.
+ * Runs for all environments (development, staging, production).
+ *
+ * **Validation Rules**:
+ *
+ * When `deploymentMode` is explicitly set to `'embedded'`:
+ * - **ERROR** if `localDelivery.enabled` is true
+ *   → Embedded mode uses function handlers, not HTTP delivery
+ * - **WARNING** if `adminApi.enabled` is true
+ *   → Admin API is typically unnecessary for in-process integration
+ *
+ * When `deploymentMode` is explicitly set to `'standalone'`:
+ * - **ERROR** if `localDelivery.enabled` is true but `handlerUrl` is missing
+ *   → Standalone mode requires BLS endpoint for HTTP forwarding
+ * - **WARNING** if `adminApi.enabled` is false
+ *   → External BLS typically needs admin API to send packets
+ * - **WARNING** if `localDelivery.enabled` is false
+ *   → Standalone deployments typically use HTTP for incoming packets
+ *
+ * When `deploymentMode` is omitted:
+ * - No validation (mode is inferred from flags, backward compatible)
+ *
+ * @param config - Connector configuration
+ * @throws ConfigurationError if deployment mode validation fails
+ * @private
+ */
+function validateDeploymentMode(config: ConnectorConfig): void {
+  const mode = config.deploymentMode;
+
+  // No validation if deploymentMode is not explicitly set (backward compatible)
+  if (!mode) {
+    return;
+  }
+
+  // Validate embedded mode configuration
+  if (mode === 'embedded') {
+    // ERROR: Embedded mode should not use HTTP local delivery
+    if (config.localDelivery?.enabled) {
+      throw new ConfigurationError(
+        'deploymentMode is set to "embedded" but localDelivery.enabled is true. ' +
+          'Embedded mode uses function handlers (setPacketHandler or setLocalDeliveryHandler) ' +
+          'for in-process packet delivery, not HTTP forwarding. ' +
+          'Either set deploymentMode to "standalone" or disable localDelivery.'
+      );
+    }
+
+    // WARNING: Embedded mode typically doesn't need admin API
+    if (config.adminApi?.enabled) {
+      logger.warn(
+        '⚠️  deploymentMode is "embedded" but adminApi.enabled is true. ' +
+          'Embedded mode typically uses node.sendPacket() for outgoing packets, ' +
+          'not the admin API HTTP endpoint. Admin API is primarily for standalone ' +
+          'deployments where external processes need to send packets via HTTP.'
+      );
+    }
+  }
+
+  // Validate standalone mode configuration
+  if (mode === 'standalone') {
+    // ERROR: Standalone mode with localDelivery requires handlerUrl
+    if (config.localDelivery?.enabled && !config.localDelivery.handlerUrl) {
+      throw new ConfigurationError(
+        'deploymentMode is set to "standalone" with localDelivery.enabled=true ' +
+          'but localDelivery.handlerUrl is missing. Standalone mode requires a ' +
+          'business logic server endpoint for HTTP packet forwarding. ' +
+          'Set localDelivery.handlerUrl to the BLS /handle-packet endpoint ' +
+          '(e.g., "http://business-logic:8080").'
+      );
+    }
+
+    // WARNING: Standalone mode typically needs admin API
+    if (!config.adminApi?.enabled) {
+      logger.warn(
+        '⚠️  deploymentMode is "standalone" but adminApi.enabled is false. ' +
+          'Standalone deployments typically enable the admin API so the external ' +
+          'business logic server can send packets via POST /admin/ilp/send. ' +
+          'Without the admin API, the external BLS cannot initiate outgoing payments.'
+      );
+    }
+
+    // WARNING: Standalone mode typically uses HTTP local delivery
+    if (!config.localDelivery?.enabled) {
+      logger.warn(
+        '⚠️  deploymentMode is "standalone" but localDelivery.enabled is false. ' +
+          'Standalone deployments typically forward incoming packets to an external ' +
+          'business logic server via HTTP POST to /handle-packet. ' +
+          'If you intend to use function handlers (setPacketHandler), consider ' +
+          'setting deploymentMode to "embedded" instead.'
+      );
+    }
+  }
+}
+
+/**
+ * Validate IP Allowlist Configuration
+ *
+ * Validates admin API IP allowlist settings:
+ * - IP addresses must be valid IPv4 or IPv6
+ * - CIDR notation must be valid
+ * - trustProxy should only be used behind a reverse proxy
+ *
+ * @param config - Connector configuration
+ * @throws ConfigurationError if IP allowlist validation fails
+ * @private
+ */
+function validateIPAllowlist(config: ConnectorConfig): void {
+  const allowedIPs = config.adminApi?.allowedIPs;
+  const trustProxy = config.adminApi?.trustProxy;
+
+  // No validation if IP allowlist not configured
+  if (!allowedIPs || allowedIPs.length === 0) {
+    // Warn if trustProxy is enabled without IP allowlist (has no effect)
+    if (trustProxy && config.adminApi?.enabled) {
+      logger.warn(
+        '⚠️  adminApi.trustProxy is enabled but allowedIPs is not set. ' +
+          'trustProxy only affects IP allowlist middleware. It has no effect without allowedIPs.'
+      );
+    }
+    return;
+  }
+
+  // Validate each IP/CIDR in the allowlist
+  for (const entry of allowedIPs) {
+    if (!entry || typeof entry !== 'string' || entry.trim() === '') {
+      throw new ConfigurationError(
+        `Invalid IP allowlist entry: "${entry}". Each entry must be a non-empty string.`
+      );
+    }
+
+    const ip = entry.trim();
+
+    // Check if it's CIDR notation
+    if (ip.includes('/')) {
+      try {
+        // Use a simple dynamic import or require to validate CIDR
+        // The Netmask library will throw if CIDR is invalid
+        // We can't import it here since this is a validator, but we'll trust the middleware
+        // to catch invalid CIDRs at runtime. Just do basic format check.
+        const parts = ip.split('/');
+        if (parts.length !== 2 || !parts[1]) {
+          throw new Error('CIDR must have exactly one slash');
+        }
+        const prefix = parseInt(parts[1], 10);
+        if (isNaN(prefix) || prefix < 0 || prefix > 128) {
+          throw new Error('CIDR prefix must be 0-128');
+        }
+      } catch (err) {
+        throw new ConfigurationError(
+          `Invalid CIDR notation in allowedIPs: "${ip}". ` +
+            `Error: ${err instanceof Error ? err.message : 'Unknown error'}`
+        );
+      }
+    } else {
+      // Individual IP - validate IPv4 or IPv6 format
+      const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+      const ipv6Regex = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+
+      if (!ipv4Regex.test(ip) && !ipv6Regex.test(ip)) {
+        throw new ConfigurationError(
+          `Invalid IP address in allowedIPs: "${ip}". Must be valid IPv4 or IPv6 address.`
+        );
+      }
+
+      // Additional IPv4 validation: each octet must be 0-255
+      if (ipv4Regex.test(ip)) {
+        const octets = ip.split('.').map(Number);
+        if (octets.some((octet) => octet > 255)) {
+          throw new ConfigurationError(
+            `Invalid IPv4 address in allowedIPs: "${ip}". Each octet must be 0-255.`
+          );
+        }
+      }
+    }
+  }
+
+  // Warn if trustProxy is not set but allowedIPs contains common proxy headers
+  if (!trustProxy && config.adminApi?.enabled) {
+    logger.info(
+      'ℹ️  adminApi.allowedIPs is configured with trustProxy=false. ' +
+        'Client IPs will be taken from direct socket connections. ' +
+        'If behind a reverse proxy (nginx, traefik, ALB), set trustProxy=true ' +
+        'to use X-Forwarded-For header for accurate IP detection.'
+    );
   }
 }
 

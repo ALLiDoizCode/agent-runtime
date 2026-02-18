@@ -137,6 +137,8 @@ export class AdminServer {
       btpClientManager,
       nodeId,
       apiKey: config.apiKey,
+      allowedIPs: config.allowedIPs,
+      trustProxy: config.trustProxy,
       logger: this._logger,
       settlementPeers,
       channelManager,
@@ -166,6 +168,8 @@ export class AdminServer {
         event: 'admin_server_initialized',
         port: config.port ?? 8081,
         apiKeyConfigured: !!config.apiKey,
+        ipAllowlistConfigured: !!config.allowedIPs && config.allowedIPs.length > 0,
+        trustProxy: config.trustProxy ?? false,
       },
       'Admin server initialized'
     );
@@ -187,6 +191,7 @@ export class AdminServer {
     await this._initApp();
     const port = this._config.port ?? 8081;
     const host = this._config.host ?? '0.0.0.0';
+    const LOOPBACK_HOSTS = ['127.0.0.1', '::1', 'localhost'];
 
     return new Promise((resolve, reject) => {
       try {
@@ -214,6 +219,21 @@ export class AdminServer {
             },
             `Admin API server started on ${host}:${port}`
           );
+
+          // Warn when the admin API has no API key/IP allowlist and binds to a non-loopback address
+          const hasIPAllowlist = this._config.allowedIPs && this._config.allowedIPs.length > 0;
+          if (!this._config.apiKey && !hasIPAllowlist && !LOOPBACK_HOSTS.includes(host)) {
+            this._logger.warn(
+              {
+                event: 'admin_api_no_auth',
+                host,
+                port,
+              },
+              `Admin API is listening on ${host}:${port} WITHOUT authentication. ` +
+                'Set ADMIN_API_KEY or ADMIN_API_ALLOWED_IPS to secure the admin API.'
+            );
+          }
+
           resolve();
         });
 

@@ -1,41 +1,94 @@
 # @agent-society/connector
 
-The M2M Connector package provides the core ILP connector functionality for the Machine-to-Machine Economy platform.
+[![npm](https://img.shields.io/npm/v/@agent-society/connector)](https://www.npmjs.com/package/@agent-society/connector)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 
-## Overview
+> ILP connector node for AI agent payment networks. Routes messages, tracks balances, settles on-chain.
 
-This package implements:
+This is the core package of the [agent-runtime](https://github.com/ALLiDoizCode/agent-runtime) monorepo. See the root README for full usage documentation.
 
-- ILP packet routing and forwarding
-- Settlement coordination (EVM and XRP Ledger)
-- Balance tracking with in-memory ledger (default) or TigerBeetle (optional)
-- Peer management via BTP
-- Security controls and rate limiting
-- Explorer UI for telemetry visualization
+## Install
+
+```bash
+npm install @agent-society/connector
+```
+
+## What's Inside
+
+- **ILP Packet Routing** — RFC-0027 compliant packet forwarding with configurable routing tables
+- **BTP Peers** — WebSocket-based peer connections using Bilateral Transfer Protocol (RFC-0023)
+- **Tri-Chain Settlement** — Payment channels on Base L2 (EVM), XRP Ledger, and Aptos
+- **Accounting** — In-memory ledger (default, zero dependencies) or TigerBeetle (optional, high-throughput)
+- **Explorer UI** — Built-in real-time dashboard for packet flow, balances, and settlement monitoring
+- **Admin API** — HTTP endpoints for peer management, balance queries, and ILP packet sending
+- **CLI** — `npx agent-runtime setup`, `health`, `validate` commands
+
+## Quick Example
+
+```typescript
+import { ConnectorNode, createLogger } from '@agent-society/connector';
+
+const node = new ConnectorNode('config.yaml', createLogger('my-agent', 'info'));
+
+node.setPacketHandler(async (request) => {
+  console.log(`Received ${request.amount} tokens`);
+  return { accept: true };
+});
+
+await node.start();
+```
+
+## Configuration
+
+YAML config file or pass a config object directly:
+
+```yaml
+nodeId: my-agent
+btpServerPort: 3000
+healthCheckPort: 8080
+
+peers:
+  - id: peer-b
+    url: ws://peer-b:3001
+    authToken: secret-token
+
+routes:
+  - prefix: g.peer-b
+    nextHop: peer-b
+```
+
+## Accounting Backend
+
+### Default: In-Memory Ledger
+
+Zero dependencies. Persists to JSON snapshots on disk.
+
+| Variable                     | Default                       | Description               |
+| ---------------------------- | ----------------------------- | ------------------------- |
+| `LEDGER_SNAPSHOT_PATH`       | `./data/ledger-snapshot.json` | Snapshot file path        |
+| `LEDGER_PERSIST_INTERVAL_MS` | `30000`                       | Persistence interval (ms) |
+
+### Optional: TigerBeetle
+
+High-performance double-entry accounting. Falls back to in-memory if connection fails.
+
+| Variable                 | Required | Description                       |
+| ------------------------ | -------- | --------------------------------- |
+| `TIGERBEETLE_CLUSTER_ID` | Yes      | TigerBeetle cluster identifier    |
+| `TIGERBEETLE_REPLICAS`   | Yes      | Comma-separated replica addresses |
 
 ## Explorer UI
 
-The connector includes an embedded Explorer UI for visualizing telemetry events in real-time.
+Enabled by default. Provides real-time packet visualization and settlement monitoring.
 
-### Configuration
+| Variable                  | Default   | Description              |
+| ------------------------- | --------- | ------------------------ |
+| `EXPLORER_ENABLED`        | `true`    | Enable/disable explorer  |
+| `EXPLORER_PORT`           | `3001`    | HTTP/WebSocket port      |
+| `EXPLORER_RETENTION_DAYS` | `7`       | Event retention period   |
+| `EXPLORER_MAX_EVENTS`     | `1000000` | Maximum events to retain |
 
-The Explorer is enabled by default. Configure via environment variables:
-
-| Variable                  | Default   | Description                              |
-| ------------------------- | --------- | ---------------------------------------- |
-| `EXPLORER_ENABLED`        | `true`    | Enable/disable explorer UI               |
-| `EXPLORER_PORT`           | `3001`    | HTTP/WebSocket server port               |
-| `EXPLORER_RETENTION_DAYS` | `7`       | Event retention period (1-365 days)      |
-| `EXPLORER_MAX_EVENTS`     | `1000000` | Maximum events to retain (1000-10000000) |
-
-### Accessing the Explorer
-
-When enabled, access the Explorer UI at:
-
-- Local development: `http://localhost:3001`
-- Docker (mesh topology): `http://localhost:3010` (connector-a), `3011` (b), `3012` (c), `3013` (d)
-
-### API Endpoints
+**Endpoints:**
 
 | Endpoint          | Description                                  |
 | ----------------- | -------------------------------------------- |
@@ -43,371 +96,170 @@ When enabled, access the Explorer UI at:
 | `GET /api/health` | Explorer health status                       |
 | `WS /ws`          | Real-time event streaming                    |
 
-### Docker Topologies
+## Admin API Security
 
-Explorer ports are pre-configured in each docker-compose file:
+The Admin API provides HTTP endpoints for runtime management (add/remove peers, send ILP packets, query balances). Security options include API key authentication and/or IP allowlisting.
 
-**Linear (3-node):**
+### Authentication Options
 
-```bash
-docker-compose -f docker/docker-compose.linear.yml up -d
-# Connector A: http://localhost:3010
-# Connector B: http://localhost:3011
-# Connector C: http://localhost:3012
-```
+**Production requirement:** At least one of the following must be configured:
 
-**Mesh (4-node):**
+1. **API Key** — Header-based authentication (recommended for most deployments)
+2. **IP Allowlist** — Network-level access control (recommended for containerized environments)
+3. **Both** — Defense in depth (recommended for high-security deployments)
 
-```bash
-docker-compose -f docker/docker-compose.mesh.yml up -d
-# Connector A-D: http://localhost:3010-3013
-```
-
-**Hub-Spoke:**
-
-```bash
-docker-compose -f docker/docker-compose.hub-spoke.yml up -d
-# Hub: http://localhost:3010
-# Spokes: http://localhost:3011-3013
-```
-
-## Accounting Backend
-
-The connector uses a double-entry accounting ledger for balance tracking, settlement threshold detection, and claim signing.
-
-### Default: In-Memory Ledger (Zero Dependencies)
-
-By default, the connector uses a pure TypeScript in-memory ledger that requires no external services or native addons. Balances are persisted to a JSON snapshot file on a configurable interval and restored on restart.
-
-| Variable                     | Default                       | Description               |
-| ---------------------------- | ----------------------------- | ------------------------- |
-| `LEDGER_SNAPSHOT_PATH`       | `./data/ledger-snapshot.json` | Snapshot file path        |
-| `LEDGER_PERSIST_INTERVAL_MS` | `30000`                       | Persistence interval (ms) |
-
-### Optional: TigerBeetle (High-Performance)
-
-For production workloads requiring higher throughput, TigerBeetle can be enabled:
-
-| Variable                 | Required | Description                       |
-| ------------------------ | -------- | --------------------------------- |
-| `TIGERBEETLE_CLUSTER_ID` | Yes      | TigerBeetle cluster identifier    |
-| `TIGERBEETLE_REPLICAS`   | Yes      | Comma-separated replica addresses |
-
-When both env vars are set, the connector uses TigerBeetle. If TigerBeetle initialization fails, it falls back to the in-memory ledger automatically.
-
-## Workflow Peer Mode (Epic 31)
-
-The connector can run as a **workflow peer** to execute image processing pipelines in response to ILP packets. This enables pay-per-use computational services routed via Interledger Protocol.
-
-### Starting the Workflow Peer
-
-The workflow peer receives ILP packets addressed to `g.workflow.*` and executes Sharp-based image processing steps.
-
-### Workflow Addresses
-
-Workflow addresses follow the pattern: `g.workflow.<step1>.<step2>.<step3>`
-
-**Available Steps:**
-
-| Step        | Cost (msat) | Description                          |
-| ----------- | ----------- | ------------------------------------ |
-| `resize`    | 100         | Resize image to 1024x768 (cover fit) |
-| `watermark` | 200         | Add watermark text overlay           |
-| `optimize`  | 150         | Optimize JPEG quality (80%)          |
-
-**Example Addresses:**
-
-- `g.workflow.resize` - Resize only (100 msat)
-- `g.workflow.resize.watermark` - Resize + watermark (300 msat)
-- `g.workflow.resize.watermark.optimize` - Full pipeline (450 msat)
-
-### Configuration
-
-Configure workflow peer via environment variables:
-
-| Variable                   | Default             | Description                        |
-| -------------------------- | ------------------- | ---------------------------------- |
-| `WORKFLOW_PEER_PORT`       | `8203`              | HTTP health endpoint port          |
-| `WORKFLOW_BTP_PORT`        | `3203`              | BTP WebSocket port                 |
-| `MAX_IMAGE_SIZE`           | `10485760`          | Maximum image size (10MB in bytes) |
-| `DEFAULT_RESIZE_WIDTH`     | `1024`              | Default resize width (pixels)      |
-| `DEFAULT_RESIZE_HEIGHT`    | `768`               | Default resize height (pixels)     |
-| `DEFAULT_WATERMARK_TEXT`   | `Workflow ILP Demo` | Default watermark text             |
-| `DEFAULT_OPTIMIZE_QUALITY` | `80`                | Default JPEG quality (1-100)       |
-
-### Workflow Execution
-
-Send an ILP Prepare packet with:
-
-1. **Destination**: `g.workflow.resize.watermark.optimize`
-2. **Amount**: Total cost in millisatoshis (e.g., `450n`)
-3. **Data**: Raw image buffer or base64-encoded image
-4. **Execution Condition**: Standard ILP condition
-
-The workflow peer will:
-
-1. Parse the workflow address to extract steps
-2. Validate payment amount matches required cost
-3. Execute steps sequentially (resize → watermark → optimize)
-4. Return processed image in ILP Fulfill packet (base64 encoded)
-
-### Error Handling
-
-| Error Code | Condition               | Message                    |
-| ---------- | ----------------------- | -------------------------- |
-| `F02`      | Non-workflow address    | Destination unreachable    |
-| `T04`      | Insufficient payment    | Required X msat, got Y     |
-| `T00`      | Invalid image format    | Invalid image format       |
-| `T00`      | Image too large (>10MB) | Image exceeds maximum size |
-| `T00`      | Unknown workflow step   | Unknown workflow step: X   |
-
-## Installation
-
-```bash
-npm install @agent-society/connector
-```
-
-## Usage
-
-See the main project README for configuration and deployment instructions.
-
-## Messaging Gateway Mode
-
-The connector can run in **messaging gateway mode** to route pre-encrypted NIP-59 giftwrap events through the ILP network. This enables browser clients to send end-to-end encrypted messages without exposing private keys to the server.
-
-### Starting the Gateway
-
-Set the `mode` configuration to `gateway` in your YAML config file:
+### API Key Authentication
 
 ```yaml
-mode: gateway
-nodeId: gateway-1
-firstHopUrl: ws://connector1:3000
-btpAuthToken: your-shared-secret
-logLevel: info
+adminApi:
+  enabled: true
+  port: 8081
+  apiKey: ${ADMIN_API_KEY} # Required in production (if no IP allowlist)
 ```
 
-Or use environment variables:
+**Generate secure API key:**
 
 ```bash
-export MODE=gateway
-export FIRST_HOP_URL=ws://connector1:3000
-export BTP_AUTH_TOKEN=your-token
-npm start
+# Best: OpenSSL (256-bit entropy)
+openssl rand -base64 32
+
+# Alternative: Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-### API Endpoints
+**Usage:**
 
-**POST /api/route-giftwrap**
-
-Send encrypted giftwrap through ILP network.
-
-Request:
-
-```json
-{
-  "giftwrap": {
-    "kind": 1059,
-    "pubkey": "...",
-    "created_at": 1234567890,
-    "tags": [["p", "recipient-pubkey"]],
-    "content": "encrypted-content",
-    "id": "...",
-    "sig": "..."
-  },
-  "recipient": "g.agent.bob.private",
-  "amount": 300
-}
+```bash
+curl -H "X-Api-Key: your-secret-key" http://localhost:8081/admin/peers
 ```
 
-Response (Success):
+**Security notes:**
 
-```json
-{
-  "success": true,
-  "fulfill": "c2VjcmV0MTIz...",
-  "latency": 4200
-}
+- API keys must be sent via `X-Api-Key` header (query params are rejected to prevent log leakage)
+- Uses timing-safe comparison to prevent timing attacks
+- In production, API key is **required** unless IP allowlist is configured
+
+### IP Allowlist
+
+```yaml
+adminApi:
+  enabled: true
+  port: 8081
+  allowedIPs:
+    - 127.0.0.1 # IPv4 localhost
+    - ::1 # IPv6 localhost
+    - 10.0.1.5 # Specific server IP
+    - 172.18.0.0/16 # Docker network (CIDR)
+    - 10.244.0.0/16 # Kubernetes pod network (CIDR)
+  trustProxy: false # Set true when behind reverse proxy
 ```
 
-Response (Error):
+**Finding network CIDRs:**
 
-```json
-{
-  "error": "Insufficient funds"
-}
+```bash
+# Docker network
+docker network inspect myapp_default --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'
+# Output: 172.18.0.0/16
+
+# Kubernetes pod network
+kubectl cluster-info dump | grep -m 1 cluster-cidr
+# Output: --cluster-cidr=10.244.0.0/16
+
+# Server's private IP
+hostname -I  # On the business logic server
+# Output: 10.0.1.5
 ```
 
-**Error Codes:**
+**Behind reverse proxy (nginx, traefik, ALB):**
 
-- `400 Bad Request` - Missing required fields
-- `402 Payment Required` - Insufficient funds
-- `503 Service Unavailable` - Routing failure
-- `504 Gateway Timeout` - Request timeout
-
-**GET /health**
-
-Health check endpoint.
-
-Response:
-
-```json
-{
-  "status": "ok"
-}
+```yaml
+adminApi:
+  enabled: true
+  port: 8081
+  allowedIPs: [203.0.113.5] # Actual client IP (from X-Forwarded-For)
+  trustProxy: true # CRITICAL: Only enable behind trusted proxy
 ```
 
-### WebSocket Connection
+**Security notes:**
 
-Clients connect to receive giftwrap messages:
+- IP allowlist is checked **before** API key validation (fast rejection)
+- Supports both individual IPs and CIDR notation
+- When `trustProxy: true`, client IP extracted from `X-Forwarded-For` header
+- **WARNING:** Only enable `trustProxy` if your reverse proxy strips/overwrites `X-Forwarded-For` (untrusted proxies can spoof this header)
 
-```javascript
-const ws = new WebSocket('ws://localhost:3003?clientId=alice');
+### Defense in Depth (Recommended)
 
-ws.onmessage = (event) => {
-  const message = JSON.parse(event.data);
-  // { type: 'giftwrap', data: <NostrEvent>, amount: '50' }
-  console.log('Received giftwrap:', message.data);
-};
+```yaml
+adminApi:
+  enabled: true
+  port: 8081
+  apiKey: ${ADMIN_API_KEY}
+  allowedIPs: [10.0.1.0/24]
+  trustProxy: false
 ```
 
-**Connection Parameters:**
+Both IP allowlist **and** API key provide layered security:
 
-- `clientId` (required) - Client identifier for routing messages
+1. IP allowlist rejects unauthorized networks immediately
+2. API key authenticates authorized networks
 
-**Message Format:**
+### Environment Variables
 
-```json
-{
-  "type": "giftwrap",
-  "data": {
-    "kind": 1059,
-    "pubkey": "...",
-    "content": "...",
-    ...
-  },
-  "amount": "50"
-}
+| Variable                | Description                | Example                 |
+| ----------------------- | -------------------------- | ----------------------- |
+| `ADMIN_API_ENABLED`     | Enable admin API           | `true`                  |
+| `ADMIN_API_PORT`        | HTTP port                  | `8081`                  |
+| `ADMIN_API_HOST`        | Bind host                  | `0.0.0.0`               |
+| `ADMIN_API_KEY`         | API key (required in prod) | `your-secret-key`       |
+| `ADMIN_API_ALLOWED_IPS` | Comma-separated IPs/CIDRs  | `127.0.0.1,10.0.0.0/16` |
+| `ADMIN_API_TRUST_PROXY` | Trust X-Forwarded-For      | `false`                 |
+
+**Endpoints:**
+
+| Endpoint                       | Description           |
+| ------------------------------ | --------------------- |
+| `GET /admin/peers`             | List all peers        |
+| `POST /admin/peers`            | Add a new peer        |
+| `DELETE /admin/peers/:peerId`  | Remove a peer         |
+| `GET /admin/routes`            | List routing table    |
+| `POST /admin/routes`           | Add a route           |
+| `DELETE /admin/routes/:prefix` | Remove a route        |
+| `POST /admin/ilp/send`         | Send ILP packet       |
+| `GET /admin/balances/:peerId`  | Query peer balances   |
+| `GET /admin/channels`          | List payment channels |
+| `POST /admin/channels`         | Open payment channel  |
+
+## Exported API
+
+**Classes:** `ConnectorNode`, `ConfigLoader`, `RoutingTable`, `PacketHandler`, `BTPServer`, `BTPClient`, `BTPClientManager`, `AdminServer`, `AccountManager`, `SettlementMonitor`, `UnifiedSettlementExecutor`
+
+**Types:** `ConnectorConfig`, `PeerConfig`, `RouteConfig`, `SettlementConfig`, `LocalDeliveryConfig`, `SendPacketParams`, `PaymentRequest`, `PaymentResponse`, `ILPPreparePacket`, `ILPFulfillPacket`, `ILPRejectPacket`
+
+**Utilities:** `createLogger`, `createPaymentHandlerAdapter`, `computeFulfillmentFromData`, `computeConditionFromData`, `validateIlpSendRequest`
+
+## Package Structure
+
 ```
-
-### Configuration
-
-See `examples/messaging-gateway-config.yaml` for a complete example configuration.
-
-**Required Fields:**
-
-- `mode: gateway` - Enable gateway mode
-- `firstHopUrl` - BTP URL of first-hop connector
-- `btpAuthToken` - Authentication token for BTP connection
-
-**Optional Fields:**
-
-- `nodeId` - Gateway node identifier (default: 'gateway')
-- `logLevel` - Logging level (default: 'info')
-
-### Security Notes
-
-- Gateway is **content-blind** - it never decrypts giftwrap events
-- Uses TOON encoding for efficient ILP packet size (~40% smaller than JSON)
-- Query parameter authentication (`?clientId=`) is MVP-only
-- **TODO:** Upgrade to JWT/OAuth token-based authentication for production
+src/
+├── core/       # Packet forwarding, ConnectorNode, payment handler
+├── btp/        # BTP server and client (WebSocket peers)
+├── routing/    # Routing table and prefix matching
+├── settlement/ # Multi-chain settlement executors, claim signing
+├── http/       # Admin API, health endpoints, ILP send handler
+├── explorer/   # Embedded telemetry UI server and event store
+├── wallet/     # HD wallet derivation for multi-chain keys
+├── security/   # KMS integration (AWS, Azure, GCP)
+├── config/     # Configuration schema and validation
+└── utils/      # Logger, OER encoding
+```
 
 ## Testing
 
 ```bash
-# Unit tests
-npm test
-
-# Acceptance tests
-npm run test:acceptance
-
-# Load tests (requires staging environment)
-npm run test:load
+npm test                 # Unit tests
+npm run test:acceptance  # Acceptance tests
 ```
-
-## Package Structure
-
-- `src/` - Source code
-  - `core/` - Core connector logic
-  - `routing/` - Packet routing
-  - `settlement/` - Settlement engines
-  - `wallet/` - Wallet management
-  - `explorer/` - Explorer server and event store
-- `explorer-ui/` - Explorer UI (React/Vite)
-- `test/` - Test suites
-  - `unit/` - Unit tests
-  - `integration/` - Integration tests
-  - `acceptance/` - Acceptance tests
-
-## Facilitator Server (Epic 31)
-
-The facilitator acts as an HTTP-to-ILP gateway for workflow requests.
-
-### Starting the Facilitator
-
-```bash
-npm run start:facilitator
-```
-
-### API Endpoints
-
-#### POST /api/workflow/process
-
-Submit an image for processing through the workflow pipeline.
-
-**Request:**
-
-- Method: `POST`
-- Content-Type: `multipart/form-data`
-- Body:
-  - `image` (file): Image file (JPEG/PNG/WebP, max 10MB)
-  - `steps` (JSON string): Array of processing steps (default: ["resize", "watermark", "optimize"])
-
-**Response:**
-
-- Success (200): Processed image as binary data
-- Error (400): Invalid request (file too large, invalid format)
-- Error (503): Workflow service unavailable
-- Error (500): Internal error
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:3001/api/workflow/process \
-  -F "image=@my-photo.jpg" \
-  -F 'steps=["resize", "watermark", "optimize"]' \
-  --output processed.jpg
-```
-
-#### GET /health
-
-Health check endpoint.
-
-**Response:**
-
-```json
-{
-  "status": "ok",
-  "services": {
-    "workflow-peer": "available"
-  }
-}
-```
-
-### Configuration
-
-| Variable                        | Default                    | Description                             |
-| ------------------------------- | -------------------------- | --------------------------------------- |
-| `FACILITATOR_HTTP_PORT`         | `3001`                     | HTTP API port                           |
-| `FACILITATOR_BTP_PORT`          | `3200`                     | BTP WebSocket port (optional)           |
-| `CONNECTOR1_BTP_URL`            | `ws://connector-1:3201`    | Connector1 BTP endpoint                 |
-| `CONNECTOR1_AUTH_TOKEN`         | `shared-secret-123`        | BTP authentication token                |
-| `WORKFLOW_PEER_PAYMENT_POINTER` | `$workflow-peer/workflow`  | SPSP payment pointer for workflow peer  |
-| `MAX_IMAGE_SIZE`                | `10485760` (10MB)          | Maximum image upload size (bytes)       |
-| `ACCEPTED_FORMATS`              | `image/jpeg,image/png,...` | Accepted MIME types (comma-separated)   |
-| `SPSP_TIMEOUT`                  | `5000`                     | SPSP handshake timeout (milliseconds)   |
-| `WORKFLOW_TIMEOUT`              | `30000`                    | Workflow request timeout (milliseconds) |
 
 ## License
 
-See root LICENSE file.
+MIT — see [LICENSE](../../LICENSE).

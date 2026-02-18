@@ -29,6 +29,7 @@ import {
   PeerAccountBalance,
   RouteInfo,
   RemovePeerResult,
+  DeploymentMode,
 } from '../config/types';
 import { PaymentHandler, createPaymentHandlerAdapter } from './payment-handler';
 import {
@@ -195,6 +196,7 @@ export class ConnectorNode implements HealthStatusProvider {
         timeout:
           resolvedConfig.localDelivery?.timeout ||
           parseInt(process.env.LOCAL_DELIVERY_TIMEOUT || '30000', 10),
+        authToken: resolvedConfig.localDelivery?.authToken || process.env.LOCAL_DELIVERY_AUTH_TOKEN,
       };
       this._packetHandler.setLocalDelivery(localDeliveryConfig);
     }
@@ -255,6 +257,115 @@ export class ConnectorNode implements HealthStatusProvider {
     } else {
       this._packetHandler.setLocalDeliveryHandler(null);
     }
+  }
+
+  /**
+   * Get the effective deployment mode for this connector.
+   *
+   * Returns the deployment mode based on configuration:
+   * 1. If `config.deploymentMode` is explicitly set, returns that value
+   * 2. Otherwise, infers mode from `localDelivery` and `adminApi` flags:
+   *    - `localDelivery.enabled=true` + `adminApi.enabled=true` → 'standalone'
+   *    - `localDelivery.enabled=false` + `adminApi.enabled=false` → 'embedded'
+   *    - Other combinations → defaults to 'embedded'
+   *
+   * **Deployment Modes:**
+   * - **embedded**: Connector runs in same process as business logic
+   *   - Use `setPacketHandler()` or `setLocalDeliveryHandler()` for incoming packets
+   *   - Use `node.sendPacket()` for outgoing packets
+   *   - Admin API typically disabled
+   *
+   * - **standalone**: Connector runs as separate process/container
+   *   - Incoming packets forwarded via HTTP to `/handle-packet` on external BLS
+   *   - Outgoing packets sent via HTTP to `/admin/ilp/send` on connector admin API
+   *   - Admin API enabled for external control
+   *
+   * @returns 'embedded' or 'standalone'
+   *
+   * @example
+   * ```typescript
+   * const mode = node.getDeploymentMode();
+   * if (mode === 'embedded') {
+   *   // In-process integration - use function handlers
+   *   node.setPacketHandler(async (req) => ({ accept: true }));
+   * } else {
+   *   // Standalone mode - packets forwarded via HTTP
+   *   console.log('Waiting for HTTP requests on /handle-packet');
+   * }
+   * ```
+   */
+  getDeploymentMode(): DeploymentMode {
+    // Return explicit mode if configured
+    if (this._config.deploymentMode) {
+      return this._config.deploymentMode;
+    }
+
+    // Infer mode from configuration flags
+    const hasLocalDelivery = this._config.localDelivery?.enabled === true;
+    const hasAdminApi = this._config.adminApi?.enabled === true;
+
+    // Standalone: Both HTTP delivery and admin API enabled
+    if (hasLocalDelivery && hasAdminApi) {
+      return 'standalone';
+    }
+
+    // Embedded: Both disabled (function handlers + library calls)
+    if (!hasLocalDelivery && !hasAdminApi) {
+      return 'embedded';
+    }
+
+    // Hybrid/unusual configuration — default to embedded
+    // (e.g., adminApi enabled but localDelivery disabled = rare but valid)
+    return 'embedded';
+  }
+
+  /**
+   * Check if the connector is running in embedded mode.
+   *
+   * Embedded mode means the connector runs in the same process as business logic:
+   * - Incoming packets handled via `setPacketHandler()` or `setLocalDeliveryHandler()`
+   * - Outgoing packets sent via `node.sendPacket()` library calls
+   * - Admin API typically disabled (not needed for in-process communication)
+   * - Local delivery disabled (function handlers used instead of HTTP)
+   *
+   * @returns true if deployment mode is 'embedded', false otherwise
+   *
+   * @example
+   * ```typescript
+   * if (node.isEmbedded()) {
+   *   node.setPacketHandler(async (req) => {
+   *     console.log('Received packet:', req);
+   *     return { accept: true };
+   *   });
+   * }
+   * ```
+   */
+  isEmbedded(): boolean {
+    return this.getDeploymentMode() === 'embedded';
+  }
+
+  /**
+   * Check if the connector is running in standalone mode.
+   *
+   * Standalone mode means the connector runs as a separate process/container:
+   * - Incoming packets forwarded via HTTP POST to `/handle-packet` on external BLS
+   * - Outgoing packets sent via HTTP POST to `/admin/ilp/send` on connector admin API
+   * - Admin API enabled for external control
+   * - Local delivery enabled with `handlerUrl` pointing to external BLS
+   *
+   * @returns true if deployment mode is 'standalone', false otherwise
+   *
+   * @example
+   * ```typescript
+   * if (node.isStandalone()) {
+   *   console.log('Connector running in standalone mode');
+   *   console.log('Admin API:', node._config.adminApi?.port);
+   *   console.log('BLS URL:', node._config.localDelivery?.handlerUrl);
+   * }
+   * ```
+   */
+  isStandalone(): boolean {
+    return this.getDeploymentMode() === 'standalone';
   }
 
   /**
@@ -1771,9 +1882,7 @@ export class ConnectorNode implements HealthStatusProvider {
    * @throws Error('Settlement infrastructure not enabled') if channelManager is null
    * @throws Error('Channel not found: ...') if channel does not exist
    */
-  async getChannelState(
-    channelId: string
-  ): Promise<{
+  async getChannelState(channelId: string): Promise<{
     channelId: string;
     status: 'opening' | 'open' | 'closed' | 'settled';
     chain: string;

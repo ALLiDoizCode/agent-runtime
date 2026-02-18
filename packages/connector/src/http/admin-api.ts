@@ -23,7 +23,9 @@
  * ```
  */
 
+import { timingSafeEqual } from 'node:crypto';
 import type { Router, Request, Response, NextFunction } from 'express';
+import { Netmask } from 'netmask';
 import { Logger } from '../utils/logger';
 import { requireOptional } from '../utils/optional-require';
 import { RoutingTable } from '../routing/routing-table';
@@ -65,6 +67,12 @@ export interface AdminAPIConfig {
 
   /** Optional API key for authentication (if not set, no auth required) */
   apiKey?: string;
+
+  /** Optional IP allowlist for access control (supports CIDR notation) */
+  allowedIPs?: string[];
+
+  /** Trust X-Forwarded-For header for client IP (only enable behind trusted proxy) */
+  trustProxy?: boolean;
 
   /** Node ID for logging context */
   nodeId: string;
@@ -177,6 +185,114 @@ export interface SettlementStateResponse {
 }
 
 /**
+ * Helper: Normalize IP address (convert IPv4-mapped IPv6 to IPv4)
+ * @param ip - IP address (may be IPv4-mapped IPv6 like ::ffff:127.0.0.1)
+ * @returns Normalized IP address
+ */
+function normalizeIP(ip: string): string {
+  // Convert IPv4-mapped IPv6 (::ffff:192.0.2.1) to IPv4 (192.0.2.1)
+  if (ip.startsWith('::ffff:')) {
+    return ip.substring(7);
+  }
+  return ip;
+}
+
+/**
+ * Helper: Extract client IP from request
+ * @param req - Express request object
+ * @param trustProxy - Whether to trust X-Forwarded-For header
+ * @returns Client IP address (normalized)
+ */
+function getClientIP(req: Request, trustProxy: boolean): string {
+  if (trustProxy) {
+    // When behind proxy, use X-Forwarded-For (first IP is client)
+    const forwardedFor = req.headers['x-forwarded-for'];
+    if (forwardedFor) {
+      const headerValue = typeof forwardedFor === 'string' ? forwardedFor : forwardedFor[0];
+      if (headerValue) {
+        const ips = headerValue.split(',');
+        const firstIP = ips[0];
+        if (firstIP) {
+          return normalizeIP(firstIP.trim());
+        }
+      }
+    }
+  }
+  // Direct connection: use socket IP
+  const rawIP = req.ip || req.socket.remoteAddress || 'unknown';
+  return normalizeIP(rawIP);
+}
+
+/**
+ * Helper: Check if IP matches allowlist (supports CIDR notation)
+ * @param ip - Client IP address
+ * @param allowedIPs - Array of allowed IPs/CIDR ranges
+ * @returns True if IP is allowed, false otherwise
+ */
+function isIPAllowed(ip: string, allowedIPs: string[]): boolean {
+  for (const allowed of allowedIPs) {
+    try {
+      // Check if it's a CIDR range
+      if (allowed.includes('/')) {
+        const block = new Netmask(allowed);
+        if (block.contains(ip)) {
+          return true;
+        }
+      } else {
+        // Exact IP match
+        if (ip === allowed) {
+          return true;
+        }
+      }
+    } catch (err) {
+      // Invalid CIDR notation — skip this entry
+      continue;
+    }
+  }
+  return false;
+}
+
+/**
+ * Create IP allowlist middleware
+ * @param allowedIPs - Array of allowed IP addresses/CIDR ranges
+ * @param trustProxy - Whether to trust X-Forwarded-For header
+ * @param logger - Logger instance
+ * @returns Express middleware function
+ */
+function createIPAllowlistMiddleware(
+  allowedIPs: string[],
+  trustProxy: boolean,
+  logger: Logger
+): (req: Request, res: Response, next: NextFunction) => void {
+  const log = logger.child({ component: 'IPAllowlist' });
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    const clientIP = getClientIP(req, trustProxy);
+
+    if (!isIPAllowed(clientIP, allowedIPs)) {
+      log.warn(
+        {
+          event: 'admin_api_ip_blocked',
+          ip: clientIP,
+          path: req.path,
+          allowedIPs,
+          trustProxy,
+        },
+        'Admin API request blocked by IP allowlist'
+      );
+      res.status(403).json({
+        error: 'Forbidden',
+        message: 'IP address not allowed',
+      });
+      return;
+    }
+
+    // IP is allowed — continue to next middleware
+    next();
+  };
+}
+
+/**
  * Create Admin API Express router
  *
  * @param config - Admin API configuration
@@ -202,6 +318,8 @@ export async function createAdminRouter(config: AdminAPIConfig): Promise<Router>
     btpClientManager,
     logger,
     apiKey,
+    allowedIPs,
+    trustProxy = false,
     nodeId,
     settlementPeers,
     channelManager,
@@ -218,12 +336,45 @@ export async function createAdminRouter(config: AdminAPIConfig): Promise<Router>
   // JSON body parser
   router.use(express.json());
 
+  // Optional IP allowlist middleware (checked BEFORE API key for fast rejection)
+  if (allowedIPs && allowedIPs.length > 0) {
+    router.use(createIPAllowlistMiddleware(allowedIPs, trustProxy, logger));
+  }
+
   // Optional API key authentication middleware
   if (apiKey) {
+    const apiKeyBuffer = Buffer.from(apiKey);
     router.use((req: Request, res: Response, next: NextFunction) => {
-      const providedKey = req.headers['x-api-key'] || req.query.apiKey;
+      // Only accept API key via X-Api-Key header — reject query param to avoid
+      // keys leaking into access logs, proxy logs, and browser history.
+      if (req.query.apiKey) {
+        log.warn(
+          {
+            event: 'admin_api_key_in_query',
+            ip: req.ip,
+            path: req.path,
+          },
+          'API key supplied via query parameter (rejected — use X-Api-Key header)'
+        );
+        res.status(401).json({
+          error: 'Unauthorized',
+          message: 'API key must be provided via X-Api-Key header, not query parameter',
+        });
+        return;
+      }
 
-      if (providedKey !== apiKey) {
+      const providedKey = req.headers['x-api-key'];
+
+      // Timing-safe comparison: convert to equal-length buffers to avoid
+      // leaking key length via early-exit on length mismatch.
+      const providedBuffer = Buffer.from(typeof providedKey === 'string' ? providedKey : '');
+      const isLengthMatch = providedBuffer.length === apiKeyBuffer.length;
+      // Compare against actual key when lengths match, otherwise compare against
+      // a dummy of the same length as the provided key to burn constant time.
+      const comparand = isLengthMatch ? apiKeyBuffer : providedBuffer;
+      const isMatch = timingSafeEqual(providedBuffer, comparand) && isLengthMatch;
+
+      if (!isMatch) {
         log.warn(
           {
             event: 'admin_api_auth_failed',
