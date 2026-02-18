@@ -37,7 +37,7 @@ services:
 
   # Example Connector 1
   connector-example-1:
-    image: agent-runtime
+    image: connector
     container_name: connector-example-1           # TODO: Change to unique name
     environment:
       CONFIG_FILE: /app/config.yaml               # Path to config file in container
@@ -60,7 +60,7 @@ services:
   # Example Connector 2
   # TODO: Uncomment and customize this service
   # connector-example-2:
-  #   image: agent-runtime
+  #   image: connector
   #   container_name: connector-example-2
   #   environment:
   #     CONFIG_FILE: /app/config.yaml

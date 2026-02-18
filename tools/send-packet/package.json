@@ -1,5 +1,5 @@
 {
-  "name": "@agent-runtime/send-packet",
+  "name": "@agent-society/send-packet",
   "version": "0.1.0",
   "description": "CLI tool to inject test ILP packets into connector network",
   "main": "dist/index.js",

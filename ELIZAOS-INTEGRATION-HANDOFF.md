@@ -468,7 +468,7 @@ Both `@agent-society/shared` and `@agent-society/connector` need to be published
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ALLiDoizCode/agent-runtime.git",
+    "url": "https://github.com/ALLiDoizCode/connector.git",
     "directory": "packages/connector",
   },
   "license": "Apache-2.0",
@@ -496,7 +496,7 @@ Both `@agent-society/shared` and `@agent-society/connector` need to be published
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ALLiDoizCode/agent-runtime.git",
+    "url": "https://github.com/ALLiDoizCode/connector.git",
     "directory": "packages/shared",
   },
   "license": "Apache-2.0",

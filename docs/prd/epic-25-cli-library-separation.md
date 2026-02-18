@@ -45,7 +45,7 @@ Separate the CLI entrypoint from the library exports, remove `process.exit()` ca
 **How It Integrates:**
 
 - `import { ConnectorNode, type ConnectorConfig } from '@agent-society/connector'` — clean import, no side effects
-- The CLI (`npx agent-runtime start config.yaml`) still works — it imports from the library and adds process lifecycle
+- The CLI (`npx connector start config.yaml`) still works — it imports from the library and adds process lifecycle
 - ElizaOS Service imports the library, creates ConnectorNode, manages lifecycle via Service.start()/stop()
 
 **Success Criteria:**
@@ -99,7 +99,7 @@ Separate the CLI entrypoint from the library exports, remove `process.exit()` ca
 1. `import { ConnectorNode } from '@agent-society/connector'` imports from `lib.ts` — zero side effects
 2. No `process.exit()`, `process.on('SIGTERM')`, or `process.on('uncaughtException')` in library code
 3. CLI entrypoint (`main.ts`) handles all process lifecycle concerns
-4. `npx agent-runtime` or direct execution of `main.js` works as before
+4. `npx connector` or direct execution of `main.js` works as before
 5. Package `"main"` and `"exports"` point to side-effect-free library
 6. TypeScript compilation succeeds
 7. All existing tests pass (import paths may need updating)
@@ -188,7 +188,7 @@ Separate the CLI entrypoint from the library exports, remove `process.exit()` ca
 
 ## Compatibility Requirements
 
-- [x] **CLI still works** — `npx agent-runtime` or direct `node dist/main.js` unchanged
+- [x] **CLI still works** — `npx connector` or direct `node dist/main.js` unchanged
 - [x] **Existing imports** — any internal consumers of `@agent-society/connector` still resolve (re-exports cover existing API)
 - [x] **Test imports** — existing test files import paths updated if needed
 - [x] **Docker deployments** — Dockerfile CMD still starts the connector correctly

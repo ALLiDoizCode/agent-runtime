@@ -30,7 +30,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/agent-runtime
+  IMAGE_NAME: ${{ github.repository_owner }}/connector
 
 jobs:
   # Deploy to staging environment
@@ -71,7 +71,7 @@ jobs:
             cd ${{ vars.STAGING_DEPLOY_PATH || '/opt/m2m' }}
 
             # Save current image tag for potential rollback
-            docker inspect --format='{{.Config.Image}}' agent-runtime 2>/dev/null | cut -d: -f2 > .previous-tag || echo "none" > .previous-tag
+            docker inspect --format='{{.Config.Image}}' connector 2>/dev/null | cut -d: -f2 > .previous-tag || echo "none" > .previous-tag
 
             # Pull new image
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image.outputs.tag }}
@@ -192,7 +192,7 @@ jobs:
             cd ${{ vars.PRODUCTION_DEPLOY_PATH || '/opt/m2m' }}
 
             # Save current image tag for potential rollback
-            docker inspect --format='{{.Config.Image}}' agent-runtime 2>/dev/null | cut -d: -f2 > .previous-tag || echo "none" > .previous-tag
+            docker inspect --format='{{.Config.Image}}' connector 2>/dev/null | cut -d: -f2 > .previous-tag || echo "none" > .previous-tag
 
             # Pull new image
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image.outputs.tag }}

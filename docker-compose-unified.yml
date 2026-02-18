@@ -272,8 +272,8 @@ services:
 
   # Agent Runtime 1 - Middleware for Peer1
   agent-runtime-1:
-    image: agent-runtime-core
-    container_name: agent-runtime-1
+    image: connector-core
+    container_name: connector-1
     environment:
       PORT: "3100"
       BASE_ADDRESS: g.peer1
@@ -303,8 +303,8 @@ services:
 
   # Agent Runtime 2 - Middleware for Peer2
   agent-runtime-2:
-    image: agent-runtime-core
-    container_name: agent-runtime-2
+    image: connector-core
+    container_name: connector-2
     environment:
       PORT: "3100"
       BASE_ADDRESS: g.peer2
@@ -334,8 +334,8 @@ services:
 
   # Agent Runtime 3 - Middleware for Peer3
   agent-runtime-3:
-    image: agent-runtime-core
-    container_name: agent-runtime-3
+    image: connector-core
+    container_name: connector-3
     environment:
       PORT: "3100"
       BASE_ADDRESS: g.peer3
@@ -365,8 +365,8 @@ services:
 
   # Agent Runtime 4 - Middleware for Peer4
   agent-runtime-4:
-    image: agent-runtime-core
-    container_name: agent-runtime-4
+    image: connector-core
+    container_name: connector-4
     environment:
       PORT: "3100"
       BASE_ADDRESS: g.peer4
@@ -396,8 +396,8 @@ services:
 
   # Agent Runtime 5 - Middleware for Peer5
   agent-runtime-5:
-    image: agent-runtime-core
-    container_name: agent-runtime-5
+    image: connector-core
+    container_name: connector-5
     environment:
       PORT: "3100"
       BASE_ADDRESS: g.peer5
@@ -431,7 +431,7 @@ services:
 
   # Peer 1 - Entry node
   peer1:
-    image: agent-runtime
+    image: connector
     container_name: peer1
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -494,7 +494,7 @@ services:
 
   # Peer 2 - Transit node 1
   peer2:
-    image: agent-runtime
+    image: connector
     container_name: peer2
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -561,7 +561,7 @@ services:
 
   # Peer 3 - Transit node 2 (middle)
   peer3:
-    image: agent-runtime
+    image: connector
     container_name: peer3
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -627,7 +627,7 @@ services:
 
   # Peer 4 - Transit node 3
   peer4:
-    image: agent-runtime
+    image: connector
     container_name: peer4
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -695,7 +695,7 @@ services:
 
   # Peer 5 - Exit node (destination)
   peer5:
-    image: agent-runtime
+    image: connector
     container_name: peer5
     environment:
       CONFIG_FILE: /app/config.yaml

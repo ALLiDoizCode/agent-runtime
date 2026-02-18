@@ -4,13 +4,13 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: connector
-  namespace: agent-runtime
+  namespace: connector
   labels:
-    app.kubernetes.io/name: agent-runtime
+    app.kubernetes.io/name: connector
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: agent-runtime
+      app.kubernetes.io/name: connector
   policyTypes:
     - Ingress
     - Egress

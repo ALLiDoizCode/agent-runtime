@@ -40,7 +40,7 @@ services:
   # Connector A - Mesh node 1
   # Explorer UI: http://localhost:3010
   connector-a:
-    image: agent-runtime
+    image: connector
     container_name: connector-a
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -67,7 +67,7 @@ services:
   # Connector B - Mesh node 2
   # Explorer UI: http://localhost:3011
   connector-b:
-    image: agent-runtime
+    image: connector
     container_name: connector-b
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -96,7 +96,7 @@ services:
   # Connector C - Mesh node 3
   # Explorer UI: http://localhost:3012
   connector-c:
-    image: agent-runtime
+    image: connector
     container_name: connector-c
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -126,7 +126,7 @@ services:
   # Connector D - Mesh node 4
   # Explorer UI: http://localhost:3013
   connector-d:
-    image: agent-runtime
+    image: connector
     container_name: connector-d
     environment:
       CONFIG_FILE: /app/config.yaml

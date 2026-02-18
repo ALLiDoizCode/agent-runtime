@@ -60,7 +60,7 @@ services:
 
   # Peer 1 - Entry node (receives external packets)
   peer1:
-    image: agent-runtime
+    image: connector
     container_name: peer1
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -123,7 +123,7 @@ services:
 
   # Peer 2 - Transit node 1
   peer2:
-    image: agent-runtime
+    image: connector
     container_name: peer2
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -192,7 +192,7 @@ services:
 
   # Peer 3 - Transit node 2 (middle)
   peer3:
-    image: agent-runtime
+    image: connector
     container_name: peer3
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -261,7 +261,7 @@ services:
 
   # Peer 4 - Transit node 3
   peer4:
-    image: agent-runtime
+    image: connector
     container_name: peer4
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -332,7 +332,7 @@ services:
 
   # Peer 5 - Exit node (destination)
   peer5:
-    image: agent-runtime
+    image: connector
     container_name: peer5
     environment:
       CONFIG_FILE: /app/config.yaml

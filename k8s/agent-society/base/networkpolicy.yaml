@@ -64,7 +64,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: agent-runtime
+              kubernetes.io/metadata.name: connector
       ports:
         - port: 8081
           protocol: TCP

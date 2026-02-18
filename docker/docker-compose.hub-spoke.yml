@@ -37,7 +37,7 @@ services:
   # Hub - Central routing node
   # Explorer UI: http://localhost:3010
   connector-hub:
-    image: agent-runtime
+    image: connector
     container_name: connector-hub
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -64,7 +64,7 @@ services:
   # Spoke 1
   # Explorer UI: http://localhost:3011
   connector-spoke1:
-    image: agent-runtime
+    image: connector
     container_name: connector-spoke1
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -93,7 +93,7 @@ services:
   # Spoke 2
   # Explorer UI: http://localhost:3012
   connector-spoke2:
-    image: agent-runtime
+    image: connector
     container_name: connector-spoke2
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -122,7 +122,7 @@ services:
   # Spoke 3
   # Explorer UI: http://localhost:3013
   connector-spoke3:
-    image: agent-runtime
+    image: connector
     container_name: connector-spoke3
     environment:
       CONFIG_FILE: /app/config.yaml

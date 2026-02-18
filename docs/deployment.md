@@ -244,12 +244,12 @@ kubectl -n agent-runtime port-forward svc/connector 5173:5173
 
 ### Core Settings
 
-| Variable                | Description                           | Default         |
-| ----------------------- | ------------------------------------- | --------------- |
-| `NODE_ID`               | Unique connector identifier           | `agent-runtime` |
-| `LOG_LEVEL`             | Logging level                         | `info`          |
-| `SETTLEMENT_PREFERENCE` | Settlement chain (evm/xrp/aptos/both) | `evm`           |
-| `NETWORK_MODE`          | Network selection (testnet/mainnet)   | `testnet`       |
+| Variable                | Description                           | Default     |
+| ----------------------- | ------------------------------------- | ----------- |
+| `NODE_ID`               | Unique connector identifier           | `connector` |
+| `LOG_LEVEL`             | Logging level                         | `info`      |
+| `SETTLEMENT_PREFERENCE` | Settlement chain (evm/xrp/aptos/both) | `evm`       |
+| `NETWORK_MODE`          | Network selection (testnet/mainnet)   | `testnet`   |
 
 ### Key Management
 

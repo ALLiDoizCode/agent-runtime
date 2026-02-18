@@ -45,6 +45,7 @@ export class LocalDeliveryClient {
       enabled: config.enabled ?? false,
       handlerUrl: config.handlerUrl ?? '',
       timeout: config.timeout ?? DEFAULT_TIMEOUT,
+      authToken: config.authToken ?? '',
     };
     this.logger = logger.child({ component: 'LocalDeliveryClient' });
 

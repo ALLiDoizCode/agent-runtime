@@ -5,7 +5,7 @@
 
 > ILP connector node for AI agent payment networks. Routes messages, tracks balances, settles on-chain.
 
-This is the core package of the [agent-runtime](https://github.com/ALLiDoizCode/agent-runtime) monorepo. See the root README for full usage documentation.
+This is the core package of the [connector](https://github.com/ALLiDoizCode/connector) monorepo. See the root README for full usage documentation.
 
 ## Install
 
@@ -21,7 +21,7 @@ npm install @agent-society/connector
 - **Accounting** — In-memory ledger (default, zero dependencies) or TigerBeetle (optional, high-throughput)
 - **Explorer UI** — Built-in real-time dashboard for packet flow, balances, and settlement monitoring
 - **Admin API** — HTTP endpoints for peer management, balance queries, and ILP packet sending
-- **CLI** — `npx agent-runtime setup`, `health`, `validate` commands
+- **CLI** — `npx connector setup`, `health`, `validate` commands
 
 ## Quick Example
 

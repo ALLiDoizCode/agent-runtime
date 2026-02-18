@@ -1,11 +1,11 @@
-# Multi-stage Dockerfile for Agent Runtime
+# Multi-stage Dockerfile for Connector
 #
 # Stage 1 (builder): Compiles TypeScript to JavaScript with all dependencies
 # Stage 1.5 (ui-builder): Builds Explorer UI with Vite
 # Stage 2 (runtime): Runs compiled connector with production dependencies only
 #
-# Build: docker build -t agent-runtime .
-# Run:   docker run -e NODE_ID=connector-a -e BTP_SERVER_PORT=3000 -p 3000:3000 -p 3001:3001 agent-runtime
+# Build: docker build -t connector .
+# Run:   docker run -e NODE_ID=connector-a -e BTP_SERVER_PORT=3000 -p 3000:3000 -p 3001:3001 connector
 
 # ============================================
 # Stage 1: Builder
@@ -38,7 +38,7 @@ COPY packages/shared/src ./packages/shared/src
 # Build all packages (TypeScript compilation)
 # Build shared first, then connector (dependency order)
 # Use build:connector-only to skip UI build (UI is built in ui-builder stage)
-RUN npm run build --workspace=@agent-runtime/shared && npm run build:connector-only --workspace=@agent-runtime/connector
+RUN npm run build --workspace=@agent-society/shared && npm run build:connector-only --workspace=@agent-society/connector
 
 # ============================================
 # Stage 1.5: UI Builder (Explorer UI)

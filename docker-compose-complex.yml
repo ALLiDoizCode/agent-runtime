@@ -12,7 +12,7 @@ version: '3.8'
 
 services:
   hub-1:
-    image: agent-runtime
+    image: connector
     container_name: hub-1
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -42,7 +42,7 @@ services:
       start_period: 40s
 
   hub-2:
-    image: agent-runtime
+    image: connector
     container_name: hub-2
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -70,7 +70,7 @@ services:
       start_period: 40s
 
   spoke-1a:
-    image: agent-runtime
+    image: connector
     container_name: spoke-1a
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -95,7 +95,7 @@ services:
       start_period: 40s
 
   spoke-1b:
-    image: agent-runtime
+    image: connector
     container_name: spoke-1b
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -120,7 +120,7 @@ services:
       start_period: 40s
 
   spoke-1c:
-    image: agent-runtime
+    image: connector
     container_name: spoke-1c
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -145,7 +145,7 @@ services:
       start_period: 40s
 
   spoke-2a:
-    image: agent-runtime
+    image: connector
     container_name: spoke-2a
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -170,7 +170,7 @@ services:
       start_period: 40s
 
   spoke-2b:
-    image: agent-runtime
+    image: connector
     container_name: spoke-2b
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -195,7 +195,7 @@ services:
       start_period: 40s
 
   spoke-2c:
-    image: agent-runtime
+    image: connector
     container_name: spoke-2c
     environment:
       CONFIG_FILE: /app/config.yaml

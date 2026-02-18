@@ -11,8 +11,8 @@ version: '3.8'
 services:
   # Agent Runtime - Handles SPSP/STREAM protocols for g.peer5.agent.* addresses
   agent-runtime:
-    image: agent-runtime
-    container_name: agent-runtime
+    image: connector
+    container_name: connector
     environment:
       PORT: "3100"
       # ILP address prefix - packets to g.peer5.agent.* are handled here

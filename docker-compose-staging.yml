@@ -63,7 +63,7 @@ services:
   # M2M ILP Connector - Core Payment Processing (Staging / Testnets)
   # ===========================================================================
   connector:
-    image: agent-runtime/connector:latest
+    image: connector/connector:latest
     build:
       context: .
       dockerfile: Dockerfile

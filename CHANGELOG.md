@@ -5,141 +5,141 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.19.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.18.0...v1.19.0) (2026-02-16)
+## [1.19.0](https://github.com/ALLiDoizCode/connector/compare/v1.18.0...v1.19.0) (2026-02-16)
 
 ### Features
 
-- **connector:** expose openChannel() and getChannelState() on ConnectorNode ([fbb7536](https://github.com/ALLiDoizCode/agent-runtime/commit/fbb7536ab3ee5a7bfd61074991dedbfe1d14cfe5))
+- **connector:** expose openChannel() and getChannelState() on ConnectorNode ([fbb7536](https://github.com/ALLiDoizCode/connector/commit/fbb7536ab3ee5a7bfd61074991dedbfe1d14cfe5))
 
-## [1.18.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.17.0...v1.18.0) (2026-02-15)
-
-### Features
-
-- bundle chain SDKs as dependencies instead of peer dependencies ([9cbde0b](https://github.com/ALLiDoizCode/agent-runtime/commit/9cbde0bc2d15f7beb37d0eb156a87ea579af6ed4))
-
-## [1.17.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.16.0...v1.17.0) (2026-02-15)
+## [1.18.0](https://github.com/ALLiDoizCode/connector/compare/v1.17.0...v1.18.0) (2026-02-15)
 
 ### Features
 
-- consolidate agent-runtime into connector, rename setPaymentHandler to setPacketHandler ([fa3a19b](https://github.com/ALLiDoizCode/agent-runtime/commit/fa3a19b8d18e5e750f46d93ec91cc058be76e333))
+- bundle chain SDKs as dependencies instead of peer dependencies ([9cbde0b](https://github.com/ALLiDoizCode/connector/commit/9cbde0bc2d15f7beb37d0eb156a87ea579af6ed4))
 
-## [1.16.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.15.0...v1.16.0) (2026-02-14)
+## [1.17.0](https://github.com/ALLiDoizCode/connector/compare/v1.16.0...v1.17.0) (2026-02-15)
 
 ### Features
 
-- **epic-29:** config-driven settlement infrastructure with multi-node isolation ([88d5ca5](https://github.com/ALLiDoizCode/agent-runtime/commit/88d5ca5dfb8306a719a6a0251d4c3b0d834106ca))
+- consolidate agent-runtime into connector, rename setPaymentHandler to setPacketHandler ([fa3a19b](https://github.com/ALLiDoizCode/connector/commit/fa3a19b8d18e5e750f46d93ec91cc058be76e333))
+
+## [1.16.0](https://github.com/ALLiDoizCode/connector/compare/v1.15.0...v1.16.0) (2026-02-14)
+
+### Features
+
+- **epic-29:** config-driven settlement infrastructure with multi-node isolation ([88d5ca5](https://github.com/ALLiDoizCode/connector/commit/88d5ca5dfb8306a719a6a0251d4c3b0d834106ca))
 
 ### Bug Fixes
 
-- **hooks:** fix pre-push jest --findRelatedTests argument ordering ([61dea08](https://github.com/ALLiDoizCode/agent-runtime/commit/61dea089b413931a0f5d7792965a4f70d6e390d0))
+- **hooks:** fix pre-push jest --findRelatedTests argument ordering ([61dea08](https://github.com/ALLiDoizCode/connector/commit/61dea089b413931a0f5d7792965a4f70d6e390d0))
 
-## [1.15.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.14.0...v1.15.0) (2026-02-14)
+## [1.15.0](https://github.com/ALLiDoizCode/connector/compare/v1.14.0...v1.15.0) (2026-02-14)
 
 ### Features
 
-- **epic-28:** add in-memory ledger as zero-dependency default accounting backend ([357083e](https://github.com/ALLiDoizCode/agent-runtime/commit/357083e85ff74c61e704441df5467e67bfc7ce37))
+- **epic-28:** add in-memory ledger as zero-dependency default accounting backend ([357083e](https://github.com/ALLiDoizCode/connector/commit/357083e85ff74c61e704441df5467e67bfc7ce37))
 
 ### Bug Fixes
 
-- **epic-28:** fix snapshot persistence test by creating account to set dirty flag ([3699641](https://github.com/ALLiDoizCode/agent-runtime/commit/3699641f17c242954fba846038c8587a1019a620))
+- **epic-28:** fix snapshot persistence test by creating account to set dirty flag ([3699641](https://github.com/ALLiDoizCode/connector/commit/3699641f17c242954fba846038c8587a1019a620))
 
-## [1.14.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.13.0...v1.14.0) (2026-02-14)
+## [1.14.0](https://github.com/ALLiDoizCode/connector/compare/v1.13.0...v1.14.0) (2026-02-14)
 
 ### Features
 
-- **epic-27:** complete test suite optimization - reduce pre-push hook from 13min to <30s ([e82f94d](https://github.com/ALLiDoizCode/agent-runtime/commit/e82f94d7fa690e4ed1692c5c2ea0439d78e9849b))
+- **epic-27:** complete test suite optimization - reduce pre-push hook from 13min to <30s ([e82f94d](https://github.com/ALLiDoizCode/connector/commit/e82f94d7fa690e4ed1692c5c2ea0439d78e9849b))
 
 ### Bug Fixes
 
-- **epic-27:** prevent pre-push hook from running jest with empty file list ([2ec3505](https://github.com/ALLiDoizCode/agent-runtime/commit/2ec3505af13baa908e283a56ae67e22e28a6219d))
-- **epic-27:** skip pre-push tests when pushing clean new branch ([a6dbcac](https://github.com/ALLiDoizCode/agent-runtime/commit/a6dbcacb8a5d3e0254cdc5e91e28a939df622835))
+- **epic-27:** prevent pre-push hook from running jest with empty file list ([2ec3505](https://github.com/ALLiDoizCode/connector/commit/2ec3505af13baa908e283a56ae67e22e28a6219d))
+- **epic-27:** skip pre-push tests when pushing clean new branch ([a6dbcac](https://github.com/ALLiDoizCode/connector/commit/a6dbcacb8a5d3e0254cdc5e91e28a939df622835))
 
-## [1.13.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.12.0...v1.13.0) (2026-02-12)
+## [1.13.0](https://github.com/ALLiDoizCode/connector/compare/v1.12.0...v1.13.0) (2026-02-12)
 
 ### Features
 
-- **epic-26:** npm publish readiness — trim dependencies, configure packages, add validation ([b62fc02](https://github.com/ALLiDoizCode/agent-runtime/commit/b62fc02eb283ad44acfbe8cf32cefe8a173dd0fd))
+- **epic-26:** npm publish readiness — trim dependencies, configure packages, add validation ([b62fc02](https://github.com/ALLiDoizCode/connector/commit/b62fc02eb283ad44acfbe8cf32cefe8a173dd0fd))
 
 ### Bug Fixes
 
-- **epic-26:** add peer deps to devDependencies and fix CJS/ESM compat in requireOptional ([b2789ae](https://github.com/ALLiDoizCode/agent-runtime/commit/b2789aed31f84462b7025942562f14083e5cdde0))
-- **tests:** increase xrp-channel-lifecycle beforeAll timeout to 15s ([4abe8a9](https://github.com/ALLiDoizCode/agent-runtime/commit/4abe8a9184e25b9604ec5c086dccfef61d65edf9))
-- **tests:** relax wallet-derivation performance thresholds for concurrent execution ([b558007](https://github.com/ALLiDoizCode/agent-runtime/commit/b558007863dc09f804c274fb00c804fd2877a483))
-- **tests:** use OS-assigned ports in btp-server tests to eliminate EADDRINUSE flakiness ([8bc7443](https://github.com/ALLiDoizCode/agent-runtime/commit/8bc74438d4c5e6293dfb2bf4a5b1f992ccd4345a))
+- **epic-26:** add peer deps to devDependencies and fix CJS/ESM compat in requireOptional ([b2789ae](https://github.com/ALLiDoizCode/connector/commit/b2789aed31f84462b7025942562f14083e5cdde0))
+- **tests:** increase xrp-channel-lifecycle beforeAll timeout to 15s ([4abe8a9](https://github.com/ALLiDoizCode/connector/commit/4abe8a9184e25b9604ec5c086dccfef61d65edf9))
+- **tests:** relax wallet-derivation performance thresholds for concurrent execution ([b558007](https://github.com/ALLiDoizCode/connector/commit/b558007863dc09f804c274fb00c804fd2877a483))
+- **tests:** use OS-assigned ports in btp-server tests to eliminate EADDRINUSE flakiness ([8bc7443](https://github.com/ALLiDoizCode/connector/commit/8bc74438d4c5e6293dfb2bf4a5b1f992ccd4345a))
 
-## [1.12.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.11.0...v1.12.0) (2026-02-11)
-
-### Features
-
-- **epic-25:** CLI/library separation & lifecycle cleanup ([dc995e4](https://github.com/ALLiDoizCode/agent-runtime/commit/dc995e42c9e83be15afb4ac8af462c2bd64d5c45))
-
-## [1.11.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.10.0...v1.11.0) (2026-02-11)
+## [1.12.0](https://github.com/ALLiDoizCode/connector/compare/v1.11.0...v1.12.0) (2026-02-11)
 
 ### Features
 
-- **epic-24:** connector library API — config object, local delivery handler, sendPacket, admin methods ([fb3ab01](https://github.com/ALLiDoizCode/agent-runtime/commit/fb3ab01bcae250cd103db21e2be44c6411cffcf1))
+- **epic-25:** CLI/library separation & lifecycle cleanup ([dc995e4](https://github.com/ALLiDoizCode/connector/commit/dc995e42c9e83be15afb4ac8af462c2bd64d5c45))
+
+## [1.11.0](https://github.com/ALLiDoizCode/connector/compare/v1.10.0...v1.11.0) (2026-02-11)
+
+### Features
+
+- **epic-24:** connector library API — config object, local delivery handler, sendPacket, admin methods ([fb3ab01](https://github.com/ALLiDoizCode/connector/commit/fb3ab01bcae250cd103db21e2be44c6411cffcf1))
 
 ### Bug Fixes
 
-- derive BTP timeouts from ILP packet expiresAt, sync deployment configs ([f88f618](https://github.com/ALLiDoizCode/agent-runtime/commit/f88f618f9d26258b29194ed859b0a72a3aee6c45))
-- **epics-20-23:** resolve integration gaps — field names, channel types, deploy script ([6cdc389](https://github.com/ALLiDoizCode/agent-runtime/commit/6cdc389f62eea696fdbaa114a194d7727c965299))
-- **telemetry:** suppress WebSocket error on terminate during CONNECTING state ([3395bad](https://github.com/ALLiDoizCode/agent-runtime/commit/3395badf3395d6ce53fad45870e9259cb3e42057))
-- **tests:** add missing isConnected mock, fix BTP timeout test timing ([f874c1e](https://github.com/ALLiDoizCode/agent-runtime/commit/f874c1e6c9d4b5c18a1404861b823ad3eb9e5d21))
-- **tests:** increase claim-sender retry test timeout from 50ms to 10s ([3fb9528](https://github.com/ALLiDoizCode/agent-runtime/commit/3fb95284407c36ab0915c146d0d4c08427c4c5f9))
-- **tests:** increase log-telemetry hook timeouts, use random port ([eae5ed5](https://github.com/ALLiDoizCode/agent-runtime/commit/eae5ed59359f07435455388cfe4b7ec6d270aee2))
-- **tests:** use random ports to eliminate EADDRINUSE flakiness ([5d7be0f](https://github.com/ALLiDoizCode/agent-runtime/commit/5d7be0f4676361ff1089917ac3e2799a81675203))
+- derive BTP timeouts from ILP packet expiresAt, sync deployment configs ([f88f618](https://github.com/ALLiDoizCode/connector/commit/f88f618f9d26258b29194ed859b0a72a3aee6c45))
+- **epics-20-23:** resolve integration gaps — field names, channel types, deploy script ([6cdc389](https://github.com/ALLiDoizCode/connector/commit/6cdc389f62eea696fdbaa114a194d7727c965299))
+- **telemetry:** suppress WebSocket error on terminate during CONNECTING state ([3395bad](https://github.com/ALLiDoizCode/connector/commit/3395badf3395d6ce53fad45870e9259cb3e42057))
+- **tests:** add missing isConnected mock, fix BTP timeout test timing ([f874c1e](https://github.com/ALLiDoizCode/connector/commit/f874c1e6c9d4b5c18a1404861b823ad3eb9e5d21))
+- **tests:** increase claim-sender retry test timeout from 50ms to 10s ([3fb9528](https://github.com/ALLiDoizCode/connector/commit/3fb95284407c36ab0915c146d0d4c08427c4c5f9))
+- **tests:** increase log-telemetry hook timeouts, use random port ([eae5ed5](https://github.com/ALLiDoizCode/connector/commit/eae5ed59359f07435455388cfe4b7ec6d270aee2))
+- **tests:** use random ports to eliminate EADDRINUSE flakiness ([5d7be0f](https://github.com/ALLiDoizCode/connector/commit/5d7be0f4676361ff1089917ac3e2799a81675203))
 
-## [1.10.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.9.0...v1.10.0) (2026-02-09)
-
-### Features
-
-- **epic-22:** simplify agent-runtime middleware — remove SPSP/session, add SHA-256 fulfillment ([8b9f324](https://github.com/ALLiDoizCode/agent-runtime/commit/8b9f324fe80b900e1431468b18283d04acd24662))
-- **epic-23:** unified deployment infrastructure — compose, K8s, deploy script ([c8b58a5](https://github.com/ALLiDoizCode/agent-runtime/commit/c8b58a5110ae50e64015658b615779d8ffbcab77))
-
-## [1.9.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.8.0...v1.9.0) (2026-02-09)
+## [1.10.0](https://github.com/ALLiDoizCode/connector/compare/v1.9.0...v1.10.0) (2026-02-09)
 
 ### Features
 
-- add ElizaOS plugin generator skill with research docs ([4718c97](https://github.com/ALLiDoizCode/agent-runtime/commit/4718c976f9b619671d33faac51c04ef18522c4c5))
+- **epic-22:** simplify agent-runtime middleware — remove SPSP/session, add SHA-256 fulfillment ([8b9f324](https://github.com/ALLiDoizCode/connector/commit/8b9f324fe80b900e1431468b18283d04acd24662))
+- **epic-23:** unified deployment infrastructure — compose, K8s, deploy script ([c8b58a5](https://github.com/ALLiDoizCode/connector/commit/c8b58a5110ae50e64015658b615779d8ffbcab77))
+
+## [1.9.0](https://github.com/ALLiDoizCode/connector/compare/v1.8.0...v1.9.0) (2026-02-09)
+
+### Features
+
+- add ElizaOS plugin generator skill with research docs ([4718c97](https://github.com/ALLiDoizCode/connector/commit/4718c976f9b619671d33faac51c04ef18522c4c5))
 
 ### Bug Fixes
 
-- stabilize flaky CI tests for memory profiling and settlement failover ([6b54119](https://github.com/ALLiDoizCode/agent-runtime/commit/6b5411937c7d5ceabf3e047b5a169e29b9ecf2e3))
+- stabilize flaky CI tests for memory profiling and settlement failover ([6b54119](https://github.com/ALLiDoizCode/connector/commit/6b5411937c7d5ceabf3e047b5a169e29b9ecf2e3))
 
-## [1.8.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.7.0...v1.8.0) (2026-02-09)
+## [1.8.0](https://github.com/ALLiDoizCode/connector/compare/v1.7.0...v1.8.0) (2026-02-09)
 
 ### Features
 
-- **epic-21:** add payment channel admin APIs with balance and settlement queries ([1e25e48](https://github.com/ALLiDoizCode/agent-runtime/commit/1e25e48c42f80c52fa1343aed506e472f06d2a6b))
+- **epic-21:** add payment channel admin APIs with balance and settlement queries ([1e25e48](https://github.com/ALLiDoizCode/connector/commit/1e25e48c42f80c52fa1343aed506e472f06d2a6b))
 
 ### Bug Fixes
 
-- skip TigerBeetle integration tests when Docker is unavailable ([cdebfde](https://github.com/ALLiDoizCode/agent-runtime/commit/cdebfde3f9bc495ce900571cbd74e7a34faf94a6))
+- skip TigerBeetle integration tests when Docker is unavailable ([cdebfde](https://github.com/ALLiDoizCode/connector/commit/cdebfde3f9bc495ce900571cbd74e7a34faf94a6))
 
-## [1.7.0](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.6.2...v1.7.0) (2026-02-08)
+## [1.7.0](https://github.com/ALLiDoizCode/connector/compare/v1.6.2...v1.7.0) (2026-02-08)
 
 ### Features
 
-- **epic-20:** add missing type definitions and wiring for bidirectional middleware ([f4ef6a0](https://github.com/ALLiDoizCode/agent-runtime/commit/f4ef6a021584da64c877ae251076589e7b9667b5))
+- **epic-20:** add missing type definitions and wiring for bidirectional middleware ([f4ef6a0](https://github.com/ALLiDoizCode/connector/commit/f4ef6a021584da64c877ae251076589e7b9667b5))
 
-## [1.6.2](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.6.1...v1.6.2) (2026-02-06)
+## [1.6.2](https://github.com/ALLiDoizCode/connector/compare/v1.6.1...v1.6.2) (2026-02-06)
 
 ### Code Refactoring
 
-- complete rebrand from m2m to agent-runtime across documentation and configs ([2298fa4](https://github.com/ALLiDoizCode/agent-runtime/commit/2298fa4d9e1e7c94ba420680804812af06ccc4b1))
+- complete rebrand from m2m to agent-runtime across documentation and configs ([2298fa4](https://github.com/ALLiDoizCode/connector/commit/2298fa4d9e1e7c94ba420680804812af06ccc4b1))
 
-## [1.6.1](https://github.com/ALLiDoizCode/agent-runtime/compare/v1.6.0...v1.6.1) (2026-02-05)
+## [1.6.1](https://github.com/ALLiDoizCode/connector/compare/v1.6.0...v1.6.1) (2026-02-05)
 
 ### Bug Fixes
 
-- **ci:** install libsql native module for Linux in CI test job ([f9ff8b1](https://github.com/ALLiDoizCode/agent-runtime/commit/f9ff8b13880f2d1c0cbb2932f605e7580f447c5c))
-- **ci:** install libsql native module for Linux in integration tests ([70237ac](https://github.com/ALLiDoizCode/agent-runtime/commit/70237ac875f4b827e94ca05fea488eea2b1fcad4))
-- **ci:** update all imports from @m2m/shared to @agent-society/shared ([6804143](https://github.com/ALLiDoizCode/agent-runtime/commit/6804143a29ca3b4fa0dbaf94bd774fe55da89585))
-- **ci:** update package names from @m2m/_ to @agent-runtime/_ ([ab68361](https://github.com/ALLiDoizCode/agent-runtime/commit/ab68361ec3fcc231ae514e2011785f6578797ea5))
-- **ci:** update package-lock.json for @agent-runtime/\* package names ([2a343a1](https://github.com/ALLiDoizCode/agent-runtime/commit/2a343a10b33b2e43a34450fbc4de931127e04ec1))
-- **docker:** resolve libsql native module and port conflicts ([6c2c6c2](https://github.com/ALLiDoizCode/agent-runtime/commit/6c2c6c2b80ff58eb9850cd899dd1c4e9b26545be))
-- **settlement:** use max uint256 approval to prevent insufficient allowance errors ([bb61adb](https://github.com/ALLiDoizCode/agent-runtime/commit/bb61adb6b6ff4c48678e534b320416e04d58eba1))
-- **test:** make multi-chain settlement acceptance test deterministic ([40a9842](https://github.com/ALLiDoizCode/agent-runtime/commit/40a9842b360189af6d4ffbf6d0366790623b7716))
+- **ci:** install libsql native module for Linux in CI test job ([f9ff8b1](https://github.com/ALLiDoizCode/connector/commit/f9ff8b13880f2d1c0cbb2932f605e7580f447c5c))
+- **ci:** install libsql native module for Linux in integration tests ([70237ac](https://github.com/ALLiDoizCode/connector/commit/70237ac875f4b827e94ca05fea488eea2b1fcad4))
+- **ci:** update all imports from @m2m/shared to @agent-society/shared ([6804143](https://github.com/ALLiDoizCode/connector/commit/6804143a29ca3b4fa0dbaf94bd774fe55da89585))
+- **ci:** update package names from @m2m/_ to @agent-runtime/_ ([ab68361](https://github.com/ALLiDoizCode/connector/commit/ab68361ec3fcc231ae514e2011785f6578797ea5))
+- **ci:** update package-lock.json for @agent-runtime/\* package names ([2a343a1](https://github.com/ALLiDoizCode/connector/commit/2a343a10b33b2e43a34450fbc4de931127e04ec1))
+- **docker:** resolve libsql native module and port conflicts ([6c2c6c2](https://github.com/ALLiDoizCode/connector/commit/6c2c6c2b80ff58eb9850cd899dd1c4e9b26545be))
+- **settlement:** use max uint256 approval to prevent insufficient allowance errors ([bb61adb](https://github.com/ALLiDoizCode/connector/commit/bb61adb6b6ff4c48678e534b320416e04d58eba1))
+- **test:** make multi-chain settlement acceptance test deterministic ([40a9842](https://github.com/ALLiDoizCode/connector/commit/40a9842b360189af6d4ffbf6d0366790623b7716))
 
 ## [1.6.0](https://github.com/ALLiDoizCode/m2m/compare/v1.5.0...v1.6.0) (2026-02-05)
 

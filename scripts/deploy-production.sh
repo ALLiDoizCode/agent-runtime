@@ -21,7 +21,7 @@
 # Prerequisites:
 #   1. Docker and Docker Compose installed
 #   2. .env file configured (copy from .env.example)
-#   3. Connector image built: docker build -t agent-runtime/connector:latest .
+#   3. Connector image built: docker build -t connector/connector:latest .
 #
 # =============================================================================
 
@@ -115,10 +115,10 @@ fi
 echo -e "${GREEN}✓ .env file exists${NC}"
 
 # Check connector image
-if ! docker images agent-runtime/connector:latest --format "{{.Repository}}" | grep -q "agent-runtime/connector"; then
+if ! docker images connector/connector:latest --format "{{.Repository}}" | grep -q "connector/connector"; then
   echo -e "${YELLOW}⚠ Connector image not found. Building...${NC}"
   cd "${PROJECT_ROOT}"
-  docker build -t agent-runtime/connector:latest .
+  docker build -t connector/connector:latest .
 fi
 echo -e "${GREEN}✓ Connector image available${NC}"
 

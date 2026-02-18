@@ -514,7 +514,7 @@ so that I can run a multi-node ILP network with one command.
 #### Acceptance Criteria
 
 1. `docker-compose.yml` created defining services for configurable number of connector nodes (3 nodes for default example)
-2. Each connector service uses the same `agent-runtime` image with unique container name
+2. Each connector service uses the same `connector` image with unique container name
 3. Connector services configured with environment variables for node ID, BTP server port, and peer connection URLs
 4. Network topology configured as linear chain (Node A → Node B → Node C) using routing table configuration
 5. Shared secrets for BTP authentication configured via environment variables

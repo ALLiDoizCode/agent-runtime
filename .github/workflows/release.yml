@@ -110,7 +110,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/agent-runtime
+          images: ghcr.io/${{ github.repository_owner }}/connector
           tags: |
             type=semver,pattern={{version}},value=${{ steps.tag.outputs.tag }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.tag.outputs.tag }}

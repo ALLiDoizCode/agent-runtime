@@ -85,7 +85,7 @@ services:
 
   # Connector A - Entry node
   connector-a:
-    image: agent-runtime
+    image: connector
     container_name: connector-a
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -114,7 +114,7 @@ services:
 
   # Connector B - Transit node (middle)
   connector-b:
-    image: agent-runtime
+    image: connector
     container_name: connector-b
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -144,7 +144,7 @@ services:
 
   # Connector C - Exit node
   connector-c:
-    image: agent-runtime
+    image: connector
     container_name: connector-c
     environment:
       CONFIG_FILE: /app/config.yaml

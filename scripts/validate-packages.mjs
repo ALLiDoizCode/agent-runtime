@@ -124,8 +124,8 @@ async function main() {
       log(2, 'Skipping pack (--skip-build), reusing existing tarballs');
       // Find existing tarballs in root
       const files = readdirSync(ROOT);
-      const sharedTgz = files.find(f => f.startsWith('agent-runtime-shared-') && f.endsWith('.tgz'));
-      const connTgz = files.find(f => f.startsWith('agent-runtime-connector-') && f.endsWith('.tgz'));
+      const sharedTgz = files.find(f => f.startsWith('connector-shared-') && f.endsWith('.tgz'));
+      const connTgz = files.find(f => f.startsWith('connector-connector-') && f.endsWith('.tgz'));
       if (!sharedTgz || !connTgz) {
         fail(2, 'Could not find existing tarballs in root — run without --skip-build first');
         throw new Error('Missing tarballs');
@@ -305,8 +305,8 @@ console.log('All imports and types resolved successfully!');
 
     // Step 13 — Verify connector bin entry
     log(13, 'Verifying connector bin entry');
-    const binPath = join(tempDir, 'node_modules', '.bin', 'agent-runtime');
-    const cliPath = join(tempDir, 'node_modules', '@agent-runtime', 'connector', 'dist', 'cli', 'index.js');
+    const binPath = join(tempDir, 'node_modules', '.bin', 'connector');
+    const cliPath = join(tempDir, 'node_modules', '@connector', 'connector', 'dist', 'cli', 'index.js');
     if (existsSync(binPath) || existsSync(cliPath)) {
       pass(13, 'Connector bin entry found');
     } else {

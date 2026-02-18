@@ -13,8 +13,8 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Test configuration
-IMAGE_NAME="agent-runtime-test"
-CONTAINER_NAME="agent-runtime-test-run"
+IMAGE_NAME="connector-test"
+CONTAINER_NAME="connector-test-run"
 TEST_PORT=3001
 TEST_NODE_ID="test-node"
 MAX_IMAGE_SIZE_MB=200

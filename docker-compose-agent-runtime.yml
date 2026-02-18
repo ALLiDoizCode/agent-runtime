@@ -46,7 +46,7 @@ services:
 
   # Connector - ILP connector with local delivery to agent runtime
   connector:
-    image: agent-runtime
+    image: connector
     container_name: connector
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -80,8 +80,8 @@ services:
 
   # Agent Runtime - Handles SPSP/STREAM protocols
   agent-runtime:
-    image: agent-runtime
-    container_name: agent-runtime
+    image: connector
+    container_name: connector
     environment:
       PORT: "3100"
       # ILP address prefix - packets to g.connector.agent.* are handled here

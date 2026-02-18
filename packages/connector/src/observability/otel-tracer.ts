@@ -17,7 +17,7 @@ import { requireOptional } from '../utils/optional-require';
  */
 const DEFAULT_CONFIG: OpenTelemetryConfig = {
   enabled: false,
-  serviceName: 'agent-runtime',
+  serviceName: 'connector',
   exporterEndpoint: 'http://localhost:4318/v1/traces',
   samplingRatio: 1.0,
 };

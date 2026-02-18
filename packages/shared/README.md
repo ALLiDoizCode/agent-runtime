@@ -1,6 +1,6 @@
 # @agent-society/shared
 
-Shared ILP types and OER codec for Agent Runtime.
+Shared ILP types and OER codec for Connector.
 
 ## Install
 
@@ -48,7 +48,7 @@ const decoded = deserializePacket(encoded);
 
 ## Monorepo
 
-This package is part of the [agent-runtime](https://github.com/ALLiDoizCode/agent-runtime) monorepo.
+This package is part of the [connector](https://github.com/ALLiDoizCode/connector) monorepo.
 
 ## License
 

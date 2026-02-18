@@ -158,7 +158,7 @@ Or in Docker Compose:
 ```yaml
 services:
   agent-runtime:
-    image: agent-runtime
+    image: connector
     environment:
       BUSINESS_LOGIC_URL: http://business-logic:8080
 

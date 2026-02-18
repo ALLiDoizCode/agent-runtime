@@ -894,7 +894,7 @@ describe('PacketHandler', () => {
       // Arrange - set up HTTP local delivery, no function handler
       handler.setLocalDelivery({
         enabled: true,
-        handlerUrl: 'http://agent-runtime:3100',
+        handlerUrl: 'http://connector:3100',
         timeout: 5000,
       });
       // Do NOT set function handler
@@ -924,7 +924,7 @@ describe('PacketHandler', () => {
       // Arrange - set up both HTTP client and function handler
       handler.setLocalDelivery({
         enabled: true,
-        handlerUrl: 'http://agent-runtime:3100',
+        handlerUrl: 'http://connector:3100',
         timeout: 5000,
       });
       const mockHandler = jest.fn().mockResolvedValue({

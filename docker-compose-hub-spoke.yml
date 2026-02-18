@@ -48,7 +48,7 @@ services:
   # Hub Connector - Central relay point for spoke connectors
   # The hub must start first as spokes initiate BTP connections to it
   connector-hub:
-    image: agent-runtime
+    image: connector
     container_name: connector-hub
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -79,7 +79,7 @@ services:
   # Spoke-1 - First spoke connector
   # Depends on hub being available for BTP connection
   spoke-1:
-    image: agent-runtime
+    image: connector
     container_name: spoke-1
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -108,7 +108,7 @@ services:
   # Spoke-2 - Second spoke connector
   # Depends on hub being available for BTP connection
   spoke-2:
-    image: agent-runtime
+    image: connector
     container_name: spoke-2
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -135,7 +135,7 @@ services:
   # Spoke-3 - Third spoke connector
   # Depends on hub being available for BTP connection
   spoke-3:
-    image: agent-runtime
+    image: connector
     container_name: spoke-3
     environment:
       CONFIG_FILE: /app/config.yaml

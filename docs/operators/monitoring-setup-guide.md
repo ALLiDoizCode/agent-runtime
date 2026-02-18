@@ -714,7 +714,7 @@ observability:
 | `PROMETHEUS_ENABLED`               | Enable Prometheus metrics    | `true`                  |
 | `PROMETHEUS_METRICS_PATH`          | Metrics endpoint path        | `/metrics`              |
 | `OTEL_ENABLED`                     | Enable OpenTelemetry tracing | `false`                 |
-| `OTEL_SERVICE_NAME`                | Service name for traces      | `agent-runtime`         |
+| `OTEL_SERVICE_NAME`                | Service name for traces      | `connector`             |
 | `OTEL_EXPORTER_ENDPOINT`           | OTLP exporter endpoint       | `http://localhost:4318` |
 | `OTEL_SAMPLING_RATIO`              | Trace sampling ratio         | `1.0`                   |
 | `SLA_PACKET_SUCCESS_THRESHOLD`     | Packet success rate SLA      | `0.999`                 |

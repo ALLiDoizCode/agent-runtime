@@ -22,11 +22,11 @@
 #
 # Prerequisites:
 #   1. OrbStack installed and running (https://orbstack.dev)
-#   2. Built connector image: docker build -t agent-runtime .
+#   2. Built connector image: docker build -t connector .
 #   3. Treasury wallet configured in .env (TREASURY_EVM_PRIVATE_KEY, TREASURY_XRP_PRIVATE_KEY)
 #   4. Base L2 RPC running (Anvil or Base testnet)
 #   5. XRP Ledger testnet access
-#   6. For agent runtime: docker build -t agent-runtime -f packages/agent-runtime/Dockerfile .
+#   6. For agent runtime: docker build -t connector -f packages/connector/Dockerfile .
 
 set -euo pipefail
 
@@ -41,7 +41,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COMPOSE_FILE="${PROJECT_ROOT}/docker-compose-5-peer-multihop.yml"
-COMPOSE_FILE_AGENT="${PROJECT_ROOT}/docker-compose-5-peer-agent-runtime.yml"
+COMPOSE_FILE_AGENT="${PROJECT_ROOT}/docker-compose-5-peer-connector.yml"
 COMPOSE_FILE_NOSTR_SPSP="${PROJECT_ROOT}/docker-compose-5-peer-nostr-spsp.yml"
 COMPOSE_FILE_UNIFIED="${PROJECT_ROOT}/docker-compose-unified.yml"
 AGENT_SOCIETY_DIR="${PROJECT_ROOT}/../agent-society"
@@ -333,19 +333,19 @@ fi
 echo -e "${GREEN}✓ jq is available${NC}"
 
 # Check connector image (uses OrbStack's docker CLI)
-if ! docker images agent-runtime:latest --format "{{.Repository}}" | grep -q "agent-runtime"; then
+if ! docker images connector:latest --format "{{.Repository}}" | grep -q "connector"; then
   echo -e "${YELLOW}⚠ Connector image not found. Building with OrbStack...${NC}"
   cd "${PROJECT_ROOT}"
-  docker build -t agent-runtime .
+  docker build -t connector .
 fi
 echo -e "${GREEN}✓ Connector image available${NC}"
 
 # Check agent runtime image if needed
 if [ "${WITH_AGENT}" = true ]; then
-  if ! docker images agent-runtime:latest --format "{{.Repository}}" | grep -q "agent-runtime"; then
+  if ! docker images connector:latest --format "{{.Repository}}" | grep -q "connector"; then
     echo -e "${YELLOW}⚠ Agent runtime image not found. Building...${NC}"
     cd "${PROJECT_ROOT}"
-    docker build -t agent-runtime -f packages/agent-runtime/Dockerfile .
+    docker build -t connector -f packages/connector/Dockerfile .
   fi
   echo -e "${GREEN}✓ Agent runtime image available${NC}"
 fi
@@ -408,30 +408,30 @@ if [ "${WITH_UNIFIED}" = true ]; then
   echo ""
   echo "Checking Docker images for unified stack..."
 
-  # Build connector image (agent-runtime)
-  if docker images agent-runtime:latest --format "{{.Repository}}" | grep -q "agent-runtime"; then
-    echo -e "  agent-runtime (connector)... ${GREEN}✓ exists${NC}"
+  # Build connector image (connector)
+  if docker images connector:latest --format "{{.Repository}}" | grep -q "connector"; then
+    echo -e "  connector (connector)... ${GREEN}✓ exists${NC}"
   else
-    echo -n "  Building agent-runtime (connector)... "
-    if docker build -t agent-runtime "${PROJECT_ROOT}" > /dev/null 2>&1; then
+    echo -n "  Building connector (connector)... "
+    if docker build -t connector "${PROJECT_ROOT}" > /dev/null 2>&1; then
       echo -e "${GREEN}✓${NC}"
     else
       echo -e "${RED}✗ Failed${NC}"
-      echo "Run manually: docker build -t agent-runtime ."
+      echo "Run manually: docker build -t connector ."
       exit 1
     fi
   fi
 
-  # Build middleware image (agent-runtime-core)
-  if docker images agent-runtime-core:latest --format "{{.Repository}}" | grep -q "agent-runtime-core"; then
-    echo -e "  agent-runtime-core (middleware)... ${GREEN}✓ exists${NC}"
+  # Build middleware image (connector-core)
+  if docker images connector-core:latest --format "{{.Repository}}" | grep -q "connector-core"; then
+    echo -e "  connector-core (middleware)... ${GREEN}✓ exists${NC}"
   else
-    echo -n "  Building agent-runtime-core (middleware)... "
-    if docker build -t agent-runtime-core -f packages/agent-runtime/Dockerfile "${PROJECT_ROOT}" > /dev/null 2>&1; then
+    echo -n "  Building connector-core (middleware)... "
+    if docker build -t connector-core -f packages/connector/Dockerfile "${PROJECT_ROOT}" > /dev/null 2>&1; then
       echo -e "${GREEN}✓${NC}"
     else
       echo -e "${RED}✗ Failed${NC}"
-      echo "Run manually: docker build -t agent-runtime-core -f packages/agent-runtime/Dockerfile ."
+      echo "Run manually: docker build -t connector-core -f packages/connector/Dockerfile ."
       exit 1
     fi
   fi
@@ -576,9 +576,9 @@ if [ "${WITH_UNIFIED}" = true ]; then
     for i in {1..5}; do
       MW_PORT=$((3199 + i))
       if curl -s "http://localhost:${MW_PORT}/health" 2>/dev/null | grep -q "healthy\|ok"; then
-        printf "│ %-17s │ ${GREEN}%-8s${NC} │ %-24s │\n" "agent-runtime-${i}" "✓ Healthy" "${MW_PORT}"
+        printf "│ %-17s │ ${GREEN}%-8s${NC} │ %-24s │\n" "connector-${i}" "✓ Healthy" "${MW_PORT}"
       else
-        printf "│ %-17s │ ${RED}%-8s${NC} │ %-24s │\n" "agent-runtime-${i}" "✗ Down" "${MW_PORT}"
+        printf "│ %-17s │ ${RED}%-8s${NC} │ %-24s │\n" "connector-${i}" "✗ Down" "${MW_PORT}"
       fi
     done
 
@@ -677,15 +677,15 @@ if [ "${WITH_UNIFIED}" = true ]; then
   fi
 
   # --------------------------------------------------------------------------
-  # Phase 2: Wait for agent-runtime middleware (including BTP client)
+  # Phase 2: Wait for connector middleware (including BTP client)
   # --------------------------------------------------------------------------
-  echo -e "${BLUE}[Phase 2/9]${NC} Verifying agent-runtime middleware health (including BTP client)..."
+  echo -e "${BLUE}[Phase 2/9]${NC} Verifying connector middleware health (including BTP client)..."
   echo ""
 
   PHASE2_FAILED=false
   for i in {1..5}; do
     MW_PORT=$((3199 + i))
-    echo -n "  agent-runtime-${i} (port ${MW_PORT})... "
+    echo -n "  connector-${i} (port ${MW_PORT})... "
 
     MAX_ATTEMPTS=$((UNIFIED_TIMEOUT / 2))
     for attempt in $(seq 1 ${MAX_ATTEMPTS}); do
@@ -715,7 +715,7 @@ if [ "${WITH_UNIFIED}" = true ]; then
   echo "Checking outbound send endpoint availability..."
   for i in {1..5}; do
     MW_PORT=$((3199 + i))
-    echo -n "  agent-runtime-${i} POST /ilp/send... "
+    echo -n "  connector-${i} POST /ilp/send... "
     SEND_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
       -H "Content-Type: application/json" \
       -d '{"destination":"g.test","amount":"0","data":"dGVzdA==","timeoutMs":1000}' \
@@ -1190,7 +1190,7 @@ if [ "${WITH_UNIFIED}" = true ]; then
     E2E_NONCE=$(openssl rand -hex 8)
     E2E_DATA=$(echo -n "test-${E2E_NONCE}" | base64)
 
-    echo "Sending via agent-runtime-1 middleware (port 3200)..."
+    echo "Sending via connector-1 middleware (port 3200)..."
     echo "  POST /ilp/send {\"destination\":\"g.peer5\",\"amount\":\"1000\",\"data\":\"${E2E_DATA}\",\"timeoutMs\":30000}"
     echo ""
 
@@ -1260,7 +1260,7 @@ if [ "${WITH_UNIFIED}" = true ]; then
     echo ""
     REVERSE_NONCE=$(openssl rand -hex 8)
     REVERSE_DATA=$(echo -n "reverse-${REVERSE_NONCE}" | base64)
-    echo "Sending reverse direction test (g.peer5 → g.peer1 via agent-runtime-5, port 3204)..."
+    echo "Sending reverse direction test (g.peer5 → g.peer1 via connector-5, port 3204)..."
     REVERSE_RESPONSE=$(curl -s -X POST \
       -H "Content-Type: application/json" \
       -d "{\"destination\":\"g.peer1\",\"amount\":\"1000\",\"data\":\"${REVERSE_DATA}\",\"timeoutMs\":15000}" \
@@ -1313,7 +1313,7 @@ if [ "${WITH_UNIFIED}" = true ]; then
   echo ""
   echo "Check health:"
   echo "  curl http://localhost:3110/health   # BLS (agent-society-1)"
-  echo "  curl http://localhost:3200/health   # Middleware (agent-runtime-1)"
+  echo "  curl http://localhost:3200/health   # Middleware (connector-1)"
   echo "  curl http://localhost:9080/health   # Connector (peer1)"
   echo ""
   echo "Admin API:"
@@ -1761,9 +1761,9 @@ version: '3.8'
 
 services:
   # Agent Runtime - Handles SPSP/STREAM protocols for g.peer5.agent.* addresses
-  agent-runtime:
-    image: agent-runtime
-    container_name: agent-runtime
+  connector:
+    image: connector
+    container_name: connector
     environment:
       PORT: "3100"
       # ILP address prefix - packets to g.peer5.agent.* are handled here
@@ -1776,7 +1776,7 @@ services:
       # Session TTL (1 hour)
       SESSION_TTL_MS: "3600000"
       LOG_LEVEL: info
-      NODE_ID: agent-runtime
+      NODE_ID: connector
     ports:
       - "3100:3100"   # Agent runtime HTTP port (SPSP + packet handling)
     networks:
@@ -1835,7 +1835,7 @@ AGENT_COMPOSE_EOF
     fi
     if [ $attempt -eq 30 ]; then
       echo -e "${RED}✗ Agent Runtime failed to start${NC}"
-      docker compose -f "${COMPOSE_FILE_AGENT}" logs agent-runtime
+      docker compose -f "${COMPOSE_FILE_AGENT}" logs connector
       exit 1
     fi
     sleep 2
@@ -1886,7 +1886,7 @@ AGENT_COMPOSE_EOF
 
   echo ""
 
-  # Step AR-3: Test ILP Send via agent-runtime
+  # Step AR-3: Test ILP Send via connector
   echo -e "${BLUE}[AR-3/5]${NC} Testing ILP send endpoint..."
   echo ""
   AGENT_TESTS_TOTAL=$((AGENT_TESTS_TOTAL + 1))

@@ -84,11 +84,11 @@ services:
   # M2M ILP Connector - Core Payment Processing
   # ===========================================================================
   connector:
-    image: agent-runtime/connector:latest
+    image: connector/connector:latest
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: agent-runtime
+    container_name: connector
     environment:
       # Core Configuration
       NODE_ID: ${NODE_ID:-agent-runtime}

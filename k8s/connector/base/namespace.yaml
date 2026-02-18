@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: agent-runtime
+  name: connector
   labels:
-    app.kubernetes.io/name: agent-runtime
+    app.kubernetes.io/name: connector
     app.kubernetes.io/part-of: agent-runtime

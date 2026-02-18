@@ -390,4 +390,4 @@ For detailed documentation, see:
 For issues or questions:
 
 - Check logs: `docker-compose -f docker-compose-5-peer-multihop.yml logs`
-- Open GitHub issue: https://github.com/ALLiDoizCode/agent-runtime/issues
+- Open GitHub issue: https://github.com/ALLiDoizCode/connector/issues

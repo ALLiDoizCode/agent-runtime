@@ -66,15 +66,15 @@ echo "  Step 2: Building connector image"
 echo "======================================"
 echo ""
 
-echo "Building agent-runtime image..."
+echo "Building connector image..."
 echo ""
 
-if docker build -t agent-runtime . ; then
+if docker build -t connector . ; then
   echo ""
   echo -e "${GREEN}✓ Image built successfully${NC}"
 
   # Show image size
-  IMAGE_SIZE=$(docker images agent-runtime:latest --format "{{.Size}}" 2>/dev/null || echo "unknown")
+  IMAGE_SIZE=$(docker images connector:latest --format "{{.Size}}" 2>/dev/null || echo "unknown")
   echo "Image size: ${IMAGE_SIZE}"
 else
   echo ""

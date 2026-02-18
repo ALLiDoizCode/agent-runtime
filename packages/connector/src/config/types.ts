@@ -401,7 +401,7 @@ export interface ConnectorConfig {
    *
    * Environment variables:
    * - LOCAL_DELIVERY_ENABLED: Enable/disable local delivery (default: false)
-   * - LOCAL_DELIVERY_URL: URL to agent runtime (e.g., "http://agent-runtime:3100")
+   * - LOCAL_DELIVERY_URL: URL to agent runtime (e.g., "http://connector:3100")
    * - LOCAL_DELIVERY_TIMEOUT: Request timeout in ms (default: 30000)
    */
   localDelivery?: LocalDeliveryConfig;
@@ -1509,7 +1509,7 @@ export interface PerformanceConfig {
  *   },
  *   opentelemetry: {
  *     enabled: true,
- *     serviceName: 'agent-runtime',
+ *     serviceName: 'connector',
  *     exporterEndpoint: 'http://jaeger:4318/v1/traces',
  *     samplingRatio: 1.0
  *   },
@@ -1600,7 +1600,7 @@ export interface ExplorerConfig {
  *   },
  *   opentelemetry: {
  *     enabled: true,
- *     serviceName: 'agent-runtime',
+ *     serviceName: 'connector',
  *     exporterEndpoint: 'http://jaeger:4318/v1/traces',
  *     samplingRatio: 1.0
  *   },
@@ -1670,14 +1670,14 @@ export interface ObservabilityConfig {
  * via HTTP instead of using the built-in auto-fulfill stub.
  *
  * @property enabled - Enable/disable local delivery forwarding (default: false)
- * @property handlerUrl - URL to the agent runtime (e.g., "http://agent-runtime:3100")
+ * @property handlerUrl - URL to the connector (e.g., "http://connector:3100")
  * @property timeout - HTTP request timeout in milliseconds (default: 30000)
  *
  * @example
  * ```typescript
  * const localDelivery: LocalDeliveryConfig = {
  *   enabled: true,
- *   handlerUrl: 'http://agent-runtime:3100',
+ *   handlerUrl: 'http://connector:3100',
  *   timeout: 30000
  * };
  * ```
@@ -1687,7 +1687,7 @@ export interface ObservabilityConfig {
  * # YAML configuration
  * localDelivery:
  *   enabled: true
- *   handlerUrl: http://agent-runtime:3100
+ *   handlerUrl: http://connector:3100
  *   timeout: 30000
  * ```
  */

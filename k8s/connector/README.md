@@ -6,7 +6,7 @@ Production-ready Kubernetes deployment for the M2M ILP Connector with Explorer U
 
 ```
                       ┌─────────────────────────────────────────────────────┐
-                      │              agent-runtime namespace                 │
+                      │              connector namespace                 │
                       │                                                      │
 ┌─────────────┐       │  ┌──────────────────────────────────────────────┐   │
 │   Ingress   │       │  │              connector (Deployment)          │   │
@@ -59,10 +59,10 @@ kubectl apply -k k8s/tigerbeetle/
 kubectl apply -k k8s/connector/
 
 # Watch pods start
-kubectl -n agent-runtime get pods -w
+kubectl -n connector get pods -w
 
 # Check status
-kubectl -n agent-runtime logs -l app.kubernetes.io/name=agent-runtime
+kubectl -n connector logs -l app.kubernetes.io/name=connector
 ```
 
 ## Configuration
@@ -90,7 +90,7 @@ kubectl apply -k k8s/connector/overlays/staging/
 Option 1: Create secrets manually:
 
 ```bash
-kubectl -n agent-runtime create secret generic connector-secrets \
+kubectl -n connector create secret generic connector-secrets \
   --from-literal=EVM_PRIVATE_KEY=0x... \
   --from-literal=M2M_TOKEN_ADDRESS=0x... \
   --from-literal=TOKEN_NETWORK_REGISTRY=0x...
@@ -106,7 +106,7 @@ Option 2: Use external secret management:
 
 | Key                     | Default                | Description                          |
 | ----------------------- | ---------------------- | ------------------------------------ |
-| `NODE_ID`               | agent-runtime          | Unique node identifier               |
+| `NODE_ID                | connector              | Unique node identifier               |
 | `LOG_LEVEL`             | info                   | Log level (debug, info, warn, error) |
 | `SETTLEMENT_PREFERENCE` | evm                    | Preferred settlement chain           |
 | `SETTLEMENT_ENABLED`    | true                   | Enable automatic settlement          |
@@ -125,7 +125,7 @@ Option 2: Use external secret management:
 
 ```bash
 # Port forward for local access
-kubectl -n agent-runtime port-forward svc/connector-explorer 5173:5173
+kubectl -n connector port-forward svc/connector-explorer 5173:5173
 
 # Open in browser
 open http://localhost:5173
@@ -180,27 +180,27 @@ prometheus.io/path: '/metrics'
 
 ```bash
 # Scale to 3 replicas
-kubectl -n agent-runtime scale deployment connector --replicas=3
+kubectl -n connector scale deployment connector --replicas=3
 ```
 
 ### Rolling Update
 
 ```bash
 # Update image
-kubectl -n agent-runtime set image deployment/connector connector=agent-runtime/connector:v1.2.0
+kubectl -n connector set image deployment/connector connector=agent-society/connector:v1.2.0
 
 # Watch rollout
-kubectl -n agent-runtime rollout status deployment/connector
+kubectl -n connector rollout status deployment/connector
 ```
 
 ### Logs
 
 ```bash
 # All connector logs
-kubectl -n agent-runtime logs -l app.kubernetes.io/name=agent-runtime -f
+kubectl -n connector logs -l app.kubernetes.io/name=connector -f
 
 # Specific pod
-kubectl -n agent-runtime logs connector-xxxx-yyyy -f
+kubectl -n connector logs connector-xxxx-yyyy -f
 ```
 
 ## Troubleshooting
@@ -209,7 +209,7 @@ kubectl -n agent-runtime logs connector-xxxx-yyyy -f
 
 ```bash
 # Check events
-kubectl -n agent-runtime describe pod -l app.kubernetes.io/name=agent-runtime
+kubectl -n connector describe pod -l app.kubernetes.io/name=connector
 
 # Common causes:
 # - Missing secrets (connector-secrets)
@@ -224,7 +224,7 @@ kubectl -n agent-runtime describe pod -l app.kubernetes.io/name=agent-runtime
 kubectl -n tigerbeetle get pods
 
 # Test connectivity from connector pod
-kubectl -n agent-runtime exec -it deployment/connector -- \
+kubectl -n connector exec -it deployment/connector -- \
   nc -zv tigerbeetle.tigerbeetle.svc.cluster.local 3000
 ```
 
@@ -232,10 +232,10 @@ kubectl -n agent-runtime exec -it deployment/connector -- \
 
 ```bash
 # Check logs for settlement errors
-kubectl -n agent-runtime logs -l app.kubernetes.io/name=agent-runtime | grep -i settlement
+kubectl -n connector logs -l app.kubernetes.io/name=connector | grep -i settlement
 
 # Verify secrets are set
-kubectl -n agent-runtime get secret connector-secrets -o jsonpath='{.data.M2M_TOKEN_ADDRESS}' | base64 -d
+kubectl -n connector get secret connector-secrets -o jsonpath='{.data.M2M_TOKEN_ADDRESS}' | base64 -d
 ```
 
 ## Resource Requirements

@@ -4,9 +4,9 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: agent-runtime-config
-  namespace: agent-runtime-core
+  namespace: connector-core
   labels:
-    app.kubernetes.io/name: agent-runtime-core
+    app.kubernetes.io/name: connector-core
     app.kubernetes.io/component: agent-runtime
 data:
   # HTTP server port

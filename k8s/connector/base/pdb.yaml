@@ -4,12 +4,12 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: connector
-  namespace: agent-runtime
+  namespace: connector
   labels:
-    app.kubernetes.io/name: agent-runtime
+    app.kubernetes.io/name: connector
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: agent-runtime
+      app.kubernetes.io/name: connector
       app.kubernetes.io/component: connector

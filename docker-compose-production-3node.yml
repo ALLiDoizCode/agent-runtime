@@ -42,7 +42,7 @@ version: '3.8'
 services:
   # Production Node 1
   production-node-1:
-    image: agent-runtime
+    image: connector
     container_name: production-node-1
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -71,7 +71,7 @@ services:
 
   # Production Node 2
   production-node-2:
-    image: agent-runtime
+    image: connector
     container_name: production-node-2
     environment:
       CONFIG_FILE: /app/config.yaml
@@ -98,7 +98,7 @@ services:
 
   # Production Node 3
   production-node-3:
-    image: agent-runtime
+    image: connector
     container_name: production-node-3
     environment:
       CONFIG_FILE: /app/config.yaml

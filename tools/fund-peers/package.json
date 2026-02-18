@@ -1,5 +1,5 @@
 {
-  "name": "@agent-runtime/fund-peers",
+  "name": "@agent-society/fund-peers",
   "version": "0.1.0",
   "description": "CLI tool to fund peer wallets from treasury",
   "main": "dist/index.js",

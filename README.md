@@ -1,4 +1,4 @@
-# Agent Runtime
+# Connector
 
 [![Version](https://img.shields.io/badge/version-1.15.0-blue.svg)](CHANGELOG.md)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-blue.svg)](https://www.typescriptlang.org/)
@@ -16,7 +16,7 @@ That's it. No external databases required — the connector ships with an in-mem
 
 ## What This Does
 
-Agent Runtime is a connector node for the [Interledger Protocol (ILP)](https://interledger.org). It routes messages between agents, tracks balances off-chain, and settles to real blockchains when ready.
+Connector is a connector node for the [Interledger Protocol (ILP)](https://interledger.org). It routes messages between agents, tracks balances off-chain, and settles to real blockchains when ready.
 
 Every message on the network has tokens attached. Agents pay to send messages. Agents earn by receiving them. Peers earn routing fees for relaying traffic between agents.
 
@@ -31,17 +31,17 @@ Thousands of messages, one on-chain settlement.
 
 ### As a CLI
 
-The package includes an `agent-runtime` CLI:
+The package includes a `connector` CLI:
 
 ```bash
 # Interactive setup — generates a .env config file
-npx agent-runtime setup
+npx connector setup
 
 # Check health of a running connector
-npx agent-runtime health
+npx connector health
 
 # Validate a config file
-npx agent-runtime validate config.yaml
+npx connector validate config.yaml
 ```
 
 ### As a Library
@@ -299,7 +299,7 @@ This repo is a monorepo with two packages:
 ```
 ┌──────────────┐   /handle-packet   ┌──────────────┐
 │  Your BLS    │◄──────────────────│  @agent-     │
-│              │                    │  runtime/    │
+│              │                    │  society/    │
 │  Outbound:   │  /admin/ilp/send  │  connector   │
 │  POST ───────│──────────────────►│              │
 │              │                    │              │
@@ -322,8 +322,8 @@ Then open `http://localhost:3001` to watch messages, balances, and settlements a
 
 ```bash
 # Clone and install
-git clone https://github.com/ALLiDoizCode/agent-runtime.git
-cd agent-runtime
+git clone https://github.com/ALLiDoizCode/connector.git
+cd connector
 npm install
 
 # Build all packages
@@ -361,6 +361,6 @@ MIT — see [LICENSE](LICENSE).
 
 ## Links
 
-- **GitHub:** [github.com/ALLiDoizCode/agent-runtime](https://github.com/ALLiDoizCode/agent-runtime)
+- **GitHub:** [github.com/ALLiDoizCode/connector](https://github.com/ALLiDoizCode/connector)
 - **Interledger:** [interledger.org](https://interledger.org)
 - **TigerBeetle:** [tigerbeetle.com](https://tigerbeetle.com)

@@ -176,7 +176,7 @@ Create the unified deployment infrastructure that orchestrates agent-runtime con
 - **NetworkPolicy (base/networkpolicy.yaml):**
   - Ingress on port 3100: from `agent-runtime-core` namespace (middleware → BLS)
   - Ingress on port 7100: from `agent-society` namespace (peer relay → peer relay) and `agent-runtime-core` namespace
-  - Egress: to `agent-runtime` namespace on port 8081 (BLS → connector Admin API), to `agent-runtime-core` namespace on port 3100 (BLS → middleware /ilp/send)
+  - Egress: to `connector` namespace on port 8081 (BLS → connector Admin API), to `agent-runtime-core` namespace on port 3100 (BLS → middleware /ilp/send)
 - **Update `k8s/connector/base/configmap.yaml`:**
   - Add `LOCAL_DELIVERY_ENABLED: 'true'`
   - Add `LOCAL_DELIVERY_URL: 'http://agent-runtime-core.agent-runtime-core.svc.cluster.local:3100'`
@@ -207,7 +207,7 @@ Create the unified deployment infrastructure that orchestrates agent-runtime con
 
 - **Add `--unified` flag to `scripts/deploy-5-peer-multihop.sh`:**
   - Uses `docker-compose-unified.yml` instead of `docker-compose-5-peer-multihop.yml`
-  - Builds 3 images: `agent-runtime` (connector), `agent-runtime-core` (middleware Dockerfile), `agent-society` (from agent-society repo — configurable path via `AGENT_SOCIETY_PATH` env var, default `../agent-society`)
+  - Builds 3 images: `connector` (connector), `agent-runtime-core` (middleware Dockerfile), `agent-society` (from agent-society repo — configurable path via `AGENT_SOCIETY_PATH` env var, default `../agent-society`)
   - Generates Nostr keypairs if not present in `.env.peers` (using `openssl rand -hex 32` for secret keys, derive pubkeys)
 - **Phased startup with verification:**
   - Phase 1: Start TigerBeetle + agent-society containers → wait for BLS `/health` healthy on ports 3110-3114 + relay WebSocket listening on 7110-7114

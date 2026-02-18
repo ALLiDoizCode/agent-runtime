@@ -12,7 +12,7 @@
     }
   },
   "bin": {
-    "agent-runtime": "./dist/cli/index.js"
+    "connector": "./dist/cli/index.js"
   },
   "files": [
     "dist",
@@ -26,7 +26,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ALLiDoizCode/agent-runtime.git",
+    "url": "https://github.com/ALLiDoizCode/connector.git",
     "directory": "packages/connector"
   },
   "license": "MIT",
@@ -41,9 +41,9 @@
     "settlement",
     "btp"
   ],
-  "homepage": "https://github.com/ALLiDoizCode/agent-runtime/tree/main/packages/connector#readme",
+  "homepage": "https://github.com/ALLiDoizCode/connector/tree/main/packages/connector#readme",
   "bugs": {
-    "url": "https://github.com/ALLiDoizCode/agent-runtime/issues"
+    "url": "https://github.com/ALLiDoizCode/connector/issues"
   },
   "scripts": {
     "build": "npm run build:ui && tsc",
