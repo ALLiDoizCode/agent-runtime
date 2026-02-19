@@ -1,4 +1,4 @@
-# ILP Connector with BTP and Network Visualization - Architecture Documentation
+# Connector - Architecture Documentation
 
 ## Table of Contents
 
@@ -52,52 +52,36 @@
 
 ### Project Purpose and Goals
 
-The **ILP Connector with BTP and Network Visualization** is an educational tool designed to make
-Interledger Protocol (ILP) packet routing observable and debuggable. The system enables developers
-to:
+**Connector** (npm: `@agent-society/connector`) is a production-ready Interledger Protocol (ILP) connector designed as both a library and CLI tool for building payment networks for agents. The system enables developers to:
 
-- **Visualize ILP packet flows** across multi-node connector networks in real-time
-- **Inspect packet contents** (Prepare, Fulfill, Reject) with full OER-decoded details
-- **Understand routing decisions** through comprehensive structured logging
-- **Experiment with network topologies** (linear, mesh, hub-spoke) via Docker Compose
-- **Learn Interledger RFCs** by interacting with authentic ILPv4 and BTP implementations
+- **Route messages with attached value** between agents and peers across ILP networks
+- **Track balances off-chain** with optional persistence (in-memory ledger or TigerBeetle)
+- **Settle to real blockchains** (Ethereum, XRP Ledger, Aptos) when ready
+- **Earn routing fees** by relaying traffic between agents
+- **Visualize packet flows** through built-in Explorer UI with real-time telemetry
+- **Deploy flexibly** as a library, CLI, or Docker container
 
-This is not a production-ready connector - it prioritizes observability, ease of use, and
-educational value over performance, security, and high availability.
+The connector implements authentic ILPv4 and BTP protocols while providing comprehensive observability, making it suitable for both production deployments and learning environments.
 
 ### Why This Architecture?
 
 The architectural choices in this system are driven by four key principles:
 
-#### Educational Value - Hands-On ILP Learning
+#### Production-Ready Library with Educational Value
 
-The system is designed for developers learning Interledger Protocol. By providing a visual
-dashboard showing packet flows, routing decisions, and detailed packet inspection, learners can see
-abstract RFC concepts (ILP addresses, BTP connections, OER encoding) manifest in a running system.
-The architecture intentionally exposes internal state (routing tables, peer connections) rather
-than hiding it.
+The connector is designed as a production library (`@agent-society/connector`) that can be used both programmatically and via CLI. By providing comprehensive observability through the Explorer UI and detailed logging, developers can understand ILP packet flows, routing decisions, and settlement in production environments. The architecture exposes internal state (routing tables, peer connections, balances) for debugging while maintaining production-grade security and performance.
 
-#### Observability-First Design - Visualize Packet Routing
+#### Observability-First Design - Built-in Telemetry
 
-Traditional ILP connectors are "black boxes" - packets enter, packets leave, but intermediate
-routing is opaque. This system inverts that model by making telemetry a first-class concern.
-Connectors emit detailed events (PACKET_RECEIVED, PACKET_SENT, ROUTE_LOOKUP) that drive real-time
-network visualizations. The architecture treats observability as core functionality, not an
-afterthought.
+The connector treats observability as a first-class concern. Every packet forwarded, every balance update, and every settlement emits structured telemetry events. The built-in Explorer UI visualizes these events in real-time, making it easy to debug routing issues, monitor throughput, and verify settlement flows. The architecture enables both real-time monitoring and historical analysis.
 
-#### Developer Experience - Zero-Config Docker Deployment
+#### Flexible Deployment - Library, CLI, or Container
 
-Setting up multi-node connector networks is complex. This architecture uses Docker Compose to
-orchestrate N connector nodes with pre-configured routing tables and BTP peer connections. Running
-`docker-compose up` deploys a working 3-node network in seconds. The monorepo structure with
-TypeScript type sharing across packages ensures type safety while maintaining simplicity.
+The connector supports multiple deployment modes: (1) as a library imported into your application, (2) as a standalone CLI tool with interactive setup, (3) as a Docker container for orchestrated deployments. The monorepo structure with TypeScript type sharing ensures type safety across packages. Configuration can be provided via YAML files or programmatically via objects.
 
-#### RFC Compliance - Authentic Interledger Implementation
+#### RFC Compliance with Modern Enhancements
 
-The system implements authentic Interledger RFCs (ILPv4, BTP, OER encoding, ILP addressing) rather
-than simplified approximations. This ensures learners interact with real protocol behavior. The
-architecture follows RFC-0001's layered design (transport layer via BTP, Interledger layer via
-ILPv4 packet handling) and maintains protocol fidelity.
+The system implements authentic Interledger RFCs (ILPv4, BTP, OER encoding, ILP addressing) while adding modern enhancements: tri-chain settlement (Ethereum, XRP Ledger, Aptos), optional high-performance ledger backends (TigerBeetle), and built-in security features (IP allowlists, deployment mode restrictions). The architecture follows RFC-0001's layered design while extending it for production agent networks.
 
 ### Document Structure
 
@@ -121,26 +105,30 @@ For configuration YAML schema, see [docs/configuration-schema.md](./configuratio
 
 ### Package Overview
 
-The system uses **npm workspaces** to manage a monorepo containing three main packages:
+The system uses **npm workspaces** to manage a monorepo containing five main packages:
 
 ```
-m2m/
+connector/
 ├── packages/
-│   ├── connector/          # ILP Connector service (Node.js + BTP + Telemetry)
-│   ├── dashboard/          # Visualization dashboard (React + Vite + Cytoscape.js)
-│   └── shared/             # Shared TypeScript types and utilities
+│   ├── connector/          # ILP Connector library and CLI (@agent-society/connector)
+│   │   └── explorer-ui/    # Built-in Explorer UI (React + Vite + shadcn-ui)
+│   ├── shared/             # Shared TypeScript types and utilities (@agent-society/shared)
+│   ├── contracts/          # Ethereum smart contracts (ERC20, TokenNetwork, Registry)
+│   ├── contracts-aptos/    # Aptos Move contracts for payment channels
+│   └── dashboard/          # Legacy visualization dashboard (deferred)
 ├── tools/
-│   └── send-packet/        # CLI utility for sending test ILP packets
-├── examples/               # Pre-configured topology YAML files
-└── docker-compose*.yml     # Docker Compose orchestration files
+│   ├── send-packet/        # CLI utility for sending test ILP packets
+│   └── fund-peers/         # CLI utility for funding peer accounts
+├── examples/               # Pre-configured topology YAML files (20+ configs)
+└── docker-compose*.yml     # Docker Compose orchestration files (15+ topologies)
 ```
 
 **Rationale:**
 
-- **Type sharing:** `packages/shared` enables connector and dashboard to share ILP packet types,
-  telemetry event schemas, and validation logic
-- **Co-located tests:** Test files live alongside source (`*.test.ts` next to `*.ts`) for better
-  discoverability
+- **Type sharing:** `packages/shared` enables connector and contracts to share ILP packet types, telemetry schemas, and validation logic
+- **Multi-chain support:** Separate contract packages for Ethereum (Solidity) and Aptos (Move)
+- **Built-in UI:** Explorer UI is embedded within connector package and served at runtime
+- **Co-located tests:** Test files live alongside source (`*.test.ts` next to `*.ts`) for discoverability
 - **Independent buildability:** Each package can be built and tested independently
 - **Single repository:** Simplifies dependency updates, refactoring, and CI/CD pipelines
 
@@ -148,52 +136,60 @@ m2m/
 
 #### packages/connector
 
-**Responsibility:** ILP packet routing, BTP connections, telemetry emission
+**Responsibility:** Production ILP connector - packet routing, settlement, BTP protocol, telemetry, and observability
 
-**Key Components:**
+**Published Package:** `@agent-society/connector` (npm)
 
-- `ConnectorNode` - Core orchestrator managing packet handling and peer connections
-- `PacketHandler` - ILPv4 packet validation and forwarding logic
-- `RoutingTable` - In-memory routing table with longest-prefix matching
-- `BTPServer` - WebSocket server for incoming BTP connections (RFC-0023)
-- `BTPClient` - WebSocket client for outbound BTP connections
-- `BTPClientManager` - Manages multiple BTP client connections
-- `TelemetryEmitter` - WebSocket client emitting events to dashboard
+**Key Module Structure:**
+
+- **Core:** `ConnectorNode`, `PacketHandler`, `PaymentHandler`, `LocalDeliveryClient`
+- **BTP:** BTP server/client, message parsing, peer connection management
+- **Routing:** Routing table, route lookup, dynamic routing
+- **Settlement:** Unified settlement executor, channel lifecycle managers (XRP, Ethereum, Aptos)
+- **Wallet:** Agent wallet, balance tracking, channel state management
+- **Telemetry:** Event emission, buffering, Explorer UI backend
+- **Security:** IP allowlisting, deployment mode restrictions, input validation
+- **Observability:** Health checks, metrics, structured logging
+- **Discovery:** Peer discovery, service registration
+- **CLI:** Interactive setup, configuration validation, health checks
+- **Explorer UI:** Built-in React visualization (served at `/explorer`)
+- **Encoding:** OER codec, packet serialization
+- **Database:** libSQL for event storage and wallet persistence
+- **Facilitator:** Payment facilitation logic
+- **Performance:** Benchmarking, load testing utilities
+- **Test Utils:** Testing helpers, mocks, fixtures
 
 **Dependencies:**
 
 - `packages/shared` - ILP types, OER encoding, telemetry types
-- `ws` (8.16.x) - WebSocket server and client
-- `pino` (8.17.x) - Structured JSON logging
-- `express` (4.18.x) - Health check endpoint
-- `js-yaml` (4.1.x) - YAML configuration loading
+- `packages/contracts` - TypeScript contract bindings
+- `ws` (8.x) - WebSocket server and client
+- `pino` (9.x) - Structured JSON logging
+- `express` (4.x) - HTTP server (health, Explorer UI)
+- `ethers` (6.x) - Ethereum interaction
+- `xrpl` (3.x) - XRP Ledger integration
+- `@libsql/client` (0.5.x) - Database client
+- `tigerbeetle-node` (optional) - High-performance ledger backend
 
-**Tech Stack:** TypeScript 5.3.3, Node.js 20.11.0 LTS
+**Tech Stack:** TypeScript 5.3.3, Node.js ≥22.11.0
+
+**CLI Binary:** `connector` (installed via `npx @agent-society/connector`)
 
 #### packages/dashboard
 
-**Responsibility:** Telemetry aggregation, network visualization, packet inspection UI
+**Status:** ⚠️ Legacy package - superseded by Explorer UI (embedded in connector package)
 
-**Key Components:**
+**Original Responsibility:** Telemetry aggregation, network visualization, packet inspection UI
 
-- **Backend:**
-  - `telemetry-server.ts` - WebSocket server aggregating telemetry from connectors
-  - `http-server.ts` - Express server for static React files and health endpoint
-- **Frontend:**
-  - `NetworkGraph.tsx` - Cytoscape.js network topology visualization
-  - `PacketAnimation.tsx` - Animated packet flow overlay
-  - `LogViewer.tsx` - Filterable structured log display
-  - `PacketDetailPanel.tsx` - ILP packet inspection drawer
-  - `NodeStatusPanel.tsx` - Connector status display
+**Replacement:** The `packages/connector/explorer-ui` provides similar functionality:
 
-**Dependencies:**
+- Built-in to the connector package
+- Served directly by the connector's HTTP server
+- Uses shadcn-ui components for UI
+- Real-time event streaming via WebSocket
+- No separate backend needed
 
-- `packages/shared` - Telemetry types, ILP types
-- Backend: `express` (4.18.x), `ws` (8.16.x), `pino` (8.17.x)
-- Frontend: `react` (18.2.x), `cytoscape` (3.28.x), `tailwindcss` (3.4.x), `shadcn-ui` (v4
-  components)
-
-**Tech Stack:** React 18.2.x, Vite 5.0.x, TypeScript 5.3.3, TailwindCSS 3.4.x
+**Note:** This package is retained for reference but is not actively used in current deployments. See `packages/connector/explorer-ui/` for the active visualization UI.
 
 #### packages/shared
 
@@ -215,6 +211,46 @@ m2m/
 **Dependencies:** None (pure TypeScript types and Node.js Buffer API)
 
 **Tech Stack:** TypeScript 5.3.3, Node.js 20.11.0 LTS
+
+#### packages/contracts
+
+**Responsibility:** Ethereum smart contracts for payment channel settlement (ERC20 tokens, TokenNetwork, TokenNetworkRegistry)
+
+**Key Contracts:**
+
+- `AGENT.sol` - ERC20 token contract for payment channel collateral
+- `TokenNetwork.sol` - Manages bidirectional payment channels for a specific token
+- `TokenNetworkRegistry.sol` - Factory for deploying TokenNetwork contracts per ERC20 token
+- `ChannelManagerLibrary.sol` - Shared library for channel state validation
+
+**Dependencies:**
+
+- `@openzeppelin/contracts` (5.0.x) - ERC20, Ownable, SafeMath
+- `hardhat` (2.19.x) - Development environment
+- `@nomicfoundation/hardhat-ethers` - Ethers.js integration
+
+**Tech Stack:** Solidity 0.8.24, Hardhat 2.19.x, Ethers v6
+
+**Deployment Networks:** Ethereum Sepolia testnet, Anvil local devnet
+
+#### packages/contracts-aptos
+
+**Responsibility:** Aptos Move smart contracts for payment channel settlement
+
+**Key Modules:**
+
+- `payment_channel.move` - Payment channel state and operations
+- `channel_manager.move` - Multi-channel management per peer pair
+- Token integration with Aptos Coin standard
+
+**Dependencies:**
+
+- Aptos Framework (stdlib, aptos_framework)
+- Move compiler and CLI tools
+
+**Tech Stack:** Move language, Aptos CLI 3.x
+
+**Deployment Networks:** Aptos testnet, local Aptos node
 
 ### Tools and Examples
 
@@ -262,10 +298,36 @@ volumes:
 
 **Available Configurations:**
 
+**Core Topologies:**
+
 - `docker-compose.yml` - Default 3-node linear topology (A → B → C)
+- `docker-compose-5-node.yml` - 5-node linear chain with TigerBeetle
 - `docker-compose-mesh.yml` - 4-node full mesh topology
 - `docker-compose-hub-spoke.yml` - Hub-and-spoke with central hub
 - `docker-compose-complex.yml` - 8-node complex network
+
+**Multi-Hop and Agent Configurations:**
+
+- `docker-compose-5-peer-multihop.yml` - 5-peer linear topology with TigerBeetle
+- `docker-compose-5-peer-agent-runtime.yml` - Agent runtime middleware + mock BLS
+- `docker-compose-5-peer-nostr-spsp.yml` - Agent society with Nostr relay services
+- `docker-compose-unified.yml` - Full 3-layer stack (16 services)
+- `docker-compose-agent-runtime.yml` - Agent runtime specific deployment
+
+**Environment-Specific:**
+
+- `docker-compose-dev.yml` - Local dev infrastructure (Anvil + TigerBeetle only)
+- `docker-compose-staging.yml` - Staging environment configuration
+- `docker-compose-production.yml` - Production environment template
+- `docker-compose-production-3node.yml` - Production 3-node cluster
+- `docker-compose-monitoring.yml` - Production with monitoring stack
+
+**Template Files** (in `docker/` directory):
+
+- `docker/docker-compose.linear.yml` - Linear topology template
+- `docker/docker-compose.mesh.yml` - Mesh topology template
+- `docker/docker-compose.hub-spoke.yml` - Hub-spoke template
+- `docker/docker-compose.custom-template.yml` - Custom topology template
 
 **Common Pattern:**
 
