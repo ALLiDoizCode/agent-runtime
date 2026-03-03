@@ -28,6 +28,7 @@ import { BTPClient, Peer } from '../../src/btp/btp-client';
 import { createLogger } from '../../src/utils/logger';
 import { ILPPreparePacket, PacketType } from '@crosstown/shared';
 import { TelemetryMessage } from '../../src/telemetry/types';
+import { waitFor } from '../helpers/wait-for';
 
 const COMPOSE_FILE = 'docker-compose.yml';
 const TELEMETRY_WS_URL = 'ws://localhost:9000';
@@ -116,54 +117,47 @@ async function waitForHealthy(
   composeFile: string = COMPOSE_FILE,
   timeoutMs: number = 30000
 ): Promise<void> {
-  const startTime = Date.now();
+  await waitFor(
+    () => {
+      try {
+        const psOutput = executeCommand(`docker-compose -f ${composeFile} ps --format json`, {
+          ignoreError: true,
+        });
 
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const psOutput = executeCommand(`docker-compose -f ${composeFile} ps --format json`, {
-        ignoreError: true,
-      });
+        if (!psOutput) {
+          return false;
+        }
 
-      if (!psOutput) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        continue;
+        const lines = psOutput
+          .trim()
+          .split('\n')
+          .filter((line) => line.trim());
+        if (lines.length === 0) {
+          return false;
+        }
+
+        const containers = lines
+          .map((line) => {
+            try {
+              return JSON.parse(line);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean);
+
+        // Check if all containers are running
+        const allRunning = containers.every((c: any) => c.State === 'running');
+        return allRunning && containers.length > 0;
+      } catch {
+        return false;
       }
+    },
+    { timeout: timeoutMs, interval: 1000, backoff: 1.0 }
+  );
 
-      const lines = psOutput
-        .trim()
-        .split('\n')
-        .filter((line) => line.trim());
-      if (lines.length === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        continue;
-      }
-
-      const containers = lines
-        .map((line) => {
-          try {
-            return JSON.parse(line);
-          } catch {
-            return null;
-          }
-        })
-        .filter(Boolean);
-
-      // Check if all containers are running
-      const allRunning = containers.every((c: any) => c.State === 'running');
-
-      if (allRunning && containers.length > 0) {
-        // Give more time for health checks to stabilize
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        return;
-      }
-    } catch {
-      // Ignore errors, keep waiting
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  throw new Error('Timeout waiting for containers to become healthy');
+  // Give more time for health checks to stabilize
+  await new Promise((resolve) => setTimeout(resolve, 2000));
 }
 
 /**

@@ -19,11 +19,9 @@ connector/                              # Monorepo root
 │   │   │   │   ├── routing-table.ts            # Routing table implementation
 │   │   │   │   └── route-lookup.ts             # Longest-prefix matching
 │   │   │   ├── settlement/
-│   │   │   │   ├── unified-settlement-executor.ts      # Multi-chain settlement router
+│   │   │   │   ├── unified-settlement-executor.ts      # EVM settlement executor
 │   │   │   │   ├── channel-manager.ts                  # Payment channel lifecycle
-│   │   │   │   ├── xrp-channel-lifecycle-manager.ts    # XRP-specific channels
 │   │   │   │   ├── ethereum-channel-manager.ts         # Ethereum TokenNetwork channels
-│   │   │   │   ├── aptos-channel-manager.ts            # Aptos Move channels
 │   │   │   │   ├── settlement-monitor.ts               # Balance monitoring
 │   │   │   │   ├── in-memory-ledger.ts                 # Default in-memory accounting
 │   │   │   │   └── tigerbeetle-adapter.ts              # Optional TigerBeetle backend
@@ -53,8 +51,11 @@ connector/                              # Monorepo root
 │   │   │   │   └── service-registry.ts         # Service registration
 │   │   │   ├── config/
 │   │   │   │   ├── config-loader.ts            # YAML/object config loading
-│   │   │   │   ├── config-validator.ts         # Config schema validation
-│   │   │   │   └── config-types.ts             # Configuration types
+│   │   │   │   ├── types.ts                    # Configuration type definitions
+│   │   │   │   ├── topology-validator.ts       # Topology validation
+│   │   │   │   ├── environment-validator.ts    # Environment variable validation
+│   │   │   │   ├── key-manager-config.ts       # Key manager configuration
+│   │   │   │   └── index.ts                    # Config module exports
 │   │   │   ├── http/
 │   │   │   │   ├── health-server.ts            # Express health check endpoint
 │   │   │   │   ├── explorer-server.ts          # Explorer UI HTTP server

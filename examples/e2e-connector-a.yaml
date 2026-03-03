@@ -1,0 +1,12 @@
+# Connector A Configuration for E2E Tests
+ilpAddress: g.test.connector-a
+adminApi:
+  enabled: true
+  port: 8081
+
+btp:
+  serverPort: 4001
+
+settlement:
+  enabled: true
+  preference: evm

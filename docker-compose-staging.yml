@@ -4,12 +4,11 @@
 #
 # Deployment targeting public testnet infrastructure:
 #   - Base Sepolia (Chain ID 84532) for EVM payment channels
-#   - XRPL Testnet for XRP payment channels
 #   - TigerBeetle for settlement accounting
 #   - Prometheus + Grafana for monitoring
 #   - Jaeger for distributed tracing (optional)
 #
-# Unlike development (local Anvil/rippled), this stack connects to real
+# Unlike development (local Anvil), this stack connects to real
 # public testnet nodes - no local blockchain containers needed.
 #
 # Prerequisites:
@@ -96,24 +95,16 @@ services:
       BASE_CHAIN_ID: "84532"
       BASE_REGISTRY_ADDRESS: ${BASE_REGISTRY_ADDRESS:-0xCbf6f43A17034e733744cBCc130FfcCA3CF3252C}
 
-      # --- XRPL Testnet ---
-      XRPL_ENABLED: "true"
-      XRPL_RPC_URL: ${XRPL_RPC_URL:-https://s.altnet.rippletest.net:51234}
-      XRPL_NETWORK: testnet
-
       # --- Wallet Addresses ---
       EVM_ADDRESS: ${EVM_ADDRESS:-}
-      XRP_ADDRESS: ${XRP_ADDRESS:-}
 
       # --- Key Management ---
       KEY_BACKEND: ${KEY_BACKEND:-env}
       EVM_PRIVATE_KEY: ${EVM_PRIVATE_KEY:-}
-      XRP_SEED: ${XRP_SEED:-}
 
       # --- AWS KMS (if KEY_BACKEND=aws-kms) ---
       AWS_REGION: ${AWS_REGION:-}
       AWS_KMS_EVM_KEY_ID: ${AWS_KMS_EVM_KEY_ID:-}
-      AWS_KMS_XRP_KEY_ID: ${AWS_KMS_XRP_KEY_ID:-}
 
       # --- GCP KMS (if KEY_BACKEND=gcp-kms) ---
       GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}

@@ -242,12 +242,12 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
       const packet = createValidPreparePacket();
 
       // Act
-      await handler.handlePreparePacket(packet);
+      await handler.handlePreparePacket(packet, 'peer-sender');
 
       // Assert - Should record packet transfers for settlement
       expect(mockAccountManager.recordPacketTransfers).toHaveBeenCalledTimes(1);
       expect(mockAccountManager.recordPacketTransfers).toHaveBeenCalledWith(
-        'unknown', // fromPeerId (hardcoded in MVP)
+        'peer-sender', // fromPeerId
         'peer-b', // toPeerId
         'ILP', // tokenId
         100000n, // incoming amount
@@ -360,7 +360,7 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
       const packet = createValidPreparePacket();
 
       // Act
-      const result = await handler.handlePreparePacket(packet);
+      const result = await handler.handlePreparePacket(packet, 'peer-sender');
 
       // Assert - Should return ILP Reject with T00_INTERNAL_ERROR
       expect(result.type).toBe(PacketType.REJECT);
@@ -520,7 +520,7 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
       const packet = createValidPreparePacket();
 
       // Act
-      await handler.handlePreparePacket(packet);
+      await handler.handlePreparePacket(packet, 'peer-sender');
 
       // Assert - recordPacketTransfers called (settlement recording occurred)
       expect(mockAccountManager.recordPacketTransfers).toHaveBeenCalled();

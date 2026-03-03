@@ -29,6 +29,7 @@ import type { ConnectorConfig } from '../../src/config/types';
 import pino from 'pino';
 import { PacketType, ILPPreparePacket } from '@crosstown/shared';
 import { ethers } from 'ethers';
+import { waitFor } from '../helpers/wait-for';
 
 // Test timeout - 5 minutes for complete E2E flow
 jest.setTimeout(300000);
@@ -103,11 +104,8 @@ async function getEthBalance(
 }
 
 async function waitForHealthy(url: string, timeoutMs: number = 60000): Promise<void> {
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      // Make a JSON-RPC request to check if Anvil is responding
+  await waitFor(
+    async () => {
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,15 +118,12 @@ async function waitForHealthy(url: string, timeoutMs: number = 60000): Promise<v
       });
       if (response.ok) {
         console.log(`✅ Service healthy: ${url}`);
-        return;
+        return true;
       }
-    } catch {
-      // Ignore, keep waiting
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  }
-
-  throw new Error(`Service not healthy: ${url}`);
+      return false;
+    },
+    { timeout: timeoutMs, interval: 500, backoff: 1.5 }
+  );
 }
 
 function createTestPreparePacket(

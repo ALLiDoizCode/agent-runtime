@@ -32,9 +32,7 @@ This section represents the single source of truth for all technology decisions.
 | **Database (Accounting)**      | In-memory ledger (default) / TigerBeetle (optional) | N/A / 0.16.68    | Balance tracking for peer settlement                  | In-memory Map-based ledger is the zero-dependency default; TigerBeetle available as optional peer dependency for high-performance production deployments |
 | **Database (Wallet)**          | better-sqlite3 (optional)                           | ^11.8.1          | Agent wallet state and payment channel tracking       | Embedded SQLite database for wallet persistence, optional peer dependency                                                                                |
 | **Database (Explorer)**        | libSQL (optional)                                   | 0.14.0           | Telemetry event storage for Explorer UI               | SQLite fork with MVCC concurrent writes, async API, optional for Explorer event persistence                                                              |
-| **Blockchain - XRP**           | xrpl                                                | ^2.14.3          | XRP Ledger payment channel interactions               | Official XRP JavaScript library, payment channels integration                                                                                            |
 | **Blockchain - Ethereum**      | ethers                                              | ^6.16.0          | Ethereum smart contract interactions                  | Standard Ethereum library v6, TokenNetwork payment channels, ERC20 operations                                                                            |
-| **Blockchain - Aptos**         | @aptos-labs/ts-sdk                                  | ^1.39.0          | Aptos blockchain payment channel interactions         | Official Aptos TypeScript SDK, Move contract interaction for tri-chain settlement                                                                        |
 | **AI SDK**                     | ai (Vercel AI SDK)                                  | ^4.3.19          | AI-native event handling with tool calling            | Provider-agnostic model abstraction, built-in tool system, streaming support (optional dependency)                                                       |
 | **AI Providers**               | @ai-sdk/anthropic, @ai-sdk/openai                   | ^1.2.12, ^1.3.24 | Anthropic and OpenAI model provider adapters          | Pluggable provider system for AI model integration (optional dependencies)                                                                               |
 | **Schema Validation**          | Zod                                                 | ^3.25.76         | Runtime schema validation and type inference          | TypeScript-first schema validation, AI SDK parameter validation                                                                                          |
@@ -42,13 +40,12 @@ This section represents the single source of truth for all technology decisions.
 
 **Important Notes:**
 
-1. **External APIs Required:** XRP Ledger testnet/mainnet, EVM-compatible blockchains (Ethereum, Sepolia, etc.), Aptos testnet/mainnet
+1. **External APIs Required:** EVM-compatible blockchains (Ethereum, Base, Sepolia, etc.)
 2. **Monorepo Package Structure:**
    - `packages/connector` - Production ILP connector (@crosstown/connector npm package)
    - `packages/connector/explorer-ui` - Built-in React visualization UI (embedded)
    - `packages/shared` - Shared TypeScript types and utilities (@crosstown/shared npm package)
    - `packages/contracts` - Ethereum Solidity smart contracts (TokenNetwork, AGENT ERC20)
-   - `packages/contracts-aptos` - Aptos Move smart contracts (payment channels)
    - `packages/dashboard` - Legacy dashboard (deferred, superseded by explorer-ui)
 3. **Published Packages:**
    - `@crosstown/connector` - Main connector library and CLI
@@ -58,6 +55,6 @@ This section represents the single source of truth for all technology decisions.
 6. **Dependency Strategy:** Core dependencies required, peer dependencies optional (Express, TigerBeetle, better-sqlite3), AI features optional
 7. **License Compatibility:** All dependencies MIT or Apache 2.0 compatible (open-source project)
 
-**Tri-Chain Settlement:** Production connector supports three blockchain backends: Ethereum (TokenNetwork contracts), XRP Ledger (payment channels), and Aptos (Move contracts).
+**EVM-Only Settlement:** Production connector supports EVM blockchain settlement via Ethereum TokenNetwork contracts and ERC20 operations.
 
 **Zero-Config Default:** No external databases or services required - in-memory ledger and file-based persistence work out of the box.

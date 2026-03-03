@@ -49,9 +49,6 @@ import { HealthStatus, HealthStatusProvider } from '../http/types';
 import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { PeerStatus } from '../telemetry/types';
 import { EventStore, ExplorerServer } from '../explorer';
-import { validateAptosEnvironment } from '../config/aptos-env-validator';
-import type { IAptosChannelSDK } from '../settlement/aptos-channel-sdk';
-import { createAptosChannelSDKFromEnv } from '../settlement/aptos-channel-sdk';
 import { PaymentChannelSDK } from '../settlement/payment-channel-sdk';
 import { ChannelManager } from '../settlement/channel-manager';
 import { SettlementExecutor } from '../settlement/settlement-executor';
@@ -82,7 +79,6 @@ export class ConnectorNode implements HealthStatusProvider {
   private readonly _telemetryEmitter: TelemetryEmitter | null;
   private _eventStore: EventStore | null = null;
   private _explorerServer: ExplorerServer | null = null;
-  private _aptosChannelSDK: IAptosChannelSDK | null = null;
   private _paymentChannelSDK: PaymentChannelSDK | null = null;
   private _channelManager: ChannelManager | null = null;
   private _accountManager: AccountManager | null = null;
@@ -197,6 +193,9 @@ export class ConnectorNode implements HealthStatusProvider {
           resolvedConfig.localDelivery?.timeout ||
           parseInt(process.env.LOCAL_DELIVERY_TIMEOUT || '30000', 10),
         authToken: resolvedConfig.localDelivery?.authToken || process.env.LOCAL_DELIVERY_AUTH_TOKEN,
+        perHopNotification:
+          resolvedConfig.localDelivery?.perHopNotification ??
+          process.env.LOCAL_DELIVERY_PER_HOP_NOTIFICATION === 'true',
       };
       this._packetHandler.setLocalDelivery(localDeliveryConfig);
     }
@@ -437,31 +436,6 @@ export class ConnectorNode implements HealthStatusProvider {
     );
 
     try {
-      // Initialize Aptos Channel SDK if enabled
-      const aptosValidation = validateAptosEnvironment(this._logger);
-      if (aptosValidation.enabled && aptosValidation.valid) {
-        try {
-          this._aptosChannelSDK = await createAptosChannelSDKFromEnv(this._logger);
-          this._aptosChannelSDK.startAutoRefresh();
-          this._logger.info(
-            { event: 'aptos_sdk_initialized' },
-            'AptosChannelSDK initialized with auto-refresh'
-          );
-        } catch (error) {
-          // Log error but continue without Aptos (graceful degradation)
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this._logger.error(
-            { event: 'aptos_sdk_init_failed', error: errorMessage },
-            'Failed to initialize AptosChannelSDK (connector continues without Aptos)'
-          );
-        }
-      } else if (aptosValidation.enabled && !aptosValidation.valid) {
-        this._logger.warn(
-          { event: 'aptos_disabled_missing_env', missing: aptosValidation.missing },
-          'Aptos settlement disabled due to missing environment variables'
-        );
-      }
-
       // Initialize Base L2 Payment Channel infrastructure if enabled
       // Config-first pattern: settlementInfra config takes precedence, env var fallback
       const settlementEnabled =
@@ -1183,13 +1157,6 @@ export class ConnectorNode implements HealthStatusProvider {
         this._settlementMonitor = null;
       }
 
-      // Stop Aptos SDK auto-refresh if running
-      if (this._aptosChannelSDK) {
-        this._aptosChannelSDK.stopAutoRefresh();
-        this._logger.info({ event: 'aptos_sdk_stopped' }, 'AptosChannelSDK auto-refresh stopped');
-        this._aptosChannelSDK = null;
-      }
-
       // Stop channel manager if running
       if (this._channelManager) {
         this._channelManager.stop();
@@ -1321,6 +1288,47 @@ export class ConnectorNode implements HealthStatusProvider {
    * Called internally when connection state changes
    * @private
    */
+
+  /**
+   * Get routing table instance (for admin API access)
+   * @returns RoutingTable instance
+   */
+  get routingTable(): RoutingTable {
+    return this._routingTable;
+  }
+
+  /**
+   * Get BTP client manager instance (for admin API access)
+   * @returns BTPClientManager instance
+   */
+  get btpClientManager(): BTPClientManager {
+    return this._btpClientManager;
+  }
+
+  /**
+   * Get payment channel SDK instance (for admin API access)
+   * @returns PaymentChannelSDK instance or null if not initialized
+   */
+  get paymentChannelSDK(): PaymentChannelSDK | null {
+    return this._paymentChannelSDK;
+  }
+
+  /**
+   * Get channel manager instance (for admin API access)
+   * @returns ChannelManager instance or null if not initialized
+   */
+  get channelManager(): ChannelManager | null {
+    return this._channelManager;
+  }
+
+  /**
+   * Get account manager instance (for admin API access)
+   * @returns AccountManager instance or null if not initialized
+   */
+  get accountManager(): AccountManager | null {
+    return this._accountManager;
+  }
+
   /**
    * Creates an AccountManager backed by InMemoryLedgerClient when TigerBeetle is unavailable.
    * Provides working balance tracking with snapshot persistence.
@@ -1606,8 +1614,6 @@ export class ConnectorNode implements HealthStatusProvider {
       peerInfo.settlement = {
         preference: peerConfig.settlementPreference,
         evmAddress: peerConfig.evmAddress,
-        xrpAddress: peerConfig.xrpAddress,
-        aptosAddress: peerConfig.aptosAddress,
         tokenAddress: peerConfig.tokenAddress,
         chainId: peerConfig.chainId,
       };
@@ -1695,8 +1701,6 @@ export class ConnectorNode implements HealthStatusProvider {
         peerInfo.settlement = {
           preference: peerConfig.settlementPreference,
           evmAddress: peerConfig.evmAddress,
-          xrpAddress: peerConfig.xrpAddress,
-          aptosAddress: peerConfig.aptosAddress,
           tokenAddress: peerConfig.tokenAddress,
           chainId: peerConfig.chainId,
         };
@@ -1937,8 +1941,6 @@ export class ConnectorNode implements HealthStatusProvider {
       settlementTokens.push(s.tokenAddress);
     } else {
       if (s.evmAddress) settlementTokens.push('EVM');
-      if (s.xrpAddress) settlementTokens.push('XRP');
-      if (s.aptosAddress) settlementTokens.push('APT');
     }
 
     const newConfig: SettlementPeerConfig = {
@@ -1947,9 +1949,6 @@ export class ConnectorNode implements HealthStatusProvider {
       settlementPreference: s.preference,
       settlementTokens,
       evmAddress: s.evmAddress,
-      xrpAddress: s.xrpAddress,
-      aptosAddress: s.aptosAddress,
-      aptosPubkey: s.aptosPubkey,
       tokenAddress: s.tokenAddress,
       tokenNetworkAddress: s.tokenNetworkAddress,
       chainId: s.chainId,
@@ -1989,13 +1988,5 @@ export class ConnectorNode implements HealthStatusProvider {
    */
   getRoutingTable(): RoutingTableEntry[] {
     return this._routingTable.getAllRoutes();
-  }
-
-  /**
-   * Get Aptos Channel SDK instance
-   * @returns IAptosChannelSDK if initialized, null otherwise
-   */
-  getAptosChannelSDK(): IAptosChannelSDK | null {
-    return this._aptosChannelSDK;
   }
 }

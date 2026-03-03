@@ -13,6 +13,7 @@
 
 import { execSync } from 'child_process';
 import path from 'path';
+import { waitFor } from '../helpers/wait-for';
 
 const COMPOSE_FILE = 'docker-compose.yml';
 const TIGERBEETLE_CONTAINER = 'tigerbeetle';
@@ -73,9 +74,9 @@ function executeCommand(
       stdio: 'pipe',
     });
     return output;
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (options.ignoreError) {
-      return error.stdout || '';
+      return (error as { stdout?: string }).stdout || '';
     }
     throw error;
   }
@@ -98,64 +99,57 @@ function cleanupDockerCompose(): void {
  * Wait for a specific container to be healthy
  */
 async function waitForHealthy(containerName: string, timeoutMs: number = 60000): Promise<void> {
-  const startTime = Date.now();
+  await waitFor(
+    () => {
+      try {
+        const healthStatus = executeCommand(
+          `docker inspect ${containerName} --format '{{.State.Health.Status}}'`,
+          { ignoreError: true }
+        ).trim();
 
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const healthStatus = executeCommand(
-        `docker inspect ${containerName} --format '{{.State.Health.Status}}'`,
-        { ignoreError: true }
-      ).trim();
+        if (healthStatus === 'healthy') {
+          return true;
+        }
 
-      if (healthStatus === 'healthy') {
-        return;
+        // Check if container is running but has no health check
+        const runningStatus = executeCommand(
+          `docker inspect ${containerName} --format '{{.State.Running}}'`,
+          { ignoreError: true }
+        ).trim();
+
+        if (runningStatus === 'true' && healthStatus === '') {
+          // Container is running but has no health check
+          return true;
+        }
+
+        return false;
+      } catch {
+        return false;
       }
-
-      // Check if container is running but has no health check
-      const runningStatus = executeCommand(
-        `docker inspect ${containerName} --format '{{.State.Running}}'`,
-        { ignoreError: true }
-      ).trim();
-
-      if (runningStatus === 'true' && healthStatus === '') {
-        // Container is running but has no health check
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        return;
-      }
-    } catch {
-      // Ignore errors, keep waiting
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  throw new Error(`Container ${containerName} did not become healthy within ${timeoutMs}ms`);
+    },
+    { timeout: timeoutMs, interval: 1000, backoff: 1.5 }
+  );
 }
 
 /**
  * Wait for a specific container to be running
  */
 async function waitForRunning(containerName: string, timeoutMs: number = 30000): Promise<void> {
-  const startTime = Date.now();
+  await waitFor(
+    () => {
+      try {
+        const runningStatus = executeCommand(
+          `docker inspect ${containerName} --format '{{.State.Running}}'`,
+          { ignoreError: true }
+        ).trim();
 
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const runningStatus = executeCommand(
-        `docker inspect ${containerName} --format '{{.State.Running}}'`,
-        { ignoreError: true }
-      ).trim();
-
-      if (runningStatus === 'true') {
-        return;
+        return runningStatus === 'true';
+      } catch {
+        return false;
       }
-    } catch {
-      // Ignore errors, keep waiting
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  throw new Error(`Container ${containerName} did not start within ${timeoutMs}ms`);
+    },
+    { timeout: timeoutMs, interval: 1000, backoff: 1.5 }
+  );
 }
 
 // Check if Docker and Docker Compose are available

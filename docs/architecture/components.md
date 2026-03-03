@@ -24,7 +24,7 @@
 
 ## PacketHandler
 
-**Responsibility:** Implements ILPv4 packet forwarding logic including validation, expiry checking, routing table lookup, and error generation per RFC-0027.
+**Responsibility:** Implements ILPv4 packet forwarding logic including validation, expiry checking, routing table lookup, and error generation per RFC-0027. Supports per-hop BLS notification where every connector in the path can notify its local Business Logic Server.
 
 **Key Interfaces:**
 
@@ -32,10 +32,20 @@
 - `validatePacket(packet: ILPPacket): ValidationResult` - Validate packet structure and expiry
 - `generateReject(code: ILPErrorCode, message: string): ILPRejectPacket` - Create reject packet
 
+**Per-Hop BLS Notification:**
+
+PacketHandler operates in two modes depending on whether the connector is the final hop:
+
+- **Final hop** (`nextHop === nodeId` or `'local'`): Awaits the BLS response via `LocalDeliveryClient.deliver()`. The BLS returns `{ accept: true/false }`, and the connector computes the fulfillment (`SHA-256(packet.data)`) or maps the reject code accordingly. This is the blocking path — the BLS decides the payment outcome.
+- **Intermediate hop** (`nextHop === peerId`): Fires a non-blocking `LocalDeliveryClient.deliver()` call (fire-and-forget with `.catch(noop)`) to notify the local BLS, then forwards the packet unchanged to the next hop via BTP. The BLS notification is a pure side-effect — failures do not affect forwarding.
+
+Both modes send the same `PaymentRequest` payload (`paymentId`, `destination`, `amount`, `expiresAt`, `data`) to the BLS.
+
 **Dependencies:**
 
 - RoutingTable (determine next hop)
 - BTPClientManager (send to next hop)
+- LocalDeliveryClient (BLS notification — blocking at final hop, fire-and-forget at intermediate hops)
 - Logger (log routing decisions)
 
 **Technology Stack:** Pure TypeScript business logic with minimal external dependencies

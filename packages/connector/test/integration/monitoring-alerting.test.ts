@@ -87,11 +87,11 @@ describe('Monitoring and Alerting Integration', () => {
       });
 
       prometheusExporter.recordSettlement({
-        method: 'xrp',
+        method: 'evm',
         status: 'success',
         latencyMs: 100,
         amount: 1000000n,
-        tokenId: 'XRP',
+        tokenId: 'AGENT',
       });
 
       // Fetch metrics endpoint
@@ -320,7 +320,7 @@ describe('Monitoring and Alerting Integration', () => {
 
     it('should record channel events', async () => {
       prometheusExporter.recordChannelEvent({
-        method: 'xrp',
+        method: 'evm',
         event: 'funded',
       });
 
@@ -331,7 +331,7 @@ describe('Monitoring and Alerting Integration', () => {
       });
 
       prometheusExporter.recordChannelEvent({
-        method: 'xrp',
+        method: 'evm',
         event: 'disputed',
       });
 
@@ -400,20 +400,20 @@ describe('Monitoring and Alerting Integration', () => {
       // Record 8 successful and 2 failed
       for (let i = 0; i < 8; i++) {
         slaExporter.recordSettlement({
-          method: 'xrp',
+          method: 'evm',
           status: 'success',
           latencyMs: 100,
           amount: 1000n,
-          tokenId: 'XRP',
+          tokenId: 'AGENT',
         });
       }
       for (let i = 0; i < 2; i++) {
         slaExporter.recordSettlement({
-          method: 'xrp',
+          method: 'evm',
           status: 'failure',
           latencyMs: 500,
           amount: 1000n,
-          tokenId: 'XRP',
+          tokenId: 'AGENT',
         });
       }
 
@@ -561,11 +561,11 @@ describe('Monitoring and Alerting Integration', () => {
 
     it('should have settlement failure metric for SettlementFailures alert', async () => {
       prometheusExporter.recordSettlement({
-        method: 'xrp',
+        method: 'evm',
         status: 'failure',
         latencyMs: 1000,
         amount: 1000000n,
-        tokenId: 'XRP',
+        tokenId: 'AGENT',
       });
 
       const metrics = await prometheusExporter.getMetrics();
@@ -576,11 +576,11 @@ describe('Monitoring and Alerting Integration', () => {
 
     it('should have dispute metric for ChannelDispute alert', async () => {
       prometheusExporter.recordChannelEvent({
-        method: 'xrp',
+        method: 'evm',
         event: 'disputed',
       });
 
-      prometheusExporter.updateActiveChannels('xrp', 'disputed', 1);
+      prometheusExporter.updateActiveChannels('evm', 'disputed', 1);
 
       const metrics = await prometheusExporter.getMetrics();
 

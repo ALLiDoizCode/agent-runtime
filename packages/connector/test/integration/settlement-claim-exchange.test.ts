@@ -5,12 +5,12 @@
  * Tests actual BTP transmission of payment channel claims between two connectors.
  *
  * Prerequisites:
- * - Docker infrastructure running: anvil, rippled, tigerbeetle
- * - Start with: docker-compose up -d anvil rippled tigerbeetle
+ * - Docker infrastructure running: anvil, tigerbeetle
+ * - Start with: docker-compose up -d anvil tigerbeetle
  * - Or for auto-ledger mode: docker-compose --profile auto-ledger up -d
  *
  * Test Coverage:
- * - XRP, EVM, and Aptos claim exchange via BTP WebSocket
+ * - EVM claim exchange via BTP WebSocket
  * - Claim signature verification and monotonicity checks
  * - Database persistence (sent_claims and received_claims tables)
  * - Telemetry events (CLAIM_SENT, CLAIM_RECEIVED)
@@ -19,7 +19,7 @@
  * Usage:
  * ```bash
  * # Start infrastructure
- * docker-compose up -d anvil rippled tigerbeetle
+ * docker-compose up -d anvil tigerbeetle
  *
  * # Run integration tests
  * npm test -- settlement-claim-exchange.test.ts
@@ -34,9 +34,7 @@ import { BTPClient, Peer } from '../../src/btp/btp-client';
 import type { BTPClientManager } from '../../src/btp/btp-client-manager';
 import { ClaimSender } from '../../src/settlement/claim-sender';
 import { ClaimReceiver } from '../../src/settlement/claim-receiver';
-import type { ClaimSigner as XRPClaimSigner } from '../../src/settlement/xrp-claim-signer';
 import type { PaymentChannelSDK } from '../../src/settlement/payment-channel-sdk';
-import type { AptosClaimSigner } from '../../src/settlement/aptos-claim-signer';
 import { createLogger } from '../../src/utils/logger';
 import { PacketHandler } from '../../src/core/packet-handler';
 import { RoutingTable } from '../../src/routing/routing-table';
@@ -48,6 +46,7 @@ import {
 } from '../../src/settlement/claim-sender-db-schema';
 import Database from 'better-sqlite3';
 import { TelemetryEvent } from '@crosstown/shared';
+import { waitFor } from '../helpers/wait-for';
 
 /**
  * Test timeout for integration tests with blockchain/network operations
@@ -120,33 +119,26 @@ async function checkDockerInfrastructure(): Promise<boolean> {
   //
   // If you want to test with real blockchain signers, you would need:
   // - Anvil (EVM) at http://localhost:8545
-  // - rippled (XRP) at ws://localhost:6006
   // - TigerBeetle at default port (for accounting)
 
   return true;
 }
 
 /**
- * Wait for a condition to be true with timeout
- *
- * @param conditionFn - Function returning true when condition is met
- * @param timeoutMs - Maximum wait time in milliseconds
- * @param pollIntervalMs - Polling interval in milliseconds
- * @returns Promise resolving to true if condition met, false if timeout
+ * Wrapper around shared waitFor utility that returns boolean for backward compatibility.
+ * Returns true if condition met, false if timeout.
  */
-async function waitFor(
+async function waitForCondition(
   conditionFn: () => boolean | Promise<boolean>,
   timeoutMs = 5000,
   pollIntervalMs = 100
 ): Promise<boolean> {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    if (await conditionFn()) {
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  try {
+    await waitFor(conditionFn, { timeout: timeoutMs, interval: pollIntervalMs });
+    return true;
+  } catch {
+    return false;
   }
-  return false;
 }
 
 /**
@@ -203,26 +195,16 @@ async function setupTwoConnectors(): Promise<TwoConnectorSetup> {
   const btpServerB = new BTPServer(loggerB, packetHandlerB);
   await btpServerB.start(serverPort);
 
-  // Create mock signers for ClaimReceiver
+  // Create mock signer for ClaimReceiver
   // For integration tests, we use mocks since we're testing BTP transmission, not blockchain signing
-  const mockXRPSigner: Partial<XRPClaimSigner> = {
-    verifyClaim: jest.fn().mockReturnValue(true),
-  };
-
   const mockEVMSigner: Partial<PaymentChannelSDK> = {
     verifyBalanceProof: jest.fn().mockResolvedValue(true),
   };
 
-  const mockAptosSigner: Partial<AptosClaimSigner> = {
-    verifyClaim: jest.fn().mockReturnValue(true),
-  };
-
-  // Create ClaimReceiver
+  // Create ClaimReceiver (EVM-only)
   const claimReceiverB = new ClaimReceiver(
     dbB,
-    mockXRPSigner as XRPClaimSigner,
     mockEVMSigner as PaymentChannelSDK,
-    mockAptosSigner as AptosClaimSigner,
     loggerB,
     telemetryEmitterB,
     'connector-b'
@@ -294,7 +276,7 @@ async function setupTwoConnectors(): Promise<TwoConnectorSetup> {
   }
 
   // Wait for connection to be fully established
-  const connected = await waitFor(() => btpClientA.isConnected, 5000);
+  const connected = await waitForCondition(() => btpClientA.isConnected, 5000);
   if (!connected) {
     throw new Error('BTP connection not established within timeout');
   }
@@ -329,7 +311,7 @@ describe('Settlement Claim Exchange Integration', () => {
     const infraHealthy = await checkDockerInfrastructure();
     if (!infraHealthy) {
       throw new Error(
-        'Docker infrastructure not running. Start with: docker-compose up -d anvil rippled tigerbeetle'
+        'Docker infrastructure not running. Start with: docker-compose up -d anvil tigerbeetle'
       );
     }
   }, TEST_TIMEOUT);
@@ -384,111 +366,6 @@ describe('Settlement Claim Exchange Integration', () => {
           .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='received_claims'")
           .all();
         expect(tablesB).toHaveLength(1);
-      },
-      TEST_TIMEOUT
-    );
-  });
-
-  describe('XRP Claim Exchange', () => {
-    it(
-      'should send and receive XRP claim via BTP',
-      async () => {
-        if (!setup) {
-          setup = await setupTwoConnectors();
-        }
-
-        // Clear previous telemetry events
-        setup.connectorA.telemetryEvents.length = 0;
-        setup.connectorB.telemetryEvents.length = 0;
-
-        // Prepare XRP claim data
-        const channelId = 'A'.repeat(64); // 64-character hex string
-        const amount = '1000000'; // 1 XRP in drops
-        const signature = 'B'.repeat(128); // 128-character hex signature
-        const publicKey = 'ED' + 'C'.repeat(64); // ED prefix + 64 hex chars
-
-        // Act: Send XRP claim from Connector A to Connector B
-        const sendResult = await setup.connectorA.claimSender.sendXRPClaim(
-          'connector-b',
-          setup.connectorA.btpClient,
-          channelId,
-          amount,
-          signature,
-          publicKey
-        );
-
-        // Assert: Claim sent successfully
-        expect(sendResult.success).toBe(true);
-        expect(sendResult.messageId).toBeDefined();
-        expect(sendResult.messageId).toMatch(/^xrp-/);
-
-        // Assert: Claim stored in sender's database
-        const sentClaim = setup.connectorA.db
-          .prepare('SELECT * FROM sent_claims WHERE message_id = ?')
-          .get(sendResult.messageId) as SentClaimRow;
-        expect(sentClaim).toBeDefined();
-        expect(sentClaim.message_id).toBe(sendResult.messageId);
-        expect(sentClaim.blockchain).toBe('xrp');
-        expect(sentClaim.peer_id).toBe('connector-b');
-        // Verify claim_data contains the full claim
-        const claimData = JSON.parse(sentClaim.claim_data);
-        expect(claimData.channelId).toBe(channelId);
-        expect(claimData.amount).toBe(amount);
-        expect(claimData.signature).toBe(signature);
-
-        // Wait for claim to be received by Connector B
-        const claimReceived = await waitFor(() => {
-          const receivedClaim = setup!.connectorB.db
-            .prepare('SELECT * FROM received_claims WHERE message_id = ?')
-            .get(sendResult.messageId) as ReceivedClaimRow;
-          return !!receivedClaim;
-        }, 5000);
-
-        expect(claimReceived).toBe(true);
-
-        // Assert: Claim stored in receiver's database
-        const receivedClaim = setup!.connectorB.db
-          .prepare('SELECT * FROM received_claims WHERE message_id = ?')
-          .get(sendResult.messageId) as ReceivedClaimRow;
-        expect(receivedClaim).toBeDefined();
-        expect(receivedClaim.message_id).toBe(sendResult.messageId);
-        expect(receivedClaim.blockchain).toBe('xrp');
-        expect(receivedClaim.peer_id).toBe('connector-a');
-        expect(receivedClaim.channel_id).toBe(channelId);
-        expect(receivedClaim.verified).toBe(1);
-        // Verify claim_data contains the full claim
-        const receivedClaimData = JSON.parse(receivedClaim.claim_data);
-        expect(receivedClaimData.amount).toBe(amount);
-        expect(receivedClaimData.signature).toBe(signature);
-
-        // Assert: CLAIM_SENT telemetry event emitted
-        const claimSentEvent = setup.connectorA.telemetryEvents.find(
-          (e) => e.type === 'CLAIM_SENT'
-        );
-        expect(claimSentEvent).toBeDefined();
-        expect(claimSentEvent).toMatchObject({
-          type: 'CLAIM_SENT',
-          blockchain: 'xrp',
-          peerId: 'connector-b',
-          messageId: sendResult.messageId,
-          success: true,
-        });
-
-        // Assert: CLAIM_RECEIVED telemetry event emitted
-        const claimReceivedEvent = setup.connectorB.telemetryEvents.find(
-          (e) => e.type === 'CLAIM_RECEIVED'
-        );
-        expect(claimReceivedEvent).toBeDefined();
-        expect(claimReceivedEvent).toMatchObject({
-          type: 'CLAIM_RECEIVED',
-          blockchain: 'xrp',
-          peerId: 'connector-a',
-          messageId: sendResult.messageId,
-          verified: true,
-        });
-
-        // Assert: Message ID matches between sender and receiver
-        expect(receivedClaim.message_id).toBe(sentClaim.message_id);
       },
       TEST_TIMEOUT
     );
@@ -549,7 +426,7 @@ describe('Settlement Claim Exchange Integration', () => {
         expect(sentClaimData.signature).toBe(signature);
 
         // Wait for claim to be received by Connector B
-        const claimReceived = await waitFor(() => {
+        const claimReceived = await waitForCondition(() => {
           const receivedClaim = setup!.connectorB.db
             .prepare('SELECT * FROM received_claims WHERE message_id = ?')
             .get(sendResult.messageId) as ReceivedClaimRow;
@@ -606,158 +483,7 @@ describe('Settlement Claim Exchange Integration', () => {
     );
   });
 
-  describe('Aptos Claim Exchange', () => {
-    it(
-      'should send and receive Aptos claim via BTP',
-      async () => {
-        if (!setup) {
-          setup = await setupTwoConnectors();
-        }
-
-        // Clear previous telemetry events
-        setup.connectorA.telemetryEvents.length = 0;
-        setup.connectorB.telemetryEvents.length = 0;
-
-        // Prepare Aptos claim data
-        const channelOwner = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
-        const amount = '100000000'; // 1 APT in octas
-        const nonce = 10;
-        const signature = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
-        const publicKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-
-        // Act: Send Aptos claim from Connector A to Connector B
-        const sendResult = await setup.connectorA.claimSender.sendAptosClaim(
-          'connector-b',
-          setup.connectorA.btpClient,
-          channelOwner,
-          amount,
-          nonce,
-          signature,
-          publicKey
-        );
-
-        // Assert: Claim sent successfully
-        expect(sendResult.success).toBe(true);
-        expect(sendResult.messageId).toBeDefined();
-        expect(sendResult.messageId).toMatch(/^aptos-/);
-
-        // Assert: Claim stored in sender's database
-        const sentClaim = setup.connectorA.db
-          .prepare('SELECT * FROM sent_claims WHERE message_id = ?')
-          .get(sendResult.messageId) as SentClaimRow;
-        expect(sentClaim).toBeDefined();
-        expect(sentClaim.message_id).toBe(sendResult.messageId);
-        expect(sentClaim.blockchain).toBe('aptos');
-        expect(sentClaim.peer_id).toBe('connector-b');
-        // Verify claim_data contains the full claim
-        const sentClaimData = JSON.parse(sentClaim.claim_data);
-        expect(sentClaimData.channelOwner).toBe(channelOwner);
-        expect(sentClaimData.amount).toBe(amount);
-        expect(sentClaimData.nonce).toBe(nonce);
-        expect(sentClaimData.signature).toBe(signature);
-
-        // Wait for claim to be received by Connector B
-        const claimReceived = await waitFor(() => {
-          const receivedClaim = setup!.connectorB.db
-            .prepare('SELECT * FROM received_claims WHERE message_id = ?')
-            .get(sendResult.messageId) as ReceivedClaimRow;
-          return !!receivedClaim;
-        }, 5000);
-
-        expect(claimReceived).toBe(true);
-
-        // Assert: Claim stored in receiver's database
-        const receivedClaim = setup!.connectorB.db
-          .prepare('SELECT * FROM received_claims WHERE message_id = ?')
-          .get(sendResult.messageId) as ReceivedClaimRow;
-        expect(receivedClaim).toBeDefined();
-        expect(receivedClaim.message_id).toBe(sendResult.messageId);
-        expect(receivedClaim.blockchain).toBe('aptos');
-        expect(receivedClaim.peer_id).toBe('connector-a');
-        expect(receivedClaim.channel_id).toBe(channelOwner);
-        expect(receivedClaim.verified).toBe(1);
-        // Verify claim_data contains the full claim
-        const receivedClaimData = JSON.parse(receivedClaim.claim_data);
-        expect(receivedClaimData.amount).toBe(amount);
-        expect(receivedClaimData.nonce).toBe(nonce);
-        expect(receivedClaimData.signature).toBe(signature);
-
-        // Assert: CLAIM_SENT telemetry event emitted
-        const claimSentEvent = setup.connectorA.telemetryEvents.find(
-          (e) => e.type === 'CLAIM_SENT'
-        );
-        expect(claimSentEvent).toBeDefined();
-        expect(claimSentEvent).toMatchObject({
-          type: 'CLAIM_SENT',
-          blockchain: 'aptos',
-          peerId: 'connector-b',
-          messageId: sendResult.messageId,
-          success: true,
-        });
-
-        // Assert: CLAIM_RECEIVED telemetry event emitted
-        const claimReceivedEvent = setup.connectorB.telemetryEvents.find(
-          (e) => e.type === 'CLAIM_RECEIVED'
-        );
-        expect(claimReceivedEvent).toBeDefined();
-        expect(claimReceivedEvent).toMatchObject({
-          type: 'CLAIM_RECEIVED',
-          blockchain: 'aptos',
-          peerId: 'connector-a',
-          messageId: sendResult.messageId,
-          verified: true,
-        });
-
-        // Assert: Message ID matches between sender and receiver
-        expect(receivedClaim.message_id).toBe(sentClaim.message_id);
-      },
-      TEST_TIMEOUT
-    );
-  });
-
   describe('Claim Verification', () => {
-    it(
-      'should verify claim signature matches sender',
-      async () => {
-        if (!setup) {
-          setup = await setupTwoConnectors();
-        }
-
-        // Prepare XRP claim with valid signature
-        const channelId = 'D'.repeat(64);
-        const amount = '2000000'; // 2 XRP in drops
-        const signature = 'E'.repeat(128);
-        const publicKey = 'ED' + 'F'.repeat(64);
-
-        // Act: Send valid claim
-        const sendResult = await setup.connectorA.claimSender.sendXRPClaim(
-          'connector-b',
-          setup.connectorA.btpClient,
-          channelId,
-          amount,
-          signature,
-          publicKey
-        );
-
-        // Wait for claim to be received and verified
-        const claimReceived = await waitFor(() => {
-          const receivedClaim = setup!.connectorB.db
-            .prepare('SELECT * FROM received_claims WHERE message_id = ?')
-            .get(sendResult.messageId) as ReceivedClaimRow;
-          return !!receivedClaim;
-        }, 5000);
-
-        expect(claimReceived).toBe(true);
-
-        // Assert: Claim marked as verified
-        const receivedClaim = setup!.connectorB.db
-          .prepare('SELECT * FROM received_claims WHERE message_id = ?')
-          .get(sendResult.messageId) as ReceivedClaimRow;
-        expect(receivedClaim.verified).toBe(1);
-      },
-      TEST_TIMEOUT
-    );
-
     it(
       'should reject claim with invalid signature',
       async () => {
@@ -802,7 +528,7 @@ describe('Settlement Claim Exchange Integration', () => {
         );
 
         // Wait for first claim to be received
-        await waitFor(() => {
+        await waitForCondition(() => {
           const receivedClaim = setup!.connectorB.db
             .prepare('SELECT * FROM received_claims WHERE message_id = ?')
             .get(sendResult1.messageId) as ReceivedClaimRow;
@@ -827,7 +553,7 @@ describe('Settlement Claim Exchange Integration', () => {
         );
 
         // Wait for second claim to be received
-        const claim2Received = await waitFor(() => {
+        const claim2Received = await waitForCondition(() => {
           const receivedClaim = setup!.connectorB.db
             .prepare('SELECT * FROM received_claims WHERE message_id = ?')
             .get(sendResult2.messageId) as ReceivedClaimRow;
@@ -847,54 +573,6 @@ describe('Settlement Claim Exchange Integration', () => {
   });
 
   describe('Telemetry Events', () => {
-    it(
-      'should emit CLAIM_SENT from sender',
-      async () => {
-        if (!setup) {
-          setup = await setupTwoConnectors();
-        }
-
-        // Clear previous telemetry events
-        setup.connectorA.telemetryEvents.length = 0;
-        setup.connectorB.telemetryEvents.length = 0;
-
-        // Prepare and send XRP claim
-        const channelId = 'T'.repeat(64);
-        const amount = '4000000';
-        const signature = 'U'.repeat(128);
-        const publicKey = 'ED' + 'V'.repeat(64);
-
-        const sendResult = await setup.connectorA.claimSender.sendXRPClaim(
-          'connector-b',
-          setup.connectorA.btpClient,
-          channelId,
-          amount,
-          signature,
-          publicKey
-        );
-
-        // Assert: CLAIM_SENT event emitted with correct structure
-        const claimSentEvent = setup.connectorA.telemetryEvents.find(
-          (e) => e.type === 'CLAIM_SENT'
-        );
-        expect(claimSentEvent).toBeDefined();
-        expect(claimSentEvent).toMatchObject({
-          type: 'CLAIM_SENT',
-          blockchain: 'xrp',
-          peerId: 'connector-b',
-          messageId: sendResult.messageId,
-          success: true,
-        });
-        expect(claimSentEvent!.timestamp).toBeDefined();
-
-        // Verify timestamp is recent (within last 5 seconds)
-        const eventTime = new Date(claimSentEvent!.timestamp).getTime();
-        const now = Date.now();
-        expect(now - eventTime).toBeLessThan(5000);
-      },
-      TEST_TIMEOUT
-    );
-
     it(
       'should emit CLAIM_RECEIVED at receiver',
       async () => {
@@ -929,7 +607,7 @@ describe('Settlement Claim Exchange Integration', () => {
         );
 
         // Wait for claim to be received (find by messageId)
-        await waitFor(() => {
+        await waitForCondition(() => {
           const event = setup!.connectorB.telemetryEvents.find(
             (e) => e.type === 'CLAIM_RECEIVED' && e.messageId === sendResult.messageId
           );
@@ -994,12 +672,8 @@ describe('Settlement Claim Exchange Integration', () => {
           expect(sent?.message_id).toBe(received.message_id);
         }
 
-        // Verify message ID formats
-        const messageIdFormats = {
-          xrp: /^xrp-[a-zA-Z0-9]+-n\/a-\d+$/,
-          evm: /^evm-0x[a-fA-F0-9]+-\d+-\d+$/,
-          aptos: /^aptos-0x[a-fA-F0-9]+-\d+-\d+$/,
-        };
+        // Verify message ID formats (EVM only)
+        const evmMessageIdFormat = /^evm-0x[a-fA-F0-9]+-\d+-\d+$/;
 
         for (const claim of allReceivedClaims) {
           const claimData = setup.connectorB.db
@@ -1007,8 +681,8 @@ describe('Settlement Claim Exchange Integration', () => {
             .get(claim.message_id) as ReceivedClaimRow;
 
           const blockchain = claimData.blockchain;
-          if (blockchain === 'xrp' || blockchain === 'evm' || blockchain === 'aptos') {
-            expect(claim.message_id).toMatch(messageIdFormats[blockchain]);
+          if (blockchain === 'evm') {
+            expect(claim.message_id).toMatch(evmMessageIdFormat);
           }
         }
       },

@@ -9,6 +9,7 @@
  */
 
 import { execSync } from 'child_process';
+import { waitFor } from '../helpers/wait-for';
 
 /**
  * Check if Docker is available on the system
@@ -29,27 +30,21 @@ function isDockerAvailable(): boolean {
  * @param timeoutMs - Maximum time to wait in milliseconds
  */
 async function waitForHealthy(containerName: string, timeoutMs: number): Promise<void> {
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const result = execSync(
-        `docker inspect --format='{{.State.Health.Status}}' ${containerName}`,
-        { encoding: 'utf8' }
-      ).trim();
-
-      if (result === 'healthy') {
-        return;
+  await waitFor(
+    () => {
+      try {
+        const result = execSync(
+          `docker inspect --format='{{.State.Health.Status}}' ${containerName}`,
+          { encoding: 'utf8' }
+        ).trim();
+        return result === 'healthy';
+      } catch {
+        // Container might not exist yet, continue waiting
+        return false;
       }
-    } catch (error) {
-      // Container might not exist yet, continue waiting
-    }
-
-    // Wait 1 second before checking again
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  throw new Error(`Container ${containerName} did not become healthy within ${timeoutMs}ms`);
+    },
+    { timeout: timeoutMs, interval: 1000, backoff: 1.0 }
+  );
 }
 
 /**
@@ -64,8 +59,8 @@ function cleanupDockerCompose(): void {
 }
 
 describe('Credit Limit Enforcement Integration Test', () => {
-  // Set Jest timeout to 2 minutes for Docker operations + packet sending
-  jest.setTimeout(120000);
+  // Set Jest timeout to 30 seconds for scaffold tests (no actual Docker operations)
+  jest.setTimeout(30000);
 
   // Skip test if Docker not available
   if (!isDockerAvailable()) {

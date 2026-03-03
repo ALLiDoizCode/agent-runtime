@@ -55,6 +55,70 @@ sequenceDiagram
     Note over ConnA,ConnC: Telemetry events logged to stdout
 ```
 
+## Per-Hop BLS Notification Pipeline
+
+Every connector in the path can notify its local Business Logic Server (BLS) when a packet transits through. Intermediate hops fire-and-forget the notification (non-blocking), while the final hop awaits a fulfill/reject decision from its BLS.
+
+```mermaid
+sequenceDiagram
+    participant Sender as Sender
+    participant ConnA as Connector A
+    participant BLS_A as BLS A
+    participant ConnB as Connector B
+    participant BLS_B as BLS B
+    participant ConnC as Connector C (Final Hop)
+    participant BLS_C as BLS C
+
+    Note over Sender,BLS_C: Packet destination: g.connectorC.dest
+
+    Sender->>ConnA: ILP Prepare
+    activate ConnA
+    ConnA->>ConnA: RoutingTable.lookup() → nextHop = connectorB
+
+    ConnA-)BLS_A: POST /handle-packet (fire-and-forget)
+    Note right of BLS_A: Non-blocking. BLS does<br/>computation, logging,<br/>analytics — no response needed.
+
+    ConnA->>ConnB: Forward via BTP (critical path)
+    deactivate ConnA
+
+    activate ConnB
+    ConnB->>ConnB: RoutingTable.lookup() → nextHop = connectorC
+
+    ConnB-)BLS_B: POST /handle-packet (fire-and-forget)
+    Note right of BLS_B: Non-blocking. Same payload<br/>format as final-hop delivery.
+
+    ConnB->>ConnC: Forward via BTP (critical path)
+    deactivate ConnB
+
+    activate ConnC
+    ConnC->>ConnC: RoutingTable.lookup() → nextHop = local
+
+    ConnC->>BLS_C: POST /handle-packet (await response)
+    activate BLS_C
+    BLS_C-->>ConnC: { accept: true }
+    deactivate BLS_C
+    Note right of BLS_C: Blocking. BLS decides<br/>accept/reject. Connector<br/>computes fulfillment.
+
+    ConnC-->>ConnB: ILP Fulfill
+    deactivate ConnC
+
+    activate ConnB
+    ConnB-->>ConnA: ILP Fulfill
+    deactivate ConnB
+
+    activate ConnA
+    ConnA-->>Sender: ILP Fulfill
+    deactivate ConnA
+```
+
+### Key Behaviors
+
+- **Intermediate hops**: `localDeliveryClient.deliver()` is called with `.catch(noop)` — no `await`, no impact on the critical forwarding path
+- **Final hop**: `localDeliveryClient.deliver()` is awaited — the BLS response determines whether to return ILP FULFILL or ILP REJECT
+- **Same payload**: Every BLS receives the same `PaymentRequest` format (`paymentId`, `destination`, `amount`, `expiresAt`, `data`) regardless of hop position
+- **No packet modification**: The ILP packet is forwarded unchanged to the next hop — the BLS notification is a pure side-effect
+- **Failure isolation**: If a fire-and-forget POST fails at an intermediate hop, the packet forwarding is unaffected
+
 ## Telemetry and Observability Workflow
 
 **Note:** Dashboard visualization deferred - see DASHBOARD-DEFERRED.md in root

@@ -1166,6 +1166,77 @@ export class PacketHandler {
       };
     }
 
+    // Fire-and-forget BLS notification for transit packets (per-hop notification)
+    const perHopEnabled = this.localDeliveryClient?.isPerHopNotificationEnabled() ?? false;
+    if (perHopEnabled) {
+      let dispatched = false;
+      if (this.localDeliveryHandler) {
+        // In-process handler path (takes priority over HTTP)
+        dispatched = true;
+        const transitRequest: LocalDeliveryRequest = {
+          destination: packet.destination,
+          amount: packet.amount.toString(),
+          executionCondition: packet.executionCondition.toString('base64'),
+          expiresAt: packet.expiresAt.toISOString(),
+          data: packet.data.toString('base64'),
+          sourcePeer: sourcePeerId,
+          isTransit: true,
+        };
+        this.localDeliveryHandler(transitRequest, sourcePeerId).catch((err: unknown) => {
+          this.logger.debug(
+            {
+              error: err instanceof Error ? err.message : String(err),
+              destination: packet.destination,
+            },
+            'Per-hop notification failed (fire-and-forget, in-process)'
+          );
+        });
+      } else if (this.isLocalDeliveryEnabled() && this.localDeliveryClient) {
+        // HTTP client path
+        dispatched = true;
+        this.localDeliveryClient
+          .deliver(packet, sourcePeerId, { isTransit: true })
+          .catch((err: unknown) => {
+            this.logger.debug(
+              {
+                error: err instanceof Error ? err.message : String(err),
+                destination: packet.destination,
+              },
+              'Per-hop notification failed (fire-and-forget, HTTP)'
+            );
+          });
+      }
+
+      // Emit PER_HOP_NOTIFICATION telemetry only when a notification was actually dispatched
+      if (dispatched) {
+        try {
+          const perHopEvent = {
+            type: 'PER_HOP_NOTIFICATION' as const,
+            nodeId: this.nodeId,
+            destination: packet.destination,
+            amount: packet.amount.toString(),
+            nextHop,
+            sourcePeer: sourcePeerId,
+            correlationId,
+            timestamp: Date.now(),
+          };
+          if (this.telemetryEmitter) {
+            this.telemetryEmitter.emit(perHopEvent);
+          } else if (this.eventStore) {
+            this.eventStore.storeEvent(perHopEvent).catch((err) => {
+              this.logger.warn(
+                { error: err.message, correlationId },
+                'Failed to store PER_HOP_NOTIFICATION event'
+              );
+            });
+            this.eventBroadcaster?.broadcast(perHopEvent);
+          }
+        } catch {
+          // Telemetry emission is non-blocking — swallow errors
+        }
+      }
+    }
+
     // Forward to next hop via BTP and return response
     const response = await this.forwardToNextHop(forwardingPacket, nextHop, correlationId);
 

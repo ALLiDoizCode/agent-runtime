@@ -2,7 +2,7 @@
  * Claim Receiver Module
  *
  * Receives and verifies payment channel claims from peers via BTP protocol.
- * Implements verification for XRP, EVM, and Aptos blockchains with signature
+ * Implements verification for EVM blockchains with signature
  * validation and monotonicity checks.
  *
  * @module claim-receiver
@@ -16,18 +16,12 @@ import type { BTPServer } from '../btp/btp-server';
 import type { BTPProtocolData, BTPMessage } from '../btp/btp-types';
 import { isBTPData } from '../btp/btp-types';
 import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
-import type { ClaimSigner as XRPClaimSigner } from './xrp-claim-signer';
 import type { PaymentChannelSDK } from './payment-channel-sdk';
-import type { AptosClaimSigner } from './aptos-claim-signer';
 import {
   type BTPClaimMessage,
-  type XRPClaimMessage,
   type EVMClaimMessage,
-  type AptosClaimMessage,
   type BlockchainType,
-  isXRPClaim,
   isEVMClaim,
-  isAptosClaim,
   validateClaimMessage,
 } from '../btp/btp-claim-types';
 
@@ -49,8 +43,8 @@ export interface ClaimVerificationResult {
  * Responsibilities:
  * - Register BTP protocol data handler for "payment-channel-claim" protocol
  * - Parse and validate incoming claim messages
- * - Route claims to blockchain-specific verifiers (XRP, EVM, Aptos)
- * - Enforce monotonicity checks (amount/nonce must increase)
+ * - Verify EVM payment channel claims with signature validation
+ * - Enforce monotonicity checks (nonce/amount must increase)
  * - Persist verified claims to database for later redemption
  * - Emit telemetry events for claim reception and verification
  *
@@ -58,9 +52,7 @@ export interface ClaimVerificationResult {
  * ```typescript
  * const claimReceiver = new ClaimReceiver(
  *   db,
- *   xrpClaimSigner,
  *   evmChannelSDK,
- *   aptosClaimSigner,
  *   logger,
  *   telemetryEmitter,
  *   'node-alice'
@@ -72,9 +64,7 @@ export interface ClaimVerificationResult {
 export class ClaimReceiver {
   constructor(
     private readonly db: Database,
-    private readonly xrpClaimSigner: XRPClaimSigner,
     private readonly evmChannelSDK: PaymentChannelSDK,
-    private readonly aptosClaimSigner: AptosClaimSigner,
     private readonly logger: Logger,
     private readonly telemetryEmitter?: TelemetryEmitter,
     private readonly nodeId?: string
@@ -132,18 +122,12 @@ export class ClaimReceiver {
 
       childLogger.info({ messageId, blockchain, amount }, 'Received claim message');
 
-      // Route to blockchain-specific verifier
-      let verificationResult: ClaimVerificationResult;
-
-      if (isXRPClaim(claimMessage)) {
-        verificationResult = await this.verifyXRPClaim(claimMessage, peerId);
-      } else if (isEVMClaim(claimMessage)) {
-        verificationResult = await this.verifyEVMClaim(claimMessage, peerId);
-      } else if (isAptosClaim(claimMessage)) {
-        verificationResult = await this.verifyAptosClaim(claimMessage, peerId);
-      } else {
-        throw new Error(`Unknown blockchain type: ${blockchain}`);
+      // Verify EVM claim
+      if (!isEVMClaim(claimMessage)) {
+        throw new Error(`Unsupported blockchain type: ${blockchain}. Only EVM is supported.`);
       }
+
+      const verificationResult = await this.verifyEVMClaim(claimMessage, peerId);
 
       // Persist verified claim
       if (verificationResult.valid) {
@@ -186,58 +170,6 @@ export class ClaimReceiver {
       } catch (telemetryError) {
         childLogger.error({ error: telemetryError }, 'Failed to emit telemetry');
       }
-    }
-  }
-
-  /**
-   * Verify XRP claim signature and monotonicity
-   *
-   * @param claim - XRP claim message
-   * @param peerId - Peer ID of sender
-   * @returns Verification result
-   * @private
-   */
-  private async verifyXRPClaim(
-    claim: XRPClaimMessage,
-    peerId: string
-  ): Promise<ClaimVerificationResult> {
-    try {
-      // Verify signature
-      const isValid = await this.xrpClaimSigner.verifyClaim(
-        claim.channelId,
-        claim.amount,
-        claim.signature,
-        claim.publicKey
-      );
-
-      if (!isValid) {
-        return {
-          valid: false,
-          messageId: claim.messageId,
-          error: 'Invalid signature',
-        };
-      }
-
-      // Check monotonicity - amount must strictly increase
-      const latestClaim = await this.getLatestVerifiedClaim(peerId, 'xrp', claim.channelId);
-
-      if (latestClaim && isXRPClaim(latestClaim)) {
-        if (BigInt(claim.amount) <= BigInt(latestClaim.amount)) {
-          return {
-            valid: false,
-            messageId: claim.messageId,
-            error: 'Claim amount not monotonically increasing',
-          };
-        }
-      }
-
-      return { valid: true, messageId: claim.messageId };
-    } catch (error) {
-      return {
-        valid: false,
-        messageId: claim.messageId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
     }
   }
 
@@ -302,59 +234,6 @@ export class ClaimReceiver {
   }
 
   /**
-   * Verify Aptos claim signature and nonce monotonicity
-   *
-   * @param claim - Aptos claim message
-   * @param peerId - Peer ID of sender
-   * @returns Verification result
-   * @private
-   */
-  private async verifyAptosClaim(
-    claim: AptosClaimMessage,
-    peerId: string
-  ): Promise<ClaimVerificationResult> {
-    try {
-      // Verify signature
-      const isValid = await this.aptosClaimSigner.verifyClaim(
-        claim.channelOwner,
-        BigInt(claim.amount),
-        claim.nonce,
-        claim.signature,
-        claim.publicKey
-      );
-
-      if (!isValid) {
-        return {
-          valid: false,
-          messageId: claim.messageId,
-          error: 'Invalid signature',
-        };
-      }
-
-      // Check nonce monotonicity - nonce must strictly increase
-      const latestClaim = await this.getLatestVerifiedClaim(peerId, 'aptos', claim.channelOwner);
-
-      if (latestClaim && isAptosClaim(latestClaim)) {
-        if (claim.nonce <= latestClaim.nonce) {
-          return {
-            valid: false,
-            messageId: claim.messageId,
-            error: 'Nonce not monotonically increasing',
-          };
-        }
-      }
-
-      return { valid: true, messageId: claim.messageId };
-    } catch (error) {
-      return {
-        valid: false,
-        messageId: claim.messageId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  }
-
-  /**
    * Persist received claim to database
    *
    * @param peerId - Peer ID of sender
@@ -364,18 +243,8 @@ export class ClaimReceiver {
    */
   private _persistReceivedClaim(peerId: string, claim: BTPClaimMessage, verified: boolean): void {
     try {
-      // Extract channel ID based on blockchain type
-      let channelId: string;
-      if (isXRPClaim(claim)) {
-        channelId = claim.channelId;
-      } else if (isEVMClaim(claim)) {
-        channelId = claim.channelId;
-      } else if (isAptosClaim(claim)) {
-        channelId = claim.channelOwner;
-      } else {
-        // This should never happen if validation passed
-        throw new Error(`Unknown blockchain type: ${(claim as BTPClaimMessage).blockchain}`);
-      }
+      // EVM claims use channelId
+      const channelId = claim.channelId;
 
       // Insert into database
       const stmt = this.db.prepare(`
@@ -436,17 +305,8 @@ export class ClaimReceiver {
         return;
       }
 
-      // Extract channel ID
-      let channelId: string;
-      if (isXRPClaim(claim)) {
-        channelId = claim.channelId;
-      } else if (isEVMClaim(claim)) {
-        channelId = claim.channelId;
-      } else if (isAptosClaim(claim)) {
-        channelId = claim.channelOwner;
-      } else {
-        channelId = 'unknown';
-      }
+      // EVM claims use channelId
+      const channelId = claim.channelId;
 
       this.telemetryEmitter.emit({
         type: 'CLAIM_RECEIVED',
@@ -467,20 +327,14 @@ export class ClaimReceiver {
   }
 
   /**
-   * Get amount from claim message (blockchain-specific field)
+   * Get amount from claim message (EVM uses transferredAmount field)
    *
    * @param claim - Claim message
    * @returns Amount as string
    * @private
    */
   private _getClaimAmount(claim: BTPClaimMessage): string {
-    if (isXRPClaim(claim) || isAptosClaim(claim)) {
-      return claim.amount;
-    } else if (isEVMClaim(claim)) {
-      return claim.transferredAmount;
-    } else {
-      return '0';
-    }
+    return claim.transferredAmount;
   }
 
   /**

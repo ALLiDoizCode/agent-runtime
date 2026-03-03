@@ -25,8 +25,8 @@ import { createLogger } from '../../src/utils/logger';
 
 const execAsync = promisify(exec);
 
-// 2 minutes timeout for TigerBeetle + multi-node setup
-jest.setTimeout(120000);
+// 1 minute timeout for TigerBeetle + multi-node setup
+jest.setTimeout(60000);
 
 const COMPOSE_FILE = 'docker-compose-5-peer-multihop.yml';
 const PROJECT_ROOT = path.resolve(__dirname, '../../../../');

@@ -60,8 +60,6 @@ Connectors handle three critical tasks:
 │  ┌──────────────────────────────────────────┐   │
 │  │  Settlement (optional)                    │   │
 │  │  • Base L2 (EVM)                          │   │
-│  │  • XRP Ledger                             │   │
-│  │  • Aptos                                  │   │
 │  └──────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────┘
                        │
@@ -332,13 +330,11 @@ On-chain (slow, costs gas):
 
 ### Supported Chains
 
-| Chain          | Why Use It                                             | Settlement Type        |
-| -------------- | ------------------------------------------------------ | ---------------------- |
-| **Base L2**    | Ethereum ecosystem, ERC-20 tokens, DeFi composability  | Payment channels (EVM) |
-| **XRP Ledger** | Native payment channels, 3-5 second finality, low fees | PayChan                |
-| **Aptos**      | Move language, 160k+ TPS, sub-second finality          | Payment channels       |
+| Chain       | Why Use It                                            | Settlement Type        |
+| ----------- | ----------------------------------------------------- | ---------------------- |
+| **Base L2** | Ethereum ecosystem, ERC-20 tokens, DeFi composability | Payment channels (EVM) |
 
-Settlement is **optional**. You can run a connector without on-chain settlement for testing or private networks. All chain SDKs are bundled and loaded lazily, so there's nothing extra to install.
+Settlement is **optional**. You can run a connector without on-chain settlement for testing or private networks. The EVM settlement SDK is bundled and loaded lazily, so there's nothing extra to install.
 
 ### Payment Channels: How They Work
 
@@ -401,13 +397,12 @@ The connector supports two deployment modes via the `deploymentMode` configurati
 
 This repo is a monorepo with multiple packages:
 
-| Package                                                  | Description                                           |
-| -------------------------------------------------------- | ----------------------------------------------------- |
-| [`@crosstown/connector`](packages/connector)             | Connector node — routing, accounting, settlement, CLI |
-| [`@crosstown/shared`](packages/shared)                   | Shared types and OER codec utilities                  |
-| [`@crosstown/contracts`](packages/contracts)             | EVM payment channel smart contracts                   |
-| [`@crosstown/contracts-aptos`](packages/contracts-aptos) | Aptos payment channel smart contracts (Move)          |
-| [`@crosstown/dashboard`](packages/dashboard)             | Real-time network visualization UI                    |
+| Package                                      | Description                                           |
+| -------------------------------------------- | ----------------------------------------------------- |
+| [`@crosstown/connector`](packages/connector) | Connector node — routing, accounting, settlement, CLI |
+| [`@crosstown/shared`](packages/shared)       | Shared types and OER codec utilities                  |
+| [`@crosstown/contracts`](packages/contracts) | EVM payment channel smart contracts                   |
+| [`@crosstown/dashboard`](packages/dashboard) | Real-time network visualization UI                    |
 
 ## Explorer UI
 
@@ -481,9 +476,9 @@ await node.start();
 │  └──────────┬───────────────────────────┘   │
 └─────────────┼───────────────────────────────┘
               │
-      ┌───────┴────────┬─────────┐
-      │ Base L2        │ XRP     │ Aptos
-      └────────────────┴─────────┘
+      ┌───────▼────────┐
+      │ Base L2 (EVM)  │
+      └────────────────┘
 ```
 
 ### Standalone (Process) Mode
@@ -651,8 +646,6 @@ Configure connectors using environment variables in docker-compose files:
 | `EXPLORER_PORT`     | Explorer UI port                     | `3010`                           |
 | `EVM_PRIVATE_KEY`   | Ethereum wallet private key          | `0x...`                          |
 | `EVM_RPC_URL`       | Ethereum RPC endpoint                | `https://...`                    |
-| `XRP_SECRET`        | XRP wallet secret                    | `s...`                           |
-| `APTOS_PRIVATE_KEY` | Aptos wallet private key             | `0x...`                          |
 
 **Example with settlement:**
 

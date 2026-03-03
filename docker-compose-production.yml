@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # Complete production deployment including:
-# - ILP Connector with tri-chain settlement support (EVM, XRP, Aptos)
+# - ILP Connector with EVM settlement support
 # - TigerBeetle high-performance accounting database
 # - Prometheus metrics collection
 # - Grafana dashboards and visualization
@@ -11,8 +11,6 @@
 #
 # Supported Settlement Chains:
 #   - Base L2 (EVM): Payment channels via smart contracts
-#   - XRP Ledger: Native payment channels
-#   - Aptos: Move-based payment channels
 #
 # Prerequisites:
 #   1. Build connector image: docker build -t agent-runtime/connector:latest .
@@ -21,7 +19,7 @@
 #        ghcr.io/tigerbeetle/tigerbeetle:0.16.68 \
 #        format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
 #   3. Create .env from template: cp .env.example .env
-#   4. Configure .env with your settings (including Aptos credentials)
+#   4. Configure .env with your EVM settings
 #
 # Usage:
 #   Start all services:  docker-compose -f docker-compose-production.yml up -d

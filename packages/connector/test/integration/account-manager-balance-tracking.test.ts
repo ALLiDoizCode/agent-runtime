@@ -29,8 +29,8 @@ import { TigerBeetleClient } from '../../src/settlement/tigerbeetle-client';
 
 const execAsync = promisify(exec);
 
-// 2 minutes timeout for TigerBeetle initialization
-jest.setTimeout(120000);
+// 1 minute timeout for TigerBeetle initialization
+jest.setTimeout(60000);
 
 const COMPOSE_FILE = 'docker-compose-5-peer-multihop.yml';
 const PROJECT_ROOT = path.resolve(__dirname, '../../../../');

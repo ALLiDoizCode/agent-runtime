@@ -93,7 +93,7 @@ export function validateEnvironment(config: ConnectorConfig): void {
  * - RPC URL must use HTTPS (not HTTP)
  * - Private key must not be a known development key
  *
- * XRPL blockchain validations:
+ * EVM blockchain validations:
  * - Network must be 'mainnet'
  * - RPC URL must not contain localhost or 127.0.0.1
  * - RPC URL must use HTTPS (not HTTP)
@@ -146,34 +146,6 @@ function validateProductionEnvironment(config: ConnectorConfig): void {
       );
     }
   }
-
-  // Validate XRPL blockchain if enabled
-  if (config.blockchain?.xrpl?.enabled) {
-    const xrpl = config.blockchain.xrpl;
-
-    // Network must be mainnet
-    if (xrpl.network !== 'mainnet') {
-      throw new ConfigurationError(
-        `Production must use XRPL mainnet, got network '${xrpl.network}'`
-      );
-    }
-
-    // RPC URL must not contain localhost
-    if (xrpl.rpcUrl.includes('localhost') || xrpl.rpcUrl.includes('127.0.0.1')) {
-      throw new ConfigurationError(
-        'Cannot use localhost rippled in production. Use public mainnet endpoint.'
-      );
-    }
-
-    // RPC URL must use HTTPS (if using HTTP transport, not WebSocket)
-    if (
-      xrpl.rpcUrl.startsWith('http://') ||
-      xrpl.rpcUrl.startsWith('ws://') ||
-      xrpl.rpcUrl.includes('localhost')
-    ) {
-      throw new ConfigurationError('Production XRPL RPC URL must use HTTPS for security');
-    }
-  }
 }
 
 /**
@@ -196,12 +168,6 @@ function logDevelopmentWarnings(config: ConnectorConfig): void {
     logger.warn(`⚠️  Base RPC: ${config.blockchain.base.rpcUrl}`);
     logger.warn(`⚠️  Base Chain ID: ${config.blockchain.base.chainId}`);
   }
-
-  // Log XRPL blockchain config if enabled
-  if (config.blockchain?.xrpl?.enabled) {
-    logger.warn(`⚠️  XRPL RPC: ${config.blockchain.xrpl.rpcUrl}`);
-    logger.warn(`⚠️  XRPL Network: ${config.blockchain.xrpl.network}`);
-  }
 }
 
 /**
@@ -210,7 +176,6 @@ function logDevelopmentWarnings(config: ConnectorConfig): void {
  * Emits warning logs to indicate staging/testnet mode.
  * Enforces moderate validation rules for public testnet deployments:
  * - Base chain ID must be testnet (84532 Base Sepolia)
- * - XRPL network must be 'testnet'
  * - RPC URLs should use HTTPS for public endpoints
  * - Rejects known Anvil development keys
  * - Rejects localhost RPC URLs (staging uses public testnets)
@@ -221,7 +186,7 @@ function logDevelopmentWarnings(config: ConnectorConfig): void {
  */
 function logStagingWarnings(config: ConnectorConfig): void {
   logger.warn('⚠️  STAGING MODE - Using public testnets');
-  logger.warn('⚠️  Base Sepolia (84532) + XRPL Testnet');
+  logger.warn('⚠️  Base Sepolia (84532)');
   logger.warn('⚠️  This is NOT production configuration');
 
   // Validate Base blockchain if enabled
@@ -261,29 +226,6 @@ function logStagingWarnings(config: ConnectorConfig): void {
       throw new ConfigurationError(
         'Cannot use Anvil development private key in staging. ' +
           'Generate a dedicated testnet wallet for staging deployment.'
-      );
-    }
-  }
-
-  // Validate XRPL blockchain if enabled
-  if (config.blockchain?.xrpl?.enabled) {
-    const xrpl = config.blockchain.xrpl;
-    logger.warn(`⚠️  XRPL RPC: ${xrpl.rpcUrl}`);
-    logger.warn(`⚠️  XRPL Network: ${xrpl.network}`);
-
-    // Network must be testnet for staging
-    if (xrpl.network !== 'testnet') {
-      throw new ConfigurationError(
-        `Staging must use XRPL testnet, got network '${xrpl.network}'. ` +
-          `Use ENVIRONMENT=production for mainnet, or ENVIRONMENT=development for standalone.`
-      );
-    }
-
-    // RPC URL must not point to localhost
-    if (xrpl.rpcUrl.includes('localhost') || xrpl.rpcUrl.includes('127.0.0.1')) {
-      logger.warn(
-        '⚠️  Staging XRPL RPC points to localhost. ' +
-          'Use https://s.altnet.rippletest.net:51234 for public testnet.'
       );
     }
   }

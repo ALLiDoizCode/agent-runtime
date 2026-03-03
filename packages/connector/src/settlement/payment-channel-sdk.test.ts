@@ -39,6 +39,12 @@ describe('PaymentChannelSDK', () => {
     // Mock provider
     mockProvider = {
       getNetwork: jest.fn().mockResolvedValue({ chainId: 8453n }), // Base mainnet
+      getTransactionCount: jest.fn().mockResolvedValue(0),
+      getFeeData: jest.fn().mockResolvedValue({
+        gasPrice: 1000000000n,
+        maxFeePerGas: 1000000000n,
+        maxPriorityFeePerGas: 1000000000n,
+      }),
     } as unknown as jest.Mocked<ethers.Provider>;
 
     // Mock KeyManager
@@ -267,11 +273,12 @@ describe('PaymentChannelSDK', () => {
 
       await sdk.deposit(channelId, mockTokenAddress, depositAmount);
 
-      // Should call setTotalDeposit with cumulative amount
+      // Should call setTotalDeposit with cumulative amount and nonce
       expect(mockTokenNetworkContract.setTotalDeposit).toHaveBeenCalledWith(
         channelId,
         mockMyAddress,
-        depositAmount
+        depositAmount,
+        { nonce: 0 }
       );
       expect(mockLogger.info).toHaveBeenCalledWith('Depositing to channel', expect.any(Object));
     });

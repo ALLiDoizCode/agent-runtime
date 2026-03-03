@@ -9,6 +9,7 @@ import { ConnectorNode } from '../../src/core/connector-node';
 import { createLogger } from '../../src/utils/logger';
 import { BTPClient, Peer } from '../../src/btp/btp-client';
 import { ILPPreparePacket, ILPRejectPacket, PacketType, ILPErrorCode } from '@crosstown/shared';
+import { waitFor } from '../helpers/wait-for';
 
 /**
  * Create valid ILP Prepare packet for testing
@@ -35,20 +36,14 @@ const waitForConnections = async (
   connectors: ConnectorNode[],
   options: { timeout: number }
 ): Promise<void> => {
-  const startTime = Date.now();
-  while (Date.now() - startTime < options.timeout) {
-    const allReady = connectors.every((connector) => {
-      const health = connector.getHealthStatus();
-      return health.status === 'healthy';
-    });
-
-    if (allReady) {
-      return;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error('Timeout waiting for connector connections');
+  await waitFor(
+    () =>
+      connectors.every((connector) => {
+        const health = connector.getHealthStatus();
+        return health.status === 'healthy';
+      }),
+    { timeout: options.timeout, interval: 100 }
+  );
 };
 
 // Skip tests unless E2E_TESTS is enabled (requires multi-node connector setup)

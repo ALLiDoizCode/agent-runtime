@@ -27,6 +27,7 @@ import type { PaymentHandler, PaymentRequest } from '../../src/core/payment-hand
 import { ILPErrorCode, PacketType } from '@crosstown/shared';
 import pino from 'pino';
 import * as crypto from 'crypto';
+import { waitFor } from '../helpers/wait-for';
 
 // Test timeout - 60 seconds (no Docker needed)
 jest.setTimeout(60000);
@@ -40,34 +41,40 @@ const createTestLogger = (nodeId: string): pino.Logger => {
 };
 
 // Helper: Create minimal embedded mode config
-const createEmbeddedConfig = (nodeId: string, btpPort: number): ConnectorConfig => ({
+const createEmbeddedConfig = (
+  nodeId: string,
+  btpPort: number,
+  healthPort?: number
+): ConnectorConfig => ({
   nodeId,
   btpServerPort: btpPort,
+  healthCheckPort: healthPort ?? btpPort + 10000,
   deploymentMode: 'embedded',
   adminApi: { enabled: false },
   localDelivery: { enabled: false },
+  explorer: { enabled: false },
   peers: [],
   routes: [],
   environment: 'development',
 });
 
-// Helper: Wait for condition with timeout
-async function waitFor(
-  condition: () => boolean | Promise<boolean>,
-  timeoutMs = 5000,
-  checkIntervalMs = 100
-): Promise<void> {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    if (await condition()) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, checkIntervalMs));
-  }
-  throw new Error(`Timeout waiting for condition after ${timeoutMs}ms`);
-}
-
 describe('Embedded Mode Integration Tests', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    // Disable explorer to avoid port conflicts in concurrent test runs
+    process.env.EXPLORER_ENABLED = 'false';
+  });
+
+  afterEach(() => {
+    // Restore EXPLORER_ENABLED
+    if (originalEnv.EXPLORER_ENABLED !== undefined) {
+      process.env.EXPLORER_ENABLED = originalEnv.EXPLORER_ENABLED;
+    } else {
+      delete process.env.EXPLORER_ENABLED;
+    }
+  });
+
   describe('Deployment Mode Detection', () => {
     let connector: ConnectorNode;
 
@@ -90,9 +97,11 @@ describe('Embedded Mode Integration Tests', () => {
       const config: ConnectorConfig = {
         nodeId: 'test-node',
         btpServerPort: 4002,
+        healthCheckPort: 14002,
         // No deploymentMode specified
         adminApi: { enabled: false },
         localDelivery: { enabled: false },
+        explorer: { enabled: false },
         peers: [],
         routes: [],
         environment: 'development',
@@ -108,8 +117,10 @@ describe('Embedded Mode Integration Tests', () => {
       const config: ConnectorConfig = {
         nodeId: 'test-node',
         btpServerPort: 4003,
-        adminApi: { enabled: true, port: 8081 },
+        healthCheckPort: 14003,
+        adminApi: { enabled: true, port: 18081 },
         localDelivery: { enabled: true, handlerUrl: 'http://localhost:8080' },
+        explorer: { enabled: false },
         peers: [],
         routes: [],
         environment: 'development',
@@ -181,6 +192,9 @@ describe('Embedded Mode Integration Tests', () => {
       });
 
       await connector.start();
+
+      // Add self-route so packets to g.receiver.* are delivered locally
+      connector.addRoute({ prefix: 'g.receiver', nextHop: 'receiver', priority: 0 });
     });
 
     afterEach(async () => {
@@ -206,7 +220,7 @@ describe('Embedded Mode Integration Tests', () => {
       expect(result).toHaveProperty('fulfillment');
 
       // Verify handler received the payment
-      await waitFor(() => receivedPayments.length > 0);
+      await waitFor(() => receivedPayments.length > 0, { timeout: 5000, interval: 100 });
       expect(receivedPayments).toHaveLength(1);
 
       const receivedPayment = receivedPayments[0]!;
@@ -545,34 +559,40 @@ describe('Embedded Mode Integration Tests', () => {
       await nodeB.start();
       await nodeC.start();
 
-      // Connect Node A -> Node B
+      // Connect Node A -> Node B (empty authToken = no-auth mode per RFC-0023)
       await nodeA.registerPeer({
         id: 'node-b',
         url: 'ws://localhost:4051',
-        authToken: 'secret-a-to-b',
+        authToken: '',
         routes: [{ prefix: 'g.nodeb', priority: 0 }],
       });
 
-      // Connect Node B -> Node C
+      // Connect Node B -> Node C (empty authToken = no-auth mode per RFC-0023)
       await nodeB.registerPeer({
         id: 'node-c',
         url: 'ws://localhost:4052',
-        authToken: 'secret-b-to-c',
+        authToken: '',
         routes: [{ prefix: 'g.nodec', priority: 0 }],
       });
 
       // Add route on Node A: g.nodec -> node-b (multi-hop)
       nodeA.addRoute({ prefix: 'g.nodec', nextHop: 'node-b', priority: 0 });
 
+      // Add self-route on Node C so packets to g.nodec.* are delivered locally
+      nodeC.addRoute({ prefix: 'g.nodec', nextHop: 'node-c', priority: 0 });
+
       // Wait for BTP connections to establish
-      await waitFor(() => {
-        const peersA = nodeA.listPeers();
-        const peersB = nodeB.listPeers();
-        return (
-          peersA.some((p) => p.id === 'node-b' && p.connected) &&
-          peersB.some((p) => p.id === 'node-c' && p.connected)
-        );
-      }, 10000);
+      await waitFor(
+        () => {
+          const peersA = nodeA.listPeers();
+          const peersB = nodeB.listPeers();
+          return (
+            peersA.some((p) => p.id === 'node-b' && p.connected) &&
+            peersB.some((p) => p.id === 'node-c' && p.connected)
+          );
+        },
+        { timeout: 10000, interval: 100 }
+      );
     });
 
     afterEach(async () => {
@@ -597,7 +617,7 @@ describe('Embedded Mode Integration Tests', () => {
       expect(result.type).toBe(PacketType.FULFILL);
 
       // Verify Node C (final hop) received the payment
-      await waitFor(() => receivedPaymentsC.length > 0, 5000);
+      await waitFor(() => receivedPaymentsC.length > 0, { timeout: 5000, interval: 100 });
       expect(receivedPaymentsC).toHaveLength(1);
       expect(receivedPaymentsC[0]!.destination).toBe('g.nodec.receiver');
       expect(receivedPaymentsC[0]!.amount).toBe('10000');
@@ -706,6 +726,9 @@ describe('Embedded Mode Integration Tests', () => {
       const config = createEmbeddedConfig('test-node', 4080);
       connector = new ConnectorNode(config, createTestLogger('test-node'));
       await connector.start();
+
+      // Add self-route so packets to g.test-node.* are delivered locally
+      connector.addRoute({ prefix: 'g.test-node', nextHop: 'test-node', priority: 0 });
     });
 
     afterEach(async () => {
@@ -732,7 +755,7 @@ describe('Embedded Mode Integration Tests', () => {
       const executionCondition = crypto.createHash('sha256').update(data).digest();
 
       const result = await connector.sendPacket({
-        destination: 'g.test',
+        destination: 'g.test-node.test',
         amount: 1000n,
         executionCondition,
         expiresAt: new Date(Date.now() + 30000),

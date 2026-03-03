@@ -19,6 +19,7 @@ npm install @crosstown/connector
 - **BTP Peers** — WebSocket-based peer connections using Bilateral Transfer Protocol (RFC-0023)
 - **Tri-Chain Settlement** — Payment channels on Base L2 (EVM), XRP Ledger, and Aptos
 - **Accounting** — In-memory ledger (default, zero dependencies) or TigerBeetle (optional, high-throughput)
+- **Per-Hop Notification** — Fire-and-forget BLS notifications at intermediate hops for transit observability
 - **Explorer UI** — Built-in real-time dashboard for packet flow, balances, and settlement monitoring
 - **Admin API** — HTTP endpoints for peer management, balance queries, and ILP packet sending
 - **CLI** — `npx connector setup`, `health`, `validate` commands
@@ -96,6 +97,96 @@ Configure peer secrets via environment variables:
 
 ```bash
 BTP_PEER_PEER_B_SECRET=secret-token
+```
+
+## Per-Hop Notification
+
+Per-hop notification lets intermediate connectors notify a Business Logic Server (BLS) about packets transiting through them, **without blocking or delaying packet forwarding**.
+
+### How It Works
+
+In a multi-hop chain `A -> B -> C`:
+
+- **Connector B** (intermediate) fires a non-blocking notification to its BLS with `isTransit: true`
+- **Connector C** (final hop) delivers the packet to its BLS for accept/reject with `isTransit: false` (or omitted)
+- B's notification is fire-and-forget: if the BLS is down or slow, forwarding is unaffected
+
+### When to Use It
+
+- You want visibility into packets transiting through your node (observability, analytics)
+- You run a multi-hop topology and want intermediate nodes to log or react to traffic
+- You do **not** need the BLS response to affect forwarding (that's what final-hop delivery is for)
+
+### Enabling Per-Hop Notification
+
+#### YAML Config
+
+```yaml
+localDelivery:
+  enabled: true
+  handlerUrl: http://my-bls:3100
+  timeout: 5000
+  perHopNotification: true # <-- enables transit notifications
+```
+
+#### Environment Variable
+
+```bash
+LOCAL_DELIVERY_PER_HOP_NOTIFICATION=true
+```
+
+### Handling Notifications in Your BLS
+
+Your BLS receives the same `PaymentRequest` shape for both transit and final-hop delivery. The `isTransit` field tells you which one it is:
+
+```typescript
+import { ConnectorNode, createLogger } from '@crosstown/connector';
+
+const node = new ConnectorNode(config, createLogger('my-node', 'info'));
+
+node.setPacketHandler(async (request) => {
+  if (request.isTransit) {
+    // --- TRANSIT NOTIFICATION (fire-and-forget) ---
+    // This node is an intermediate hop. The packet is being forwarded.
+    // Your response here is ignored. Use this for logging/analytics.
+    console.log(`Transit: ${request.amount} tokens heading to ${request.destination}`);
+    return { accept: true }; // Response is discarded, but must be valid
+  }
+
+  // --- FINAL-HOP DELIVERY (blocking) ---
+  // This node is the destination. Your response drives accept/reject.
+  console.log(`Delivery: ${request.amount} tokens from ${request.sourcePeer}`);
+  return { accept: true }; // This fulfills the ILP packet
+});
+
+await node.start();
+```
+
+**Key difference:**
+
+|                  | Transit (`isTransit: true`)              | Final-Hop (`isTransit` omitted)       |
+| ---------------- | ---------------------------------------- | ------------------------------------- |
+| **When**         | Packet is passing through this connector | Packet is addressed to this connector |
+| **BLS response** | Ignored (fire-and-forget)                | Drives ILP fulfill/reject             |
+| **Blocking**     | No — forwarding continues immediately    | Yes — waits for BLS response          |
+| **Use case**     | Logging, analytics, side-effects         | Payment acceptance, business logic    |
+
+### Telemetry
+
+When a transit notification is dispatched, the connector emits a `PER_HOP_NOTIFICATION` telemetry event. This event appears automatically in the Explorer UI telemetry tab if the Explorer is running.
+
+```typescript
+// PER_HOP_NOTIFICATION event fields:
+{
+  type: 'PER_HOP_NOTIFICATION',
+  nodeId: 'connector-b',         // Which connector dispatched
+  destination: 'g.connector-c.x', // Where the packet is going
+  amount: '1000',                 // Packet amount
+  nextHop: 'connector-c',        // Next BTP peer
+  sourcePeer: 'connector-a',     // Who sent the packet
+  correlationId: 'pkt_abc123',   // For cross-log tracing
+  timestamp: 1709337600000
+}
 ```
 
 ## Accounting Backend
@@ -270,11 +361,32 @@ Both IP allowlist **and** API key provide layered security:
 | `GET /admin/channels`          | List payment channels |
 | `POST /admin/channels`         | Open payment channel  |
 
+## Local Delivery Configuration
+
+Local delivery forwards ILP packets addressed to this connector to a Business Logic Server (BLS) instead of auto-fulfilling them. This is how your application logic receives and responds to payments.
+
+| Field                | Type      | Default | Description                                  |
+| -------------------- | --------- | ------- | -------------------------------------------- |
+| `enabled`            | `boolean` | `false` | Enable local delivery forwarding             |
+| `handlerUrl`         | `string`  | —       | BLS HTTP endpoint URL                        |
+| `timeout`            | `number`  | `30000` | Request timeout in ms                        |
+| `authToken`          | `string`  | —       | Bearer token for BLS authentication          |
+| `perHopNotification` | `boolean` | `false` | Enable fire-and-forget transit notifications |
+
+```yaml
+localDelivery:
+  enabled: true
+  handlerUrl: http://my-bls:3100
+  timeout: 5000
+  authToken: ${BLS_AUTH_TOKEN} # Optional
+  perHopNotification: true # Optional, default false
+```
+
 ## Exported API
 
 **Classes:** `ConnectorNode`, `ConfigLoader`, `RoutingTable`, `PacketHandler`, `BTPServer`, `BTPClient`, `BTPClientManager`, `AdminServer`, `AccountManager`, `SettlementMonitor`, `UnifiedSettlementExecutor`
 
-**Types:** `ConnectorConfig`, `PeerConfig`, `RouteConfig`, `SettlementConfig`, `LocalDeliveryConfig`, `SendPacketParams`, `PaymentRequest`, `PaymentResponse`, `ILPPreparePacket`, `ILPFulfillPacket`, `ILPRejectPacket`
+**Types:** `ConnectorConfig`, `PeerConfig`, `RouteConfig`, `SettlementConfig`, `LocalDeliveryConfig`, `SendPacketParams`, `PaymentRequest`, `PaymentResponse`, `LocalDeliveryRequest`, `LocalDeliveryResponse`, `ILPPreparePacket`, `ILPFulfillPacket`, `ILPRejectPacket`
 
 **Utilities:** `createLogger`, `createPaymentHandlerAdapter`, `computeFulfillmentFromData`, `computeConditionFromData`, `validateIlpSendRequest`
 
@@ -293,6 +405,12 @@ src/
 ├── config/     # Configuration schema and validation
 └── utils/      # Logger, OER encoding
 ```
+
+## What's New in 1.3.0
+
+- **Per-hop notification** — Intermediate connectors can now fire non-blocking BLS notifications for transit packets (`localDelivery.perHopNotification: true`)
+- **`isTransit` field** — `PaymentRequest` and `LocalDeliveryRequest` include `isTransit?: boolean` so your BLS can distinguish transit notifications from final-hop deliveries
+- **`PER_HOP_NOTIFICATION` telemetry** — New telemetry event emitted when a transit notification is dispatched, visible in Explorer UI
 
 ## Testing
 

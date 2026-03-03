@@ -1,16 +1,14 @@
 /**
  * Anvil Deployment Integration Tests
- * Tests that Anvil container deploys correctly, accepts RPC requests, and serves forked Base Sepolia state
+ * Tests that Anvil container deploys correctly, accepts RPC requests, and serves clean-chain state
  *
  * Prerequisites:
  * - Docker installed and daemon running
  * - Docker Compose 2.x installed
  * - Foundry image available: ghcr.io/foundry-rs/foundry:latest
- * - .env.dev file configured with BASE_SEPOLIA_RPC_URL and FORK_BLOCK_NUMBER
  * - Run from repository root: npm test --workspace=packages/connector -- anvil-deployment.test.ts
  *
  * Note: These tests are skipped if Docker or Docker Compose are not available
- * Note: Fork download may take 30-60 seconds depending on internet speed and RPC endpoint
  * Note: console.log usage is intentional for integration test debugging output
  */
 
@@ -18,6 +16,7 @@
 
 import { execSync } from 'child_process';
 import path from 'path';
+import { waitFor } from '../helpers/wait-for';
 
 const COMPOSE_FILE = 'docker-compose-dev.yml';
 const ANVIL_CONTAINER = 'anvil_base_local';
@@ -105,45 +104,49 @@ function cleanupDockerCompose(): void {
 async function waitForHealthy(containerName: string, timeoutMs: number = 120000): Promise<void> {
   const startTime = Date.now();
 
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const healthStatus = executeCommand(
-        `docker inspect ${containerName} --format '{{.State.Health.Status}}'`,
-        { ignoreError: true }
-      ).trim();
-
-      if (healthStatus === 'healthy') {
-        console.log(`Container ${containerName} is healthy (took ${Date.now() - startTime}ms)`);
-        return;
-      }
-
-      // Check if container is running but has no health check
-      const runningStatus = executeCommand(
-        `docker inspect ${containerName} --format '{{.State.Running}}'`,
-        { ignoreError: true }
-      ).trim();
-
-      if (runningStatus === 'true' && healthStatus === '') {
-        // Container is running but has no health check
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        return;
-      }
-    } catch {
-      // Ignore errors, keep waiting
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  }
-
-  // If timeout reached, get container logs for debugging
   try {
-    const logs = executeCommand(`docker logs ${containerName}`, { ignoreError: true });
-    console.error(`Container ${containerName} logs:\n${logs}`);
-  } catch {
-    // Ignore log retrieval errors
-  }
+    await waitFor(
+      () => {
+        try {
+          const healthStatus = executeCommand(
+            `docker inspect ${containerName} --format '{{.State.Health.Status}}'`,
+            { ignoreError: true }
+          ).trim();
 
-  throw new Error(`Container ${containerName} did not become healthy within ${timeoutMs}ms`);
+          if (healthStatus === 'healthy') {
+            return true;
+          }
+
+          // Check if container is running but has no health check
+          const runningStatus = executeCommand(
+            `docker inspect ${containerName} --format '{{.State.Running}}'`,
+            { ignoreError: true }
+          ).trim();
+
+          if (runningStatus === 'true' && healthStatus === '') {
+            // Container is running but has no health check
+            return true;
+          }
+
+          return false;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: timeoutMs, interval: 2000, backoff: 1.0 }
+    );
+
+    console.log(`Container ${containerName} is healthy (took ${Date.now() - startTime}ms)`);
+  } catch (error) {
+    // If timeout reached, get container logs for debugging
+    try {
+      const logs = executeCommand(`docker logs ${containerName}`, { ignoreError: true });
+      console.error(`Container ${containerName} logs:\n${logs}`);
+    } catch {
+      // Ignore log retrieval errors
+    }
+    throw new Error(`Container ${containerName} did not become healthy within ${timeoutMs}ms`);
+  }
 }
 
 interface RpcResponse {
@@ -250,24 +253,24 @@ describeIfDockerCompose('Anvil Deployment Integration Tests', () => {
       // Verify block number is a valid hex string
       expect(response.result).toMatch(/^0x[0-9a-f]+$/);
 
-      // Convert hex to decimal and verify it's >= fork block number (20702367)
+      // Convert hex to decimal and verify it's a valid block number (>= 0)
       const blockNumber = parseInt(response.result as string, 16);
-      expect(blockNumber).toBeGreaterThanOrEqual(20702367);
+      expect(blockNumber).toBeGreaterThanOrEqual(0);
 
       console.log(`Current Anvil block number: ${blockNumber} (${response.result})`);
     });
 
-    it('should serve forked Base Sepolia state', async () => {
+    it('should serve clean-chain Anvil state', async () => {
       if (!isDockerAvailable() || !isDockerComposeAvailable()) {
         return; // Skip test
       }
 
-      // Test 1: Verify chain ID is Base Sepolia (84532 = 0x14a34)
+      // Test 1: Verify chain ID is Anvil default (31337 = 0x7a69)
       const chainIdResponse = makeRpcRequest('eth_chainId', []);
       expect(chainIdResponse).toHaveProperty('result');
 
       const chainId = parseInt(chainIdResponse.result as string, 16);
-      expect(chainId).toBe(84532); // Base Sepolia chain ID
+      expect(chainId).toBe(31337); // Anvil clean-chain ID
 
       console.log(`Anvil chain ID: ${chainId} (${chainIdResponse.result})`);
 

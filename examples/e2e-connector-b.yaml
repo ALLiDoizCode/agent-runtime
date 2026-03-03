@@ -1,0 +1,12 @@
+# Connector B Configuration for E2E Tests
+ilpAddress: g.test.connector-b
+adminApi:
+  enabled: true
+  port: 8082
+
+btp:
+  serverPort: 4002
+
+settlement:
+  enabled: true
+  preference: evm
