@@ -15,6 +15,10 @@
   - [System Components Overview](#system-components-overview)
   - [Component Interaction Diagram](#component-interaction-diagram)
   - [Data Flow: Packet to Visualization](#data-flow-packet-to-visualization)
+- [Settlement Architecture](#settlement-architecture)
+  - [Settlement Components](#settlement-components)
+  - [Channel Registration Modes](#channel-registration-modes)
+  - [SPSP Removal (Epic 31)](#spsp-removal-epic-31)
 - [Core Workflows](#core-workflows)
   - [Packet Forwarding Workflow (Multi-Hop)](#packet-forwarding-workflow-multi-hop)
   - [Dashboard Telemetry and Visualization Workflow](#dashboard-telemetry-and-visualization-workflow)
@@ -56,7 +60,7 @@
 
 - **Route messages with attached value** between agents and peers across ILP networks
 - **Track balances off-chain** with optional persistence (in-memory ledger or TigerBeetle)
-- **Settle to real blockchains** (Ethereum, XRP Ledger, Aptos) when ready
+- **Settle to real blockchains** (EVM / Base L2) when ready
 - **Earn routing fees** by relaying traffic between agents
 - **Visualize packet flows** through built-in Explorer UI with real-time telemetry
 - **Deploy flexibly** as a library, CLI, or Docker container
@@ -81,7 +85,7 @@ The connector supports multiple deployment modes: (1) as a library imported into
 
 #### RFC Compliance with Modern Enhancements
 
-The system implements authentic Interledger RFCs (ILPv4, BTP, OER encoding, ILP addressing) while adding modern enhancements: tri-chain settlement (Ethereum, XRP Ledger, Aptos), optional high-performance ledger backends (TigerBeetle), and built-in security features (IP allowlists, deployment mode restrictions). The architecture follows RFC-0001's layered design while extending it for production agent networks.
+The system implements authentic Interledger RFCs (ILPv4, BTP, OER encoding, ILP addressing) while adding modern enhancements: EVM settlement (Base L2), optional high-performance ledger backends (TigerBeetle), and built-in security features (IP allowlists, deployment mode restrictions). The architecture follows RFC-0001's layered design while extending it for production agent networks.
 
 ### Document Structure
 
@@ -114,7 +118,6 @@ connector/
 │   │   └── explorer-ui/    # Built-in Explorer UI (React + Vite + shadcn-ui)
 │   ├── shared/             # Shared TypeScript types and utilities (@crosstown/shared)
 │   ├── contracts/          # Ethereum smart contracts (ERC20, TokenNetwork, Registry)
-│   ├── contracts-aptos/    # Aptos Move contracts for payment channels
 │   └── dashboard/          # Legacy visualization dashboard (deferred)
 ├── tools/
 │   ├── send-packet/        # CLI utility for sending test ILP packets
@@ -126,7 +129,7 @@ connector/
 **Rationale:**
 
 - **Type sharing:** `packages/shared` enables connector and contracts to share ILP packet types, telemetry schemas, and validation logic
-- **Multi-chain support:** Separate contract packages for Ethereum (Solidity) and Aptos (Move)
+- **EVM contracts:** Ethereum contract package for payment channels (Solidity)
 - **Built-in UI:** Explorer UI is embedded within connector package and served at runtime
 - **Co-located tests:** Test files live alongside source (`*.test.ts` next to `*.ts`) for discoverability
 - **Independent buildability:** Each package can be built and tested independently
@@ -145,7 +148,7 @@ connector/
 - **Core:** `ConnectorNode`, `PacketHandler`, `PaymentHandler`, `LocalDeliveryClient`
 - **BTP:** BTP server/client, message parsing, peer connection management
 - **Routing:** Routing table, route lookup, dynamic routing
-- **Settlement:** Unified settlement executor, channel lifecycle managers (XRP, Ethereum, Aptos)
+- **Settlement:** Unified settlement executor, EVM channel lifecycle manager
 - **Wallet:** Agent wallet, balance tracking, channel state management
 - **Telemetry:** Event emission, buffering, Explorer UI backend
 - **Security:** IP allowlisting, deployment mode restrictions, input validation
@@ -167,7 +170,6 @@ connector/
 - `pino` (9.x) - Structured JSON logging
 - `express` (4.x) - HTTP server (health, Explorer UI)
 - `ethers` (6.x) - Ethereum interaction
-- `xrpl` (3.x) - XRP Ledger integration
 - `@libsql/client` (0.5.x) - Database client
 - `tigerbeetle-node` (optional) - High-performance ledger backend
 
@@ -233,25 +235,6 @@ connector/
 
 **Deployment Networks:** Ethereum Sepolia testnet, Anvil local devnet
 
-#### packages/contracts-aptos
-
-**Responsibility:** Aptos Move smart contracts for payment channel settlement
-
-**Key Modules:**
-
-- `payment_channel.move` - Payment channel state and operations
-- `channel_manager.move` - Multi-channel management per peer pair
-- Token integration with Aptos Coin standard
-
-**Dependencies:**
-
-- Aptos Framework (stdlib, aptos_framework)
-- Move compiler and CLI tools
-
-**Tech Stack:** Move language, Aptos CLI 3.x
-
-**Deployment Networks:** Aptos testnet, local Aptos node
-
 ### Tools and Examples
 
 #### tools/send-packet
@@ -310,7 +293,7 @@ volumes:
 
 - `docker-compose-5-peer-multihop.yml` - 5-peer linear topology with TigerBeetle
 - `docker-compose-5-peer-agent-runtime.yml` - Agent runtime middleware + mock BLS
-- `docker-compose-5-peer-nostr-spsp.yml` - Agent society with Nostr relay services
+- `docker-compose-5-peer-nostr-spsp.yml` - ⚠️ Legacy: Agent society with Nostr relay services (SPSP handshake superseded by self-describing claims in Epic 31)
 - `docker-compose-unified.yml` - Full 3-layer stack (16 services)
 - `docker-compose-agent-runtime.yml` - Agent runtime specific deployment
 
@@ -820,6 +803,36 @@ sequenceDiagram
     User->>Browser: Click packet to inspect
     Browser->>Browser: Show PacketDetailPanel with decoded ILP data
 ```
+
+## Settlement Architecture
+
+The settlement subsystem handles off-chain balance tracking and on-chain settlement between connector peers. It is organized into seven components that form a pipeline from balance monitoring to on-chain redemption.
+
+### Settlement Components
+
+| Component                     | Responsibility                                                                                                  |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **SettlementMonitor**         | Polls AccountManager balances, emits SETTLEMENT_REQUIRED events when thresholds are exceeded                    |
+| **UnifiedSettlementExecutor** | Listens for SETTLEMENT_REQUIRED, routes to appropriate settlement method (currently EVM-only)                   |
+| **ClaimSender**               | Sends signed EVM balance proofs to peers via BTP `payment-channel-claim` sub-protocol                           |
+| **ClaimReceiver**             | Receives and verifies claims — EIP-712 signature validation, nonce monotonicity, optional on-chain verification |
+| **ChannelManager**            | Payment channel lifecycle — open, monitor, close idle channels. Dual-indexed metadata cache                     |
+| **PaymentChannelSDK**         | Low-level ethers.js wrapper for TokenNetwork contract interactions, EIP-712 signing/verification                |
+| **AccountManager**            | Double-entry TigerBeetle accounting — DEBIT/CREDIT accounts per peer-token pair                                 |
+
+### Channel Registration Modes
+
+Channels can be registered with a connector through three mechanisms:
+
+1. **Admin API** (manual) — `POST /admin/peers` with settlement config including `channelId`, `evmAddress`, `tokenAddress`
+2. **At-connection** (Epic 22) — Channel opened automatically on first BTP connection using pre-configured peer addresses
+3. **Dynamic verification** (Epic 31) — Self-describing claims carry `chainId`, `tokenNetworkAddress`, `tokenAddress`; ClaimReceiver verifies on-chain and auto-registers the channel
+
+### SPSP Removal (Epic 31)
+
+The SPSP handshake (Nostr kind:23194/23195 exchange for channel coordinates) is superseded by self-describing claims. Claims embed chain/contract coordinates directly, enabling dynamic on-chain verification without prior out-of-band coordination. The `docker-compose-5-peer-nostr-spsp.yml` configuration is retained as legacy reference only.
+
+For detailed component documentation, see [components.md](./architecture/components.md). For workflow diagrams, see [core-workflows.md](./architecture/core-workflows.md).
 
 ## Core Workflows
 
@@ -1554,7 +1567,7 @@ M2M implements the following Interledger RFCs to ensure authentic protocol behav
 **Future Extensions:**
 
 - STREAM protocol (RFC-0029) - Transport layer for streaming payments
-- SPSP (RFC-0009) - Application layer for payment setup
+- ~~SPSP (RFC-0009)~~ - Superseded by self-describing claims (Epic 31)
 - ILP-over-HTTP (RFC-0035) - Alternative ledger layer transport
 
 ## Key Design Decisions

@@ -175,97 +175,178 @@ Both modes send the same `PaymentRequest` payload (`paymentId`, `destination`, `
 
 **Technology Stack:** Node.js CLI script, TypeScript compiled to executable
 
-## XRPChannelSDK
-
-**Responsibility:** High-level SDK for XRP payment channel lifecycle management. Consolidates XRPLClient, PaymentChannelManager, and ClaimSigner into unified API with automatic state caching.
-
-**Key Interfaces:**
-
-- `openChannel(destination: string, amount: string, settleDelay: number): Promise<string>` - Create new XRP channel
-- `fundChannel(channelId: string, additionalAmount: string): Promise<void>` - Add XRP to existing channel
-- `signClaim(channelId: string, amount: string): Promise<XRPClaim>` - Sign claim off-chain
-- `verifyClaim(claim: XRPClaim): Promise<boolean>` - Verify claim signature
-- `submitClaim(claim: XRPClaim): Promise<void>` - Submit claim to ledger
-- `closeChannel(channelId: string): Promise<void>` - Close channel cooperatively
-- `getChannelState(channelId: string): Promise<XRPChannelState>` - Query ledger for channel state
-- `startAutoRefresh(): void` - Start automatic channel state refresh (30s interval)
-- `stopAutoRefresh(): void` - Stop automatic refresh
-
-**Dependencies:**
-
-- XRPLClient (ledger interactions)
-- PaymentChannelManager (channel operations)
-- ClaimSigner (off-chain signatures)
-- TelemetryEmitter (optional, event emission)
-- Logger
-
-**Technology Stack:** TypeScript, xrpl.js library, Map-based state cache, 30-second auto-refresh interval
-
 ## UnifiedSettlementExecutor
 
-**Responsibility:** Routes settlement operations to appropriate settlement method (EVM or XRP) based on peer configuration and token type. Listens for SETTLEMENT_REQUIRED events and determines whether to settle via EVM payment channels or XRP payment channels.
+**Responsibility:** Executes EVM settlement operations for peers. Listens for SETTLEMENT_REQUIRED events and settles via EVM payment channels on Base L2.
 
 **Key Interfaces:**
 
 - `start(): void` - Start settlement executor (register event listeners)
 - `stop(): void` - Stop settlement executor (unregister event listeners)
-- `handleSettlement(event: SettlementRequiredEvent): Promise<void>` - Private method handling settlement routing
+- `handleSettlement(event: SettlementRequiredEvent): Promise<void>` - Private method handling settlement execution
 
-**Settlement Routing Logic:**
+**Settlement Logic:**
 
 ```typescript
-// XRP token + peer supports XRP → XRP settlement
-if (tokenId === 'XRP' && canUseXRP) {
-  await settleViaXRP(peerId, amount, peerConfig);
-}
-// ERC20 token + peer supports EVM → EVM settlement
-else if (tokenId !== 'XRP' && canUseEVM) {
+// Peer supports EVM → EVM settlement
+if (canUseEVM && peerConfig.evmAddress) {
   await settleViaEVM(peerId, amount, tokenAddress, peerConfig);
-}
-// Incompatible combination → Error
-else {
+} else {
   throw new Error(`No compatible settlement method`);
 }
 ```
 
 **Dependencies:**
 
-- PaymentChannelSDK (EVM settlements, Epic 8)
-- PaymentChannelManager (XRP settlements, Epic 9)
-- ClaimSigner (XRP claim generation)
+- PaymentChannelSDK (EVM settlements)
 - SettlementMonitor (emits SETTLEMENT_REQUIRED events)
 - AccountManager (TigerBeetle balance updates)
 - Logger
 
 **Technology Stack:** TypeScript event-driven architecture, integrates with TigerBeetle accounting layer
 
-## XRPChannelLifecycleManager
+## ClaimSender
 
-**Responsibility:** Manages automatic XRP payment channel lifecycle: opens channels when first settlement needed, funds channels when balance low, closes idle channels, handles expiration-based closures.
+**Responsibility:** Sends signed payment channel claims to peers via BTP `payment-channel-claim` sub-protocol. Implements retry logic with exponential backoff, persists sent claims to SQLite for dispute resolution, and emits telemetry events.
 
 **Key Interfaces:**
 
-- `start(): Promise<void>` - Start lifecycle manager (begin periodic checks)
-- `stop(): void` - Stop lifecycle manager (clear timers)
-- `getOrCreateChannel(peerId: string, destination: string): Promise<string>` - Get existing or create new channel
-- `updateChannelActivity(peerId: string, claimAmount: string): void` - Update activity timestamp
-- `needsFunding(peerId: string): boolean` - Check if channel needs funding
-- `fundChannel(peerId: string, additionalAmount: string): Promise<void>` - Fund existing channel
-- `closeChannel(peerId: string, reason: 'idle' | 'expiration' | 'manual'): Promise<void>` - Close channel
-- `getChannelForPeer(peerId: string): XRPChannelTrackingState | null` - Get tracked state
+- `sendEVMClaim(peerId: string, btpClient: BTPClient, channelId: string, nonce: number, transferredAmount: string, lockedAmount: string, locksRoot: string, signature: string, signerAddress: string): Promise<ClaimSendResult>` - Send an EVM balance proof claim to a peer
 
-**Automatic Lifecycle Events (every 1 hour):**
-
-- Idle detection: Close channels with no activity for `idleChannelThreshold` seconds
-- Expiration handling: Close channels within 1 hour of `cancelAfter` timestamp
-- Funding checks: Monitor balance and fund when below `minBalanceThreshold`
+**Epic 31 Impact:** Must populate optional `chainId`, `tokenNetworkAddress`, and `tokenAddress` fields in the claim message so unknown receivers can verify claims dynamically.
 
 **Dependencies:**
 
-- XRPChannelSDK (channel operations)
+- BTPClient (WebSocket transmission via protocolData)
+- SQLite Database (claim persistence for dispute resolution)
+- TelemetryEmitter (CLAIM_SENT events)
 - Logger
 
-**Technology Stack:** TypeScript, Map-based channel tracking, 1-hour periodic checks via setInterval
+**Technology Stack:** TypeScript, BTP protocol (RFC-0023), exponential backoff retry (3 attempts: 1s, 2s, 4s delays)
+
+## ClaimReceiver
+
+**Responsibility:** Receives and verifies payment channel claims from peers via BTP. Validates EIP-712 signatures, enforces nonce monotonicity (preventing replay attacks), persists verified claims to database, and emits telemetry events.
+
+**Key Interfaces:**
+
+- `registerWithBTPServer(btpServer: BTPServer): void` - Register claim protocol handler with BTP server
+- `verifyEVMClaim(claim: EVMClaimMessage): Promise<ClaimVerificationResult>` - Verify an EVM claim (signature + monotonicity)
+- `getLatestVerifiedClaim(channelId: string): Promise<EVMClaimMessage | null>` - Retrieve latest verified claim for a channel
+
+**Epic 31 Impact:** Must add dynamic on-chain verification for claims from unknown channels — extract `chainId`, `tokenNetworkAddress`, `tokenAddress` from the self-describing claim, verify channel existence via RPC, then verify EIP-712 signature using the domain from the claim.
+
+**Dependencies:**
+
+- BTPServer (registers protocol handler for `'payment-channel-claim'`)
+- PaymentChannelSDK (EIP-712 signature verification)
+- SQLite Database (verified claim persistence)
+- TelemetryEmitter (CLAIM_RECEIVED, CLAIM_VERIFIED events)
+- Logger
+
+**Technology Stack:** TypeScript, EIP-712 typed data verification, nonce monotonicity checks
+
+## ChannelManager
+
+**Responsibility:** Orchestrates full payment channel lifecycles — opens channels on-demand when settlements are needed, tracks channel activity, detects idle channels, and handles cooperative and unilateral closure flows. Maintains dual-indexed metadata cache (`channelId → metadata` and `peerId → tokenId → channelId`).
+
+**Key Interfaces:**
+
+- `start(): void` - Start idle channel monitoring (periodic checks)
+- `stop(): void` - Stop monitoring and cleanup timers
+- `openChannel(peerId: string, tokenId: string, options?: ChannelOpenOptions): Promise<string>` - Open a new payment channel, returns channelId
+- `getChannelForPeer(peerId: string, tokenId: string): ChannelMetadata | undefined` - Look up channel by peer and token
+- `getChannelMetadata(channelId: string): ChannelMetadata | undefined` - Look up channel by ID
+- `markChannelActivity(channelId: string): void` - Update last activity timestamp (called on settlement)
+
+**Epic 31 Impact:** Must accept externally-discovered channels — when ClaimReceiver verifies a self-describing claim from an unknown peer, ChannelManager registers the channel metadata without having opened it.
+
+**Dependencies:**
+
+- PaymentChannelSDK (on-chain channel operations)
+- SettlementExecutor (listens for CHANNEL_ACTIVITY events)
+- TelemetryEmitter (PAYMENT_CHANNEL_OPENED, BALANCE_UPDATE, SETTLED events)
+- Logger
+
+**Technology Stack:** TypeScript, EventEmitter, interval-based idle detection
+
+## PaymentChannelSDK
+
+**Responsibility:** Low-level SDK wrapping ethers.js for EVM payment channel operations on Base L2. Manages TokenNetwork contract interactions, EIP-712 balance proof signing/verification, channel state queries, and on-chain event listening.
+
+**Key Interfaces:**
+
+- `static fromConnectionPool(pool: EVMRPCConnectionPool, keyManager: KeyManager, evmKeyId: string, registryAddress: string, logger: Logger): PaymentChannelSDK` - Factory method using RPC connection pool
+- `openChannel(tokenAddress: string, participant2: string, settlementTimeout: number): Promise<string>` - Open channel on-chain, returns channelId
+- `signBalanceProof(channelId: string, tokenNetworkAddress: string, nonce: number, transferredAmount: bigint, lockedAmount: bigint, locksRoot: string): Promise<string>` - Sign EIP-712 balance proof
+- `verifyBalanceProof(channelId: string, tokenNetworkAddress: string, nonce: number, transferredAmount: bigint, lockedAmount: bigint, locksRoot: string, signature: string): Promise<string>` - Verify EIP-712 signature, returns signer address
+- `closeChannel(channelId: string, tokenNetworkAddress: string, balanceProof: BalanceProof, signature: string): Promise<void>` - Initiate channel closure
+- `settleChannel(channelId: string, tokenNetworkAddress: string): Promise<void>` - Settle after challenge period
+- `cooperativeSettle(channelId: string, tokenNetworkAddress: string, ...): Promise<void>` - Cooperative close (no challenge period)
+- `getChannelState(channelId: string, tokenNetworkAddress: string): Promise<ChannelState>` - Query on-chain channel state
+
+**Epic 31 Impact:** Must support arbitrary `tokenNetworkAddress` and `chainId` values from self-describing claims rather than only pre-configured contracts.
+
+**Dependencies:**
+
+- ethers.js Provider/Signer (blockchain interactions)
+- KeyManager (secure EIP-712 signing via key management backend)
+- EIP-712 Helper (domain separator and type construction)
+- Logger
+
+**Technology Stack:** TypeScript, ethers.js v6, EIP-712 typed data, Solidity ABIs (TokenNetworkRegistry, TokenNetwork, ERC20)
+
+## SettlementMonitor
+
+**Responsibility:** Monitors peer account balances via periodic polling and emits SETTLEMENT_REQUIRED events when balances exceed configured thresholds. Implements a state machine (IDLE → SETTLEMENT_PENDING → SETTLEMENT_IN_PROGRESS → IDLE) to prevent duplicate triggers.
+
+**Key Interfaces:**
+
+- `start(): void` - Start periodic monitoring (default: 30s interval)
+- `stop(): void` - Stop monitoring and cleanup timers
+- `checkBalances(): Promise<void>` - Manual balance check (called by polling interval)
+
+**Threshold Hierarchy:**
+
+1. Token-specific threshold (highest priority)
+2. Per-peer threshold
+3. Default threshold
+4. No threshold (monitoring disabled)
+
+**Epic 31 Impact:** No changes required — SettlementMonitor operates on accounting balances, which are independent of how channels are discovered.
+
+**Dependencies:**
+
+- AccountManager (balance queries via TigerBeetle)
+- TelemetryEmitter (SETTLEMENT_TRIGGERED events)
+- Logger
+
+**Technology Stack:** TypeScript, EventEmitter, interval-based polling, state machine
+
+## AccountManager
+
+**Responsibility:** Manages double-entry TigerBeetle accounting for peer settlement. Each peer-token combination has a DEBIT account (peer owes us) and CREDIT account (we owe peer). Supports deterministic account ID generation, credit limit enforcement, and batch writes for high-throughput settlement.
+
+**Key Interfaces:**
+
+- `ensureAccountPair(peerId: string, tokenId: string): Promise<PeerAccountPair>` - Create or retrieve account pair (idempotent)
+- `recordDebit(peerId: string, tokenId: string, amount: bigint): Promise<void>` - Record amount peer owes us
+- `recordCredit(peerId: string, tokenId: string, amount: bigint): Promise<void>` - Record amount we owe peer
+- `getBalance(peerId: string, tokenId: string): Promise<PeerAccountBalance>` - Query debit, credit, and net balance
+- `recordSettlement(peerId: string, tokenId: string, amount: bigint): Promise<void>` - Record settlement reducing outstanding balance
+- `checkCreditLimit(peerId: string, tokenId: string, amount: bigint): Promise<CreditLimitViolation | null>` - Check if transaction would exceed credit limit
+
+**Epic 31 Impact:** No changes required — AccountManager operates on abstract peer-token pairs, independent of channel discovery mechanism.
+
+**Dependencies:**
+
+- ILedgerClient (TigerBeetle or InMemoryLedgerClient)
+- TigerBeetleBatchWriter (high-throughput batch operations)
+- TelemetryEmitter (ACCOUNT_BALANCE events)
+- EventStore/EventBroadcaster (standalone mode support)
+- Logger
+
+**Technology Stack:** TypeScript, TigerBeetle (128-bit account IDs, double-entry bookkeeping), deterministic ID generation via SHA-256
 
 ## Component Diagrams
 
@@ -296,17 +377,54 @@ graph TB
         BTPC1 --> OER
     end
 
+    subgraph "Settlement Subsystem"
+        USE[UnifiedSettlementExecutor]
+        SM[SettlementMonitor]
+        CM[ChannelManager]
+        CS[ClaimSender]
+        CR[ClaimReceiver]
+        SDK[PaymentChannelSDK]
+        AM[AccountManager]
+        TB[TigerBeetle]
+
+        SM -->|SETTLEMENT_REQUIRED| USE
+        USE --> CS
+        USE --> SDK
+        CM --> SDK
+        CR --> SDK
+        CS -->|BTP claim| BTPCM
+        CR -->|registers handler| BTPS
+        AM --> TB
+        SM --> AM
+        USE --> AM
+        CM -->|channel lifecycle| SDK
+    end
+
     subgraph "Shared Package"
         TYPES[TypeScript Types]
         SHARED_OER[OER Utilities]
     end
 
+    CN --> USE
+    CN --> SM
+    CN --> CM
+
     BTPC1 -.->|BTP WebSocket| BTPS
     TE -.->|Telemetry Events| LOG
+    SDK -.->|on-chain txns| EVM[EVM Ledger - Base L2]
 
     PH --> TYPES
     OER --> SHARED_OER
 
     style CN fill:#059669,color:#fff
-    style TYPES fill:#8b5cf6,color:#fff
+    style USE fill:#8b5cf6,color:#fff
+    style SM fill:#8b5cf6,color:#fff
+    style CM fill:#8b5cf6,color:#fff
+    style CS fill:#8b5cf6,color:#fff
+    style CR fill:#8b5cf6,color:#fff
+    style SDK fill:#8b5cf6,color:#fff
+    style AM fill:#8b5cf6,color:#fff
+    style TB fill:#f59e0b,color:#fff
+    style EVM fill:#2563eb,color:#fff
+    style TYPES fill:#7c3aed,color:#fff
 ```
