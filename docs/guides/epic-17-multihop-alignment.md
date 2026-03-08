@@ -10,11 +10,9 @@ The 5-peer multi-hop deployment script and infrastructure is **fully compatible*
 
 ## What is Epic 17?
 
-Epic 17 implemented a **standardized off-chain claim exchange protocol** via BTP (Bilateral Transfer Protocol) for all three settlement chains:
+Epic 17 implemented a **standardized off-chain claim exchange protocol** via BTP (Bilateral Transfer Protocol) for the EVM settlement chain:
 
-- XRP Ledger (ed25519 signatures)
 - EVM/Base L2 (secp256k1 signatures)
-- Aptos (Ed25519 signatures)
 
 **Key Components Added:**
 
@@ -52,7 +50,7 @@ Epic 17 reuses existing configuration:
 
 - **BTP connections:** Already established between peers (Epic 2)
 - **Settlement preference:** `SETTLEMENT_PREFERENCE=both` (existing env var)
-- **Blockchain RPCs:** `BASE_L2_RPC_URL`, `XRP_LEDGER_WS_URL` (existing)
+- **Blockchain RPCs:** `BASE_L2_RPC_URL` (existing)
 - **Peer addresses:** `PEER{N}_EVM_ADDRESS` (existing)
 
 ### 3. **Automatic Activation**
@@ -61,7 +59,7 @@ Claim exchange is **automatically enabled** when:
 
 - Settlement threshold reached (monitored by SettlementMonitor)
 - Peer BTP connection active (managed by BTPClientManager)
-- Appropriate claim signer available (XRPClaimSigner, EVMClaimSigner, AptosClaimSigner)
+- Appropriate claim signer available (EVMClaimSigner)
 
 No feature flags or additional configuration needed!
 
@@ -161,7 +159,7 @@ Added new feature:
 
 - Cryptographic settlement proofs exchanged via BTP
 - ClaimSender/ClaimReceiver automatically integrated
-- Supports XRP (ed25519), EVM (secp256k1), and Aptos signatures
+- Supports EVM (secp256k1) signatures
 - Automatic claim redemption when gas costs favorable
 ```
 
@@ -181,7 +179,7 @@ In the 5-peer deployment, claim exchange works as follows:
 │  2. UnifiedSettlementExecutor (Peer1)                           │
 │     - Detects SETTLEMENT_REQUIRED event                         │
 │     - Creates balance proof for Peer2                           │
-│     - Signs with KeyManager (XRP/EVM/Aptos signer)             │
+│     - Signs with KeyManager (EVM signer)                       │
 └─────────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -195,7 +193,7 @@ In the 5-peer deployment, claim exchange works as follows:
 │  4. ClaimReceiver.handle() (Peer2)                              │
 │     - Receives BTP message with payment-channel-claim           │
 │     - Deserializes JSON claim                                   │
-│     - Verifies signature (ed25519/secp256k1)                    │
+│     - Verifies signature (secp256k1)                            │
 │     - Checks nonce monotonicity                                 │
 │     - Stores in claim database                                  │
 │     - Emits CLAIM_RECEIVED telemetry                            │
@@ -233,9 +231,9 @@ To verify Epic 17 functionality in the multi-hop network:
 docker-compose -f docker-compose-5-peer-multihop.yml logs peer2 | grep -i claim
 
 # Expected output:
-# {"level":"info","msg":"Claim sent","blockchain":"xrp","peerId":"peer3","messageId":"..."}
-# {"level":"info","msg":"Claim received","blockchain":"xrp","peerId":"peer1","verified":true}
-# {"level":"info","msg":"Claim redeemed","blockchain":"xrp","txHash":"..."}
+# {"level":"info","msg":"Claim sent","blockchain":"evm","peerId":"peer3","messageId":"..."}
+# {"level":"info","msg":"Claim received","blockchain":"evm","peerId":"peer1","verified":true}
+# {"level":"info","msg":"Claim redeemed","blockchain":"evm","txHash":"..."}
 ```
 
 ### 2. **Check Telemetry Events**
@@ -298,13 +296,11 @@ if (claimAmount > estimatedGasCost * 1.1) {
 }
 ```
 
-### 4. **Multi-Chain Support**
+### 4. **EVM Settlement Support**
 
-All three blockchains supported with unified interface:
+EVM blockchain supported with unified interface:
 
-- XRP Ledger → `XRPClaimMessage` with ed25519 signature
 - Base L2 EVM → `EVMClaimMessage` with secp256k1 signature
-- Aptos → `AptosClaimMessage` with Ed25519 signature
 
 ### 5. **Telemetry and Monitoring**
 

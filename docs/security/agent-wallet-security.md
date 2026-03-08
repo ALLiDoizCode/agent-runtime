@@ -191,7 +191,7 @@ This is a **development and educational tool** with production-grade wallet secu
 
 **Not Encrypted:**
 
-- Agent wallet public addresses (EVM addresses, XRP addresses)
+- Agent wallet public addresses (EVM addresses)
 - Agent balance information (public on-chain data)
 - Transaction history (queryable for analytics)
 - Configuration files (no sensitive data)

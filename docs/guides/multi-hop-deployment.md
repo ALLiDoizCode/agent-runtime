@@ -52,7 +52,6 @@ Before deploying the multi-hop network, ensure you have:
    ```env
    # Treasury wallet private keys
    TREASURY_EVM_PRIVATE_KEY=0x...
-   TREASURY_XRP_PRIVATE_KEY=s...
 
    # Base L2 RPC URL (local Anvil or Base testnet)
    BASE_L2_RPC_URL=http://localhost:8545
@@ -388,9 +387,7 @@ The network uses **BTP (Bilateral Transfer Protocol) claim exchange** to send cr
 
 **Supported Blockchains:**
 
-- XRP Ledger (ed25519 signatures)
 - EVM/Base L2 (secp256k1 signatures)
-- Aptos (Ed25519 signatures)
 
 ### Off-Chain Claims (m2m token)
 
@@ -642,7 +639,6 @@ And update routing tables accordingly.
 | Variable                   | Description                 | Example                 |
 | -------------------------- | --------------------------- | ----------------------- |
 | `TREASURY_EVM_PRIVATE_KEY` | Treasury wallet private key | `0x...`                 |
-| `TREASURY_XRP_PRIVATE_KEY` | Treasury XRP wallet secret  | `s...`                  |
 | `BASE_L2_RPC_URL`          | Ethereum RPC endpoint       | `http://localhost:8545` |
 | `PEER{N}_EVM_ADDRESS`      | Peer N Ethereum address     | `0x...`                 |
 | `BTP_PEER_{NAME}_SECRET`   | BTP authentication token    | `secret-...`            |

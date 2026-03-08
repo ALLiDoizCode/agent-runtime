@@ -14,17 +14,36 @@ connector/                              # Monorepo root
 │   │   │   │   ├── btp-server.ts               # BTP WebSocket server
 │   │   │   │   ├── btp-client.ts               # BTP WebSocket client
 │   │   │   │   ├── btp-client-manager.ts       # Peer connection manager
-│   │   │   │   └── btp-message-parser.ts       # BTP protocol encoding/decoding
+│   │   │   │   ├── btp-message-parser.ts       # BTP protocol encoding/decoding
+│   │   │   │   ├── btp-types.ts                # BTP message types and type guards
+│   │   │   │   └── btp-claim-types.ts          # Claim protocol types (BaseClaimMessage, EVMClaimMessage)
 │   │   │   ├── routing/
 │   │   │   │   ├── routing-table.ts            # Routing table implementation
 │   │   │   │   └── route-lookup.ts             # Longest-prefix matching
 │   │   │   ├── settlement/
-│   │   │   │   ├── unified-settlement-executor.ts      # EVM settlement executor
-│   │   │   │   ├── channel-manager.ts                  # Payment channel lifecycle
-│   │   │   │   ├── ethereum-channel-manager.ts         # Ethereum TokenNetwork channels
-│   │   │   │   ├── settlement-monitor.ts               # Balance monitoring
-│   │   │   │   ├── in-memory-ledger.ts                 # Default in-memory accounting
-│   │   │   │   └── tigerbeetle-adapter.ts              # Optional TigerBeetle backend
+│   │   │   │   ├── unified-settlement-executor.ts      # EVM settlement executor (routes SETTLEMENT_REQUIRED)
+│   │   │   │   ├── settlement-executor.ts              # Base settlement executor
+│   │   │   │   ├── settlement-coordinator.ts           # Settlement coordination logic
+│   │   │   │   ├── settlement-monitor.ts               # Balance threshold monitoring
+│   │   │   │   ├── settlement-api.ts                   # Settlement REST API endpoints
+│   │   │   │   ├── channel-manager.ts                  # Payment channel lifecycle management
+│   │   │   │   ├── payment-channel-sdk.ts              # EVM on-chain operations (ethers.js)
+│   │   │   │   ├── claim-sender.ts                     # Send claims via BTP (Epic 17)
+│   │   │   │   ├── claim-sender-db-schema.ts           # SQLite schema for sent claims
+│   │   │   │   ├── claim-receiver.ts                   # Receive/verify claims via BTP (Epic 17)
+│   │   │   │   ├── claim-receiver-db-schema.ts         # SQLite schema for received claims
+│   │   │   │   ├── claim-redemption-service.ts         # On-chain claim redemption
+│   │   │   │   ├── eip712-helper.ts                    # EIP-712 domain separator and types
+│   │   │   │   ├── account-manager.ts                  # Double-entry TigerBeetle accounting
+│   │   │   │   ├── account-id-generator.ts             # Deterministic account ID generation
+│   │   │   │   ├── account-metadata.ts                 # TigerBeetle user_data encoding
+│   │   │   │   ├── metrics-collector.ts                # Settlement metrics collection
+│   │   │   │   ├── ledger-client.ts                    # ILedgerClient interface
+│   │   │   │   ├── in-memory-ledger-client.ts          # In-memory ledger (dev/testing)
+│   │   │   │   ├── tigerbeetle-client.ts               # TigerBeetle client adapter
+│   │   │   │   ├── tigerbeetle-batch-writer.ts         # High-throughput batch operations
+│   │   │   │   ├── tigerbeetle-errors.ts               # TigerBeetle error types
+│   │   │   │   └── types.ts                            # Settlement types (PeerConfig, enums)
 │   │   │   ├── wallet/
 │   │   │   │   ├── agent-wallet.ts             # Agent wallet implementation
 │   │   │   │   ├── wallet-db-schema.ts         # Wallet database schema
@@ -154,15 +173,6 @@ connector/                              # Monorepo root
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   │
-│   ├── contracts-aptos/                        # Aptos Move contracts
-│   │   ├── sources/
-│   │   │   ├── payment_channel.move            # Payment channel module
-│   │   │   └── channel_manager.move            # Multi-channel management
-│   │   ├── scripts/
-│   │   │   └── deploy.move                     # Deployment script
-│   │   ├── Move.toml
-│   │   └── package.json
-│   │
 │   └── dashboard/                              # Legacy visualization dashboard (deferred)
 │       ├── src/
 │       │   ├── backend/
@@ -280,8 +290,8 @@ connector/                              # Monorepo root
 ## Key Directory Decisions
 
 1. **Monorepo with npm workspaces:** Simplifies dependency management and type sharing
-2. **Clear package boundaries:** `connector`, `shared`, `contracts`, `contracts-aptos` are independently buildable and publishable
-3. **Multi-chain settlement:** Separate contract packages for Ethereum (Solidity) and Aptos (Move)
+2. **Clear package boundaries:** `connector`, `shared`, `contracts` are independently buildable and publishable
+3. **EVM settlement:** Ethereum (Solidity) smart contracts for payment channels
 4. **Built-in Explorer UI:** Embedded within connector package at `explorer-ui/`, served by connector HTTP server
 5. **Co-located tests:** Test files alongside source (`*.test.ts` next to `*.ts`) for better discoverability
 6. **Comprehensive module organization:** 20 specialized modules in connector (core, btp, routing, settlement, wallet, security, observability, etc.)

@@ -102,9 +102,6 @@ All events share a `type` discriminator and are combined in the `TelemetryEvent`
 | `CLAIM_SENT`                     | `ClaimSentEvent`                   | Payment channel claim sent via BTP                      |
 | `CLAIM_RECEIVED`                 | `ClaimReceivedEvent`               | Payment channel claim received via BTP                  |
 | `CLAIM_REDEEMED`                 | `ClaimRedeemedEvent`               | Claim redeemed on-chain                                 |
-| `XRP_CHANNEL_OPENED`             | `XRPChannelOpenedEvent`            | XRP payment channel created                             |
-| `XRP_CHANNEL_CLAIMED`            | `XRPChannelClaimedEvent`           | XRP claim submitted                                     |
-| `XRP_CHANNEL_CLOSED`             | `XRPChannelClosedEvent`            | XRP channel closed                                      |
 | `PAYMENT_CHANNEL_OPENED`         | `PaymentChannelOpenedEvent`        | EVM payment channel opened                              |
 | `PAYMENT_CHANNEL_BALANCE_UPDATE` | `PaymentChannelBalanceUpdateEvent` | Off-chain balance proof updated                         |
 | `PAYMENT_CHANNEL_SETTLED`        | `PaymentChannelSettledEvent`       | EVM channel settled on-chain                            |

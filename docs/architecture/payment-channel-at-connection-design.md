@@ -292,8 +292,6 @@ export interface PeerConfig {
 
   // NEW: Payment channel configuration
   evmAddress?: string; // Ethereum address for EVM channels
-  xrpAddress?: string; // XRP address for XRP channels
-  aptosAddress?: string; // Aptos address for Aptos channels
   preferredTokens?: string[]; // Preferred settlement tokens
 }
 ```

@@ -241,7 +241,7 @@ Connector A                     Connector B
 ───────────                     ───────────
 Settlement threshold reached
     ↓
-Sign claim (XRP/EVM/Aptos)
+Sign claim (EVM)
     ↓
 ClaimSender.send()
     ↓
@@ -259,7 +259,7 @@ BTP WebSocket ─────────────→ ClaimReceiver.handle()
 **Verification:**
 
 - Each peer verifies received balance proofs via ClaimReceiver
-- Checks signature validity (ed25519 for XRP, secp256k1 for EVM/Aptos)
+- Checks signature validity (secp256k1 for EVM)
 - Ensures monotonic nonce increase (prevents replay attacks)
 - Validates transferred amount ≤ channel capacity
 - Automatic redemption via ClaimRedemptionService when gas costs favorable
@@ -368,7 +368,7 @@ Each peer logs key events:
 
 - Cryptographic settlement proofs exchanged via BTP
 - ClaimSender/ClaimReceiver automatically integrated
-- Supports XRP (ed25519), EVM (secp256k1), and Aptos signatures
+- Supports EVM (secp256k1) signatures
 - Automatic claim redemption when gas costs favorable
 - Telemetry and monitoring for claim exchange health
 

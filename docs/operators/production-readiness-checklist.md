@@ -104,12 +104,6 @@ ls -la data/wallet/*.db
   - Rate limits appropriate for load
   - API key stored securely (secrets manager)
 
-- [ ] **XRP Ledger RPC endpoint configured**
-  - Ripple public RPC or commercial provider
-  - Fallback endpoints configured
-  - WebSocket connection for real-time updates
-  - Connection health monitoring enabled
-
 - [ ] **RPC endpoint failover tested**
   - Failover mechanism tested in staging
   - Automatic failover confirmed working
@@ -121,8 +115,6 @@ ls -la data/wallet/*.db
 # .env.production
 EVM_RPC_ENDPOINT=https://base-mainnet.infura.io/v3/YOUR-API-KEY
 EVM_RPC_FALLBACK=https://base.llamarpc.com,https://mainnet.base.org
-XRP_RPC_ENDPOINT=https://s1.ripple.com:51234
-XRP_RPC_FALLBACK=https://s2.ripple.com:51234
 ```
 
 **Verification:**
@@ -133,10 +125,6 @@ curl -X POST $EVM_RPC_ENDPOINT \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
 
-# Test XRP RPC
-curl -X POST $XRP_RPC_ENDPOINT \
-  -H "Content-Type: application/json" \
-  -d '{"method":"server_info","params":[]}'
 ```
 
 ---
@@ -418,7 +406,7 @@ grep -r "privateKey" logs/
   - Dashboard accessible to ops team
 
 - [ ] **Balance tracking alerts configured**
-  - Low balance warnings (<0.01 ETH, <10 XRP)
+  - Low balance warnings (<0.01 ETH)
   - Balance mismatch alerts
   - Funding failure alerts
   - Alert thresholds tuned for production load

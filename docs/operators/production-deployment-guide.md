@@ -34,7 +34,7 @@ This guide provides step-by-step instructions for deploying the M2M ILP Connecto
 
 ### Network Requirements
 
-- Outbound access to blockchain RPC endpoints (Base L2, XRP Ledger)
+- Outbound access to blockchain RPC endpoints (Base L2)
 - Inbound port for BTP connections (default: 4000)
 - Inbound port for health checks (default: 8080)
 
@@ -100,8 +100,7 @@ npx @crosstown/connector setup
 The wizard will prompt you for:
 
 - Node ID (unique identifier for your connector)
-- Settlement preference (EVM, XRP, or both)
-- Blockchain addresses
+- EVM blockchain address
 - Key management backend
 - Monitoring preferences
 
@@ -118,11 +117,8 @@ Required settings:
 
 ```bash
 NODE_ID=my-production-connector
-SETTLEMENT_PREFERENCE=both
 BASE_RPC_URL=https://mainnet.base.org
-XRPL_WSS_URL=wss://xrplcluster.com
 EVM_ADDRESS=0x...  # Your Ethereum address
-XRP_ADDRESS=r...   # Your XRP address
 KEY_BACKEND=aws-kms  # Use KMS in production!
 ```
 
@@ -136,7 +132,6 @@ KEY_BACKEND=aws-kms  # Use KMS in production!
 KEY_BACKEND=aws-kms
 AWS_REGION=us-east-1
 AWS_KMS_EVM_KEY_ID=arn:aws:kms:us-east-1:123456789012:key/...
-AWS_KMS_XRP_KEY_ID=arn:aws:kms:us-east-1:123456789012:key/...
 ```
 
 #### GCP KMS
@@ -147,7 +142,6 @@ GCP_PROJECT_ID=my-project
 GCP_LOCATION_ID=us-east1
 GCP_KEY_RING_ID=connector-keyring
 GCP_KMS_EVM_KEY_ID=evm-signing-key
-GCP_KMS_XRP_KEY_ID=xrp-signing-key
 ```
 
 #### Azure Key Vault
@@ -156,7 +150,6 @@ GCP_KMS_XRP_KEY_ID=xrp-signing-key
 KEY_BACKEND=azure-kv
 AZURE_VAULT_URL=https://my-vault.vault.azure.net
 AZURE_EVM_KEY_NAME=evm-signing-key
-AZURE_XRP_KEY_NAME=xrp-signing-key
 ```
 
 ### Step 3: Initialize TigerBeetle

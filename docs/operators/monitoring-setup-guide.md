@@ -458,7 +458,7 @@ The following span attributes are added to traces:
 | `ilp.amount`        | Packet amount in smallest units |
 | `peer.source`       | Source peer ID                  |
 | `peer.destination`  | Destination peer ID             |
-| `settlement.method` | Settlement method (xrp, evm)    |
+| `settlement.method` | Settlement method (evm)         |
 | `settlement.amount` | Settlement amount               |
 | `error.type`        | Error type if applicable        |
 

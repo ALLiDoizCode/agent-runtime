@@ -83,7 +83,7 @@ An agent network using a centralized Nostr relay for coordination faces: (1) rel
 
 ## The Core Problem
 
-**Without a unified protocol that combines decentralized routing, native micropayments, and trustless settlement across multiple blockchains, the emerging agent economy cannot scale beyond walled gardens and centralized platforms.**
+**Without a unified protocol that combines decentralized routing, native micropayments, and trustless settlement, the emerging agent economy cannot scale beyond walled gardens and centralized platforms.**
 
 ### What This Means
 
@@ -128,7 +128,7 @@ A protocol infrastructure where:
 ✅ **Payment and communication are unified** — every message can carry value
 ✅ **Micropayments route through multi-hop networks** — decentralized, no intermediaries
 ✅ **Cryptographic guarantees replace trust** — HTLCs ensure atomic payment
-✅ **Multi-chain settlement is native** — agents choose settlement chain per transaction
+✅ **EVM settlement is native** — agents settle on Base L2 with sub-cent fees
 ✅ **Agents are fully autonomous** — no human-in-the-loop for payment reconciliation
 
 ---
@@ -151,7 +151,7 @@ A protocol infrastructure where:
 
 1. **ILP (Interledger Protocol)** — Proven payment routing with cryptographic escrow
 2. **Nostr** — Decentralized event communication protocol
-3. **Multi-Chain Payment Channels** — EVM, XRP, Aptos settlement with instant finality
+3. **EVM Payment Channels** — Base L2 settlement with instant finality
 
 The result: autonomous agents that route payments and messages through the same network topology, with no centralized intermediaries, supporting sub-cent transactions with cryptographic guarantees.
 

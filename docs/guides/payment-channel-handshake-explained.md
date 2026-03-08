@@ -248,8 +248,6 @@ await btpClient.send({
 ┌─────────────────────────────────────────────────────────┐
 │  Settlement Layer                                        │
 │  - EVM payment channels (Ethereum/Base L2)              │
-│  - XRP payment channels (XRP Ledger)                    │
-│  - Aptos payment channels (Aptos blockchain)            │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -290,3 +288,60 @@ await btpClient.send({
 3. Off-chain claim exchange via BTP (Epic 17)
 
 **All communication happens over the existing BTP WebSocket connection!**
+
+---
+
+## Epic 31: Self-Describing Claims (SPSP Removal)
+
+Epic 31 eliminates the need for out-of-band coordination (SPSP/Nostr kind:23194/23195) by embedding chain and contract coordinates directly in the claim message.
+
+### Updated Three Phases
+
+#### Phase 1 (Updated): Configuration from Public Records
+
+**Before (SPSP):** Peers exchanged Nostr kind:23194 events containing settlement coordinates (chain, tokenNetworkAddress, tokenAddress, evmAddress).
+
+**After (Epic 31):** Configuration is read from public Nostr kind:10032 records (replaceable events) or provided via Admin API. No bilateral exchange required — each connector publishes its own settlement capabilities.
+
+#### Phase 2 (Updated): Unilateral Channel Opening
+
+**Before:** Channel opening required both peers to have exchanged settlement coordinates via SPSP.
+
+**After (Epic 31):** A connector opens a channel unilaterally using the peer's publicly available EVM address. The peer does not need to know about the channel in advance — it will discover it when the first self-describing claim arrives.
+
+#### Phase 3 (Updated): Self-Describing Claim Exchange
+
+**Before:** Claims referenced a `channelId` that both peers had pre-registered via SPSP handshake or Admin API.
+
+**After (Epic 31):** Claims include optional self-describing fields:
+
+```typescript
+interface EVMClaimMessage {
+  // ... existing fields (channelId, nonce, transferredAmount, etc.)
+
+  // Epic 31 self-describing fields
+  chainId?: number; // e.g., 8453 (Base) or 84532 (Base Sepolia)
+  tokenNetworkAddress?: string; // TokenNetwork contract address
+  tokenAddress?: string; // ERC20 token contract address
+}
+```
+
+**Verification Flow for Unknown Channels:**
+
+```
+1. Peer sends BTP claim with self-describing fields
+2. ClaimReceiver checks ChannelManager cache → miss (unknown channel)
+3. ClaimReceiver extracts chainId, tokenNetworkAddress from claim
+4. ClaimReceiver calls PaymentChannelSDK.getChannelState() → RPC read
+5. Verify channel exists on-chain, sender is participant, state is 'opened'
+6. Verify EIP-712 signature using domain from claim (not from config)
+7. Auto-register channel in ChannelManager cache
+8. Subsequent claims for same channel skip RPC (cached fast path)
+```
+
+**What This Eliminates:**
+
+- Nostr kind:23194/23195 SPSP exchange
+- Admin API `POST /admin/peers` for channel pre-registration
+- Bilateral coordination before first settlement
+- Static peer-to-contract address mapping in environment variables

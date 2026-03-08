@@ -81,8 +81,6 @@ This creates an incentive for the network to grow.
 All these messages are tracked off-chain. Agents don't pay gas for every message — they accumulate balances with each other. When they're ready, they **settle** the net balance on a real blockchain:
 
 - **Base L2** — Ethereum ecosystem, ERC-20 tokens
-- **XRP Ledger** — 3-5 second finality, low fees
-- **Aptos** — 160k+ TPS, sub-second finality
 
 Thousands of messages, one on-chain transaction.
 

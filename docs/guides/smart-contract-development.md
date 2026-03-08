@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This guide covers the Foundry development environment for building and testing payment channel smart contracts for the M2M connector. The contracts are deployed to Base L2 (an EVM-compatible blockchain) and enable real cryptocurrency settlement via XRP-style payment channels.
+This guide covers the Foundry development environment for building and testing payment channel smart contracts for the M2M connector. The contracts are deployed to Base L2 (an EVM-compatible blockchain) and enable real cryptocurrency settlement via payment channels.
 
 **Prerequisites:**
 

@@ -157,8 +157,8 @@ To run a complete end-to-end test:
    ```
 
 3. **Configure Settlement**
-   - Set `SETTLEMENT_PREFERENCE` (evm, xrp, or both)
-   - Configure RPC URLs (`BASE_L2_RPC_URL`, `XRP_LEDGER_WS_URL`)
+   - Set `SETTLEMENT_PREFERENCE` (evm)
+   - Configure RPC URL (`BASE_L2_RPC_URL`)
    - Fund treasury wallet with ETH and tokens
 
 ## Test Commands Run

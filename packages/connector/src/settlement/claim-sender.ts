@@ -78,6 +78,9 @@ export class ClaimSender {
    * @param locksRoot - Merkle root of locks
    * @param signature - EIP-712 signature
    * @param signerAddress - Ethereum address
+   * @param chainId - (Optional) EVM chain ID for self-describing claims (Epic 31)
+   * @param tokenNetworkAddress - (Optional) TokenNetwork contract address for self-describing claims (Epic 31)
+   * @param tokenAddress - (Optional) ERC20 token contract address for self-describing claims (Epic 31)
    * @returns Promise resolving to ClaimSendResult
    *
    * @example
@@ -91,7 +94,10 @@ export class ClaimSender {
    *   '0',
    *   '0x0000...',
    *   '0x1234...',
-   *   '0x5678...'
+   *   '0x5678...',
+   *   8453, // chainId (optional)
+   *   '0x1234...', // tokenNetworkAddress (optional)
+   *   '0xabcd...' // tokenAddress (optional)
    * );
    * ```
    */
@@ -104,7 +110,10 @@ export class ClaimSender {
     lockedAmount: string,
     locksRoot: string,
     signature: string,
-    signerAddress: string
+    signerAddress: string,
+    chainId?: number,
+    tokenNetworkAddress?: string,
+    tokenAddress?: string
   ): Promise<ClaimSendResult> {
     const messageId = this._generateMessageId('evm', channelId, nonce);
     const timestamp = new Date().toISOString();
@@ -122,6 +131,9 @@ export class ClaimSender {
       locksRoot,
       signature,
       signerAddress,
+      ...(chainId !== undefined && { chainId }),
+      ...(tokenNetworkAddress !== undefined && { tokenNetworkAddress }),
+      ...(tokenAddress !== undefined && { tokenAddress }),
     };
 
     return this.sendClaim(peerId, btpClient, claimMessage);

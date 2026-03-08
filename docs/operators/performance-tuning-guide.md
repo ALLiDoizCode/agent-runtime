@@ -26,7 +26,7 @@ The M2M ILP Connector implements several performance optimizations to achieve hi
 - **Packet Processing Parallelization**: Distributes packet processing across multiple worker threads
 - **TigerBeetle Transfer Batching**: Batches balance updates to reduce database round-trips
 - **Telemetry Event Buffering**: Batches telemetry events to minimize logging overhead
-- **Connection Pooling**: Maintains pools of connections to external services (EVM RPC, XRP WebSocket)
+- **Connection Pooling**: Maintains pools of connections to external services (EVM RPC)
 
 These optimizations can be configured via the `performance` section of the connector configuration file.
 
@@ -82,13 +82,6 @@ performance:
         - https://mainnet.base.org
         - https://base.llamarpc.com
         - https://base-rpc.publicnode.com
-
-    xrp:
-      poolSize: 5 # WebSocket connections
-      wssUrls:
-        - wss://xrplcluster.com
-        - wss://s1.ripple.com
-        - wss://s2.ripple.com
 
 # ... rest of configuration (peers, routes, etc.)
 ```
@@ -277,37 +270,6 @@ performance:
         - https://1rpc.io/base
 ```
 
-### XRP WebSocket Connection Pool
-
-For XRP Ledger payment channel integration.
-
-**Configuration:**
-
-```yaml
-performance:
-  connectionPools:
-    xrp:
-      poolSize: 5 # Number of concurrent WebSocket connections
-      wssUrls:
-        - wss://xrplcluster.com
-        - wss://s1.ripple.com
-        - wss://s2.ripple.com
-```
-
-**Sizing Guidelines:**
-
-| Expected TPS | Recommended `poolSize` | WebSocket URLs |
-| ------------ | ---------------------- | -------------- |
-| 1,000 TPS    | 3                      | 2-3 URLs       |
-| 5,000 TPS    | 5                      | 3-4 URLs       |
-| 10,000+ TPS  | 8-10                   | 4-5 URLs       |
-
-**Best Practices:**
-
-1. **Geographic Distribution**: Use servers in multiple regions for redundancy
-2. **Public Clusters**: Include ripple.com public servers and community clusters
-3. **Connection Limits**: XRPL servers may have connection limits - distribute load
-
 ---
 
 ## Memory Optimization
@@ -450,8 +412,8 @@ tigerbeetle_batch_size{quantile="0.5|0.99"}
 tigerbeetle_pending_transfers
 
 # Connection Pools
-connection_pool_healthy_connections{pool="evm|xrp"}
-connection_pool_total_connections{pool="evm|xrp"}
+connection_pool_healthy_connections{pool="evm"}
+connection_pool_total_connections{pool="evm"}
 ```
 
 ### Grafana Dashboard
@@ -538,8 +500,8 @@ rate(process_cpu_seconds_total[1m]) * 100
    - Fix: Add more RPC endpoints or reduce request rate
 
 2. **WebSocket Disconnections**
-   - Check: XRP connection pool health metrics
-   - Fix: Add more WebSocket URLs for redundancy
+   - Check: Connection pool health metrics
+   - Fix: Add more RPC URLs for redundancy
 
 3. **Network Connectivity Issues**
    - Check: Network errors in logs

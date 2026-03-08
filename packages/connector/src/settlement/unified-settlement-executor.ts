@@ -293,6 +293,10 @@ export class UnifiedSettlementExecutor {
     try {
       const btpClient = this.getBTPClientForPeer(peerId);
 
+      // Obtain self-describing fields for Epic 31
+      const chainId = await this.evmChannelSDK.getChainId();
+      const tokenNetworkAddress = await this.evmChannelSDK.getTokenNetworkAddress(tokenAddress);
+
       const result = await this._claimSender.sendEVMClaim(
         peerId,
         btpClient,
@@ -302,7 +306,10 @@ export class UnifiedSettlementExecutor {
         '0',
         '0x0000000000000000000000000000000000000000000000000000000000000000',
         signature,
-        signerAddress
+        signerAddress,
+        chainId,
+        tokenNetworkAddress,
+        tokenAddress
       );
 
       if (!result.success) {

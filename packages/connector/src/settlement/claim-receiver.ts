@@ -17,6 +17,7 @@ import type { BTPProtocolData, BTPMessage } from '../btp/btp-types';
 import { isBTPData } from '../btp/btp-types';
 import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import type { PaymentChannelSDK } from './payment-channel-sdk';
+import type { ChannelManager } from './channel-manager';
 import {
   type BTPClaimMessage,
   type EVMClaimMessage,
@@ -24,6 +25,19 @@ import {
   isEVMClaim,
   validateClaimMessage,
 } from '../btp/btp-claim-types';
+
+/**
+ * Error message constants for claim verification
+ * Exported for consistent usage between implementation and tests.
+ */
+export const ERRORS = {
+  MISSING_SELF_DESCRIBING_FIELDS:
+    'Missing self-describing fields for unknown channel (chainId, tokenNetworkAddress, tokenAddress required)',
+  CHANNEL_NOT_FOUND: 'Channel does not exist on-chain',
+  CHANNEL_NOT_OPENED: 'Channel not in opened state',
+  SIGNER_NOT_PARTICIPANT: 'Signer is not a channel participant',
+  ON_CHAIN_VERIFICATION_FAILED: 'On-chain channel verification failed',
+} as const;
 
 /**
  * Result of claim verification process
@@ -67,7 +81,8 @@ export class ClaimReceiver {
     private readonly evmChannelSDK: PaymentChannelSDK,
     private readonly logger: Logger,
     private readonly telemetryEmitter?: TelemetryEmitter,
-    private readonly nodeId?: string
+    private readonly nodeId?: string,
+    private readonly channelManager?: ChannelManager
   ) {}
 
   /**
@@ -195,19 +210,152 @@ export class ClaimReceiver {
         locksRoot: claim.locksRoot,
       };
 
-      // Verify EIP-712 signature
-      const isValid = await this.evmChannelSDK.verifyBalanceProof(
-        balanceProof,
-        claim.signature,
-        claim.signerAddress
-      );
+      this.logger.debug({ channelId: claim.channelId }, 'Checking channel existence in metadata');
 
-      if (!isValid) {
-        return {
-          valid: false,
-          messageId: claim.messageId,
-          error: 'Invalid EIP-712 signature',
+      // Check if channel is known (pre-registered or previously verified)
+      const knownChannel = this.channelManager?.getChannelById(claim.channelId);
+
+      if (!knownChannel && this.channelManager) {
+        // Unknown channel -- attempt dynamic on-chain verification
+        this.logger.info(
+          { channelId: claim.channelId },
+          'Unknown channel detected, starting on-chain verification'
+        );
+
+        // Require all self-describing fields
+        if (claim.chainId === undefined || !claim.tokenNetworkAddress || !claim.tokenAddress) {
+          this.logger.warn(
+            { channelId: claim.channelId, signerAddress: claim.signerAddress },
+            ERRORS.MISSING_SELF_DESCRIBING_FIELDS
+          );
+          return {
+            valid: false,
+            messageId: claim.messageId,
+            error: ERRORS.MISSING_SELF_DESCRIBING_FIELDS,
+          };
+        }
+
+        // Query on-chain state
+        let channelState: {
+          exists: boolean;
+          state: number;
+          participant1: string;
+          participant2: string;
+          settlementTimeout: number;
         };
+        try {
+          channelState = await this.evmChannelSDK.getChannelStateByNetwork(
+            claim.channelId,
+            claim.tokenNetworkAddress
+          );
+        } catch (error) {
+          this.logger.warn(
+            { channelId: claim.channelId, signerAddress: claim.signerAddress, error },
+            ERRORS.ON_CHAIN_VERIFICATION_FAILED
+          );
+          return {
+            valid: false,
+            messageId: claim.messageId,
+            error: ERRORS.ON_CHAIN_VERIFICATION_FAILED,
+          };
+        }
+
+        // Verify channel exists (state !== 0)
+        if (!channelState.exists) {
+          this.logger.warn(
+            { channelId: claim.channelId, signerAddress: claim.signerAddress },
+            ERRORS.CHANNEL_NOT_FOUND
+          );
+          return {
+            valid: false,
+            messageId: claim.messageId,
+            error: ERRORS.CHANNEL_NOT_FOUND,
+          };
+        }
+
+        // Verify channel is opened (state === 1)
+        if (channelState.state !== 1) {
+          this.logger.warn(
+            { channelId: claim.channelId, signerAddress: claim.signerAddress },
+            ERRORS.CHANNEL_NOT_OPENED
+          );
+          return {
+            valid: false,
+            messageId: claim.messageId,
+            error: ERRORS.CHANNEL_NOT_OPENED,
+          };
+        }
+
+        // Verify signerAddress matches participant1 or participant2
+        const signerLower = claim.signerAddress.toLowerCase();
+        if (
+          signerLower !== channelState.participant1.toLowerCase() &&
+          signerLower !== channelState.participant2.toLowerCase()
+        ) {
+          this.logger.warn(
+            { channelId: claim.channelId, signerAddress: claim.signerAddress },
+            ERRORS.SIGNER_NOT_PARTICIPANT
+          );
+          return {
+            valid: false,
+            messageId: claim.messageId,
+            error: ERRORS.SIGNER_NOT_PARTICIPANT,
+          };
+        }
+
+        this.logger.info(
+          {
+            channelId: claim.channelId,
+            participant1: channelState.participant1,
+            participant2: channelState.participant2,
+            state: channelState.state,
+          },
+          'On-chain channel verified successfully'
+        );
+
+        // Verify EIP-712 signature using explicit domain from claim fields
+        const sigValid = await this.evmChannelSDK.verifyBalanceProofWithDomain(
+          balanceProof,
+          claim.signature,
+          claim.signerAddress,
+          claim.chainId,
+          claim.tokenNetworkAddress
+        );
+
+        if (!sigValid) {
+          return {
+            valid: false,
+            messageId: claim.messageId,
+            error: 'Invalid EIP-712 signature',
+          };
+        }
+
+        // Register channel in ChannelManager
+        this.channelManager.registerExternalChannel({
+          channelId: claim.channelId,
+          peerId,
+          tokenAddress: claim.tokenAddress,
+          tokenNetworkAddress: claim.tokenNetworkAddress,
+          chainId: claim.chainId,
+          status: 'open',
+        });
+
+        this.logger.info({ channelId: claim.channelId, peerId }, 'External channel registered');
+      } else {
+        // Known channel (pre-registered or previously verified) -- use existing verification
+        const isValid = await this.evmChannelSDK.verifyBalanceProof(
+          balanceProof,
+          claim.signature,
+          claim.signerAddress
+        );
+
+        if (!isValid) {
+          return {
+            valid: false,
+            messageId: claim.messageId,
+            error: 'Invalid EIP-712 signature',
+          };
+        }
       }
 
       // Check nonce monotonicity - nonce must strictly increase

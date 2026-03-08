@@ -179,7 +179,6 @@ if (wallet) {
   logger.info('Using existing wallet', {
     agentId: wallet.agentId,
     evmAddress: wallet.evmAddress,
-    xrpAddress: wallet.xrpAddress,
   });
 } else {
   // Wallet doesn't exist, safe to create
@@ -318,71 +317,6 @@ EVM wallet needs native ETH for gas fees, but balance is zero or too low.
 - Implement automatic gas top-up
 
 **Reference:** `packages/connector/src/wallet/agent-wallet-funder.ts`
-
----
-
-### Issue: XRP Account Not Activated
-
-**Symptom:**
-
-```
-Error: XRP transaction failed: Account not found
-```
-
-**Cause:**
-XRP accounts require minimum 10 XRP reserve to activate on the ledger.
-
-**Solution:**
-
-1. **Check XRP Balance:**
-
-   ```typescript
-   const xrpBalance = await balanceTracker.getBalance('agent-001', 'xrp', 'XRP');
-
-   if (xrpBalance < BigInt(10000000)) {
-     // 10 XRP (6 decimals)
-     logger.warn('XRP account not activated - balance below reserve');
-   }
-   ```
-
-2. **Fund XRP Wallet (15 XRP recommended):**
-
-   ```typescript
-   await funder.fundAgentWallet('agent-001', {
-     chain: 'xrp',
-     token: 'XRP',
-     amount: BigInt(15000000), // 15 XRP (10 reserve + 5 buffer)
-   });
-
-   logger.info('XRP account activation pending');
-   ```
-
-3. **Wait for Ledger Confirmation:**
-
-   ```typescript
-   // XRP ledger closes every ~4 seconds
-   await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
-
-   const newBalance = await balanceTracker.getBalance('agent-001', 'xrp', 'XRP');
-
-   if (newBalance >= BigInt(10000000)) {
-     logger.info('XRP account activated', { balance: newBalance.toString() });
-   }
-   ```
-
-**Key Facts:**
-
-- **Reserve**: 10 XRP minimum (not spendable)
-- **Activation**: Requires one transaction >= 10 XRP
-- **Recommendation**: Fund with 15 XRP (10 reserve + 5 usable)
-
-**Prevention:**
-
-- Automatic funding includes 15 XRP
-- Document XRP reserve requirements
-- Alert if XRP balance < 12 XRP
-
-**Reference:** https://xrpl.org/reserves.html
 
 ---
 
@@ -585,9 +519,6 @@ Blockchain congestion or RPC endpoint issues delaying confirmation.
    ```bash
    # EVM (Base L2) - check block explorer
    curl https://base.blockscout.com/api/v2/stats
-
-   # XRP Ledger - check health
-   curl https://s1.ripple.com:51234
    ```
 
 2. **Retry with Higher Gas (EVM only):**
@@ -898,11 +829,6 @@ RPC provider down or network connectivity issues.
    curl -X POST https://mainnet.base.org \
      -H "Content-Type: application/json" \
      -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
-
-   # XRP Ledger
-   curl https://s1.ripple.com:51234 \
-     -H "Content-Type: application/json" \
-     -d '{"method":"server_info","params":[]}'
    ```
 
 2. **Configure Fallback RPC:**
@@ -989,18 +915,6 @@ if (tx && !tx.blockNumber) {
 
   logger.info('Speed-up transaction sent', { newTxHash: speedUpTx.hash });
 }
-```
-
-**For XRP Ledger:**
-
-```bash
-# Check transaction by hash
-curl -X POST https://s1.ripple.com:51234 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "tx",
-    "params": [{"transaction": "YOUR_TX_HASH", "binary": false}]
-  }'
 ```
 
 **Prevention:**

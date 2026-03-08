@@ -58,27 +58,33 @@ This document provides technical details on the underlying protocols used by Age
 3. **Settle** — Submit final balance proof to blockchain (cooperative close)
 4. **Dispute** — Challenge invalid proofs with timeout mechanism (non-cooperative close)
 
-### Multichain Settlement Options
+### Settlement
 
-#### 1. EVM Payment Channels (Base L2)
+### BTP Claim Exchange (Epic 17)
 
-- XRP-style payment channels as Solidity smart contracts
+Payment channel claims are exchanged off-chain via BTP's sub-protocol mechanism. The `payment-channel-claim` sub-protocol carries signed EVM balance proofs between connector peers:
+
+```typescript
+// BTP protocolData entry for claims
+{
+  protocolName: 'payment-channel-claim',
+  contentType: 1,  // application/json
+  data: Buffer.from(JSON.stringify(evmClaimMessage))
+}
+```
+
+Claims carry cumulative balance proofs (EIP-712 signed) with monotonically increasing nonces. The receiver verifies the signature and nonce, persists the claim, and later redeems on-chain when economically optimal.
+
+**Epic 31 Enhancement:** Self-describing claims include optional `chainId`, `tokenNetworkAddress`, and `tokenAddress` fields, enabling receivers to verify unknown channels via on-chain RPC without prior SPSP-based channel pre-negotiation. This eliminates the Nostr kind:23194/23195 exchange previously used for settlement coordinate discovery.
+
+For implementation details, see [Claim Exchange Workflow](./architecture/core-workflows.md#claim-exchange-workflow-epic-17) and [Dynamic On-Chain Verification Workflow](./architecture/core-workflows.md#dynamic-on-chain-verification-workflow-epic-31).
+
+#### EVM Payment Channels (Base L2)
+
+- Payment channels as Solidity smart contracts
 - Deployed on Base L2 (Ethereum Layer 2)
 - Sub-cent transaction fees, instant finality
 - [Base L2 Documentation](https://base.org)
-
-#### 2. XRP Payment Channels (PayChan)
-
-- Native XRP Ledger payment channels
-- Claim-based settlement with signature verification
-- High throughput, low latency
-- [XRP Ledger PayChan](https://xrpl.org/payment-channels.html)
-
-#### 3. Aptos Move Payment Channels
-
-- Move smart contract modules on Aptos
-- 160,000+ TPS capability, sub-second finality
-- [Aptos Documentation](https://aptos.dev)
 
 ---
 

@@ -195,156 +195,165 @@ sequenceDiagram
     Note over Docker: All containers healthy - system operational
 ```
 
-## XRP Settlement Workflow (Dual-Settlement)
+## EVM Settlement Routing Workflow
 
-The following sequence diagram illustrates the XRP settlement flow with dual-settlement support:
+```mermaid
+flowchart TD
+    Start[Settlement Required Event] --> GetPeer[Get Peer Config]
+    GetPeer --> CheckEVM{Peer has evmAddress?}
+
+    CheckEVM -->|Yes| OpenChannel[Open/Use EVM Payment Channel]
+    CheckEVM -->|No| Error[Error: No compatible method]
+
+    OpenChannel --> Deposit[Deposit ERC20 Tokens]
+    Deposit --> UpdateAccounts[Update TigerBeetle Accounts]
+    UpdateAccounts --> Done[Settlement Complete]
+
+    style Start fill:#2563eb,color:#fff
+    style OpenChannel fill:#059669,color:#fff
+    style Error fill:#dc2626,color:#fff
+    style Done fill:#16a34a,color:#fff
+```
+
+## Claim Exchange Workflow (Epic 17)
+
+Off-chain balance proof exchange between peers via BTP `payment-channel-claim` sub-protocol. This is the core settlement mechanism — signed claims accumulate off-chain and are redeemed on-chain only when economically optimal.
 
 ```mermaid
 sequenceDiagram
     participant SM as SettlementMonitor
     participant USE as UnifiedSettlementExecutor
-    participant LCM as XRPChannelLifecycleManager
-    participant SDK as XRPChannelSDK
-    participant XRPL as XRP Ledger
-    participant Peer as Peer Connector
+    participant AM as AccountManager
+    participant SDK as PaymentChannelSDK
+    participant CS as ClaimSender
+    participant BTP as BTP WebSocket
+    participant CR as ClaimReceiver (Peer)
+    participant CRS as ClaimRedemptionService (Peer)
 
-    Note over SM,Peer: Settlement Required Event
+    Note over SM,CRS: Settlement threshold reached for peer-token pair
 
-    SM->>USE: SETTLEMENT_REQUIRED (peerId, balance, tokenId='XRP')
+    SM->>SM: Poll AccountManager balances (30s interval)
+    SM->>AM: getBalance(peerId, tokenId)
+    AM-->>SM: { netBalance: 5000000n }
+    SM->>SM: netBalance > threshold → state: SETTLEMENT_PENDING
+
+    SM--)USE: emit SETTLEMENT_REQUIRED { peerId, balance, tokenId }
     activate USE
-    USE->>USE: Get peer config (settlementPreference, xrpAddress)
-    USE->>USE: Check: tokenId === 'XRP' && canUseXRP
-    USE->>LCM: getOrCreateChannel(peerId, xrpAddress)
-    activate LCM
 
-    alt Channel exists
-        LCM->>LCM: Return existing channelId
-    else Channel doesn't exist
-        LCM->>SDK: openChannel(destination, amount, settleDelay)
-        activate SDK
-        SDK->>XRPL: PaymentChannelCreate transaction
-        XRPL-->>SDK: Channel created (channelId)
-        SDK->>SDK: Cache channel state locally
-        SDK-->>LCM: channelId
-        deactivate SDK
-        LCM->>LCM: Track channel (Map<peerId, state>)
+    USE->>SDK: signBalanceProof(channelId, tokenNetworkAddr, nonce, amount, locked, locksRoot)
+    SDK-->>USE: signature (EIP-712 typed data)
+
+    USE->>CS: sendEVMClaim(peerId, btpClient, channelId, nonce, amount, ...)
+    activate CS
+
+    CS->>CS: Build EVMClaimMessage { version, blockchain, channelId, nonce, signature, ... }
+    CS->>CS: Persist claim to SQLite (dispute resolution)
+    CS->>BTP: protocolName: 'payment-channel-claim', data: JSON claim
+    BTP->>CR: Receive BTP message
+    deactivate CS
+
+    activate CR
+    CR->>CR: validateClaimMessage() — structure validation
+    CR->>CR: Check nonce > lastNonce (monotonicity)
+    CR->>SDK: verifyBalanceProof() — EIP-712 signature verification
+    SDK-->>CR: signerAddress (recovered)
+    CR->>CR: Persist verified claim to SQLite
+    CR->>CR: Emit CLAIM_VERIFIED telemetry
+    deactivate CR
+
+    Note over CRS: ClaimRedemptionService polls every 30s
+
+    CRS->>CRS: Check if profitable to redeem on-chain
+    alt Profitable to redeem
+        CRS->>SDK: closeChannel() or cooperativeSettle()
+        SDK-->>CRS: On-chain settlement tx
+    else Wait for more claims
+        CRS->>CRS: Continue accumulating
     end
 
-    LCM-->>USE: channelId
-    deactivate LCM
-
-    Note over USE,Peer: Off-Chain Claim Signing
-
-    USE->>SDK: signClaim(channelId, amount)
-    activate SDK
-    SDK->>SDK: ClaimSigner.signClaim() (ed25519 signature)
-    SDK->>SDK: Store claim in database
-    SDK-->>USE: { channelId, amount, signature, publicKey }
-    deactivate SDK
-
-    USE->>Peer: Send claim off-chain (via BTP)
-    Note over Peer: Peer receives claim and verifies signature
-
-    Peer->>XRPL: PaymentChannelClaim transaction
-    XRPL->>XRPL: Verify signature, redeem XRP
-    XRPL-->>Peer: XRP transferred
-
-    USE->>LCM: updateChannelActivity(peerId, amount)
-    activate LCM
-    LCM->>LCM: Update lastActivityAt timestamp
-    LCM->>LCM: Check needsFunding()?
-    alt Needs funding
-        LCM->>SDK: fundChannel(channelId, additionalAmount)
-        SDK->>XRPL: PaymentChannelFund transaction
-        XRPL-->>SDK: Channel funded
-    end
-    deactivate LCM
-
-    USE->>USE: Update TigerBeetle accounts
-    USE-->>SM: Settlement completed
+    USE->>AM: recordSettlement(peerId, tokenId, amount)
     deactivate USE
+    SM->>SM: state: IDLE
 ```
 
-## XRP Channel Lifecycle State Machine
+### Key Behaviors
 
-```
-┌────────────────────────────────────────────────────────────┐
-│              XRP Channel Lifecycle                         │
-└────────────────────────────────────────────────────────────┘
+- **Off-chain by default**: Claims are signed balance proofs exchanged over WebSocket — no on-chain transaction per claim
+- **Nonce monotonicity**: Each claim must have a higher nonce than the previous, preventing replay attacks
+- **Cumulative amounts**: `transferredAmount` is cumulative (not incremental), so only the latest claim matters for on-chain settlement
+- **Retry with backoff**: ClaimSender retries failed sends with exponential backoff (1s, 2s, 4s — 3 attempts)
+- **Dispute resolution**: Both sender and receiver persist claims to SQLite, enabling on-chain dispute if needed
+- **Deferred redemption**: ClaimRedemptionService batches claims and redeems on-chain only when gas-efficient
 
-  getOrCreateChannel()
-         │
-         ▼
-    ┌────────┐
-    │  OPEN  │ ◄──────────────────┐
-    └───┬────┘                     │
-        │                          │
-        ├─► updateChannelActivity()│
-        │                          │
-        ├─► needsFunding() ?       │
-        │   └─► fundChannel() ─────┘
-        │
-        ├─► Idle > threshold ?
-        │   └─► closeChannel('idle')
-        │
-        ├─► Approaching CancelAfter ?
-        │   └─► closeChannel('expiration')
-        │
-        ▼
-   ┌─────────┐
-   │ CLOSING │ ──► Settlement delay period (e.g., 24 hours)
-   └─────────┘
-        │
-        ▼
-   ┌────────┐
-   │ CLOSED │ ──► Channel removed from ledger
-   └────────┘
+## Dynamic On-Chain Verification Workflow (Epic 31)
 
-Lifecycle Events (Periodic Checks - Every 1 Hour):
-- Idle Detection: Close channels idle > idleChannelThreshold
-- Expiration Handling: Close channels within 1h of CancelAfter
-- Funding Checks: Fund when balance < minBalanceThreshold
-```
-
-## Dual-Settlement Routing Workflow
+Self-describing claims enable unknown peers to send claims with embedded chain/contract coordinates. The receiver verifies the channel on-chain dynamically, eliminating the need for SPSP handshake (kind:23194/23195) and Admin API channel pre-registration.
 
 ```mermaid
-flowchart TD
-    Start[Settlement Required Event] --> GetPeer[Get Peer Config]
-    GetPeer --> CheckToken{Token Type?}
+sequenceDiagram
+    participant Peer as Unknown Peer
+    participant BTP as BTP WebSocket
+    participant CR as ClaimReceiver
+    participant CM as ChannelManager
+    participant SDK as PaymentChannelSDK
+    participant RPC as EVM RPC (Base L2)
 
-    CheckToken -->|XRP| CheckXRPSupport{Peer supports XRP?}
-    CheckToken -->|ERC20| CheckEVMSupport{Peer supports EVM?}
+    Note over Peer,RPC: Peer sends self-describing claim (no prior handshake)
 
-    CheckXRPSupport -->|Yes| XRPAddress{xrpAddress exists?}
-    CheckXRPSupport -->|No| Error1[Error: No compatible method]
+    Peer->>BTP: Connect via BTP WebSocket
+    BTP->>CR: payment-channel-claim message
 
-    CheckEVMSupport -->|Yes| EVMAddress{evmAddress exists?}
-    CheckEVMSupport -->|No| Error2[Error: No compatible method]
+    activate CR
+    CR->>CR: validateClaimMessage() — structure validation
+    CR->>CR: Extract self-describing fields: chainId, tokenNetworkAddress, tokenAddress
 
-    XRPAddress -->|Yes| XRPSettle[Settle via XRP]
-    XRPAddress -->|No| Error3[Error: Missing xrpAddress]
+    CR->>CM: getChannelMetadata(channelId)
+    CM-->>CR: null (unknown channel)
 
-    EVMAddress -->|Yes| EVMSettle[Settle via EVM]
-    EVMAddress -->|No| Error4[Error: Missing evmAddress]
+    Note over CR,RPC: First-time channel — dynamic on-chain verification
 
-    XRPSettle --> CreateChannel[Find or Create XRP Channel]
-    CreateChannel --> SignClaim[Sign Claim Off-Chain]
-    SignClaim --> SendClaim[Send Claim to Peer]
-    SendClaim --> UpdateAccounts[Update TigerBeetle Accounts]
+    CR->>SDK: getChannelState(channelId, tokenNetworkAddress)
+    activate SDK
+    SDK->>RPC: channels(channelId) — read on-chain state
+    RPC-->>SDK: { state: 'opened', participant1, participant2, settlementTimeout }
+    deactivate SDK
 
-    EVMSettle --> OpenEVMChannel[Open EVM Payment Channel]
-    OpenEVMChannel --> DepositTokens[Deposit ERC20 Tokens]
-    DepositTokens --> UpdateAccounts
+    CR->>CR: Verify sender is a channel participant
+    CR->>CR: Verify channel state is 'opened'
 
-    UpdateAccounts --> Done[Settlement Complete]
+    CR->>SDK: verifyBalanceProof(channelId, tokenNetworkAddress, nonce, amount, locked, locksRoot, signature)
+    Note right of SDK: EIP-712 domain constructed from<br/>self-describing claim fields:<br/>chainId + tokenNetworkAddress
 
-    style Start fill:#2563eb,color:#fff
-    style XRPSettle fill:#ea580c,color:#fff
-    style EVMSettle fill:#059669,color:#fff
-    style Error1 fill:#dc2626,color:#fff
-    style Error2 fill:#dc2626,color:#fff
-    style Error3 fill:#dc2626,color:#fff
-    style Error4 fill:#dc2626,color:#fff
-    style Done fill:#16a34a,color:#fff
+    SDK-->>CR: signerAddress (recovered from EIP-712)
+    CR->>CR: Verify signerAddress matches channel participant
+
+    Note over CR,CM: Auto-register channel and peer
+
+    CR->>CM: registerChannel({ channelId, peerId, tokenId, tokenAddress, chain, status: 'open' })
+    CM->>CM: Cache in channelMetadata + peerChannelIndex
+
+    CR->>CR: Persist verified claim to SQLite
+    CR->>CR: Emit CLAIM_VERIFIED telemetry
+    deactivate CR
+
+    Note over Peer,RPC: Subsequent claims — fast path (cached)
+
+    Peer->>BTP: Second payment-channel-claim
+    activate CR
+    CR->>CM: getChannelMetadata(channelId)
+    CM-->>CR: ChannelMetadata (cached)
+    CR->>CR: Skip RPC — verify EIP-712 signature only
+    CR->>CR: Check nonce > lastNonce
+    CR-->>CR: Verified (fast path)
+    deactivate CR
 ```
+
+### Key Behaviors
+
+- **Self-describing claims**: EVMClaimMessage includes optional `chainId`, `tokenNetworkAddress`, `tokenAddress` fields — the claim carries everything needed for verification
+- **First-time RPC verification**: Unknown channels trigger a one-time on-chain read to confirm the channel exists and the sender is a participant
+- **EIP-712 domain from claim**: The typed data domain is constructed from the claim's own `chainId` and `tokenNetworkAddress`, not from connector config
+- **Auto-registration**: Verified channels are automatically registered in ChannelManager's cache and the peer is associated
+- **Cached fast path**: Subsequent claims for the same channel skip RPC and verify the EIP-712 signature directly
+- **SPSP elimination**: No Nostr kind:23194/23195 exchange needed — the claim itself carries the contract coordinates
+- **Admin API bypass**: No `POST /admin/peers` required to pre-register channels — dynamic verification replaces manual setup

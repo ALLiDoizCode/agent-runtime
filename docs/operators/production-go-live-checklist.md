@@ -62,12 +62,6 @@ This checklist must be completed before launching the M2M Economy connector into
   - [ ] Gas price limits configured
   - [ ] Transaction monitoring enabled
 
-- [ ] **XRP Settlement**
-  - [ ] XRP Ledger mainnet connection verified
-  - [ ] Settlement wallet activated
-  - [ ] Reserve requirements met
-  - [ ] Transaction monitoring enabled
-
 - [ ] **Circuit Breakers**
   - [ ] Circuit breaker thresholds configured
   - [ ] Failover procedures tested

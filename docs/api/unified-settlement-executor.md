@@ -2,12 +2,12 @@
 
 ## Overview
 
-The `UnifiedSettlementExecutor` class orchestrates dual-chain settlement routing between EVM and XRP ledgers. It listens for `SETTLEMENT_REQUIRED` events from SettlementMonitor and routes settlements to the appropriate method based on peer configuration and token type.
+The `UnifiedSettlementExecutor` class orchestrates EVM settlement on Base L2. It listens for `SETTLEMENT_REQUIRED` events from SettlementMonitor and routes settlements to the appropriate method based on peer configuration and token type.
 
 **Key Features:**
 
-- Automatic settlement routing (EVM vs XRP)
-- Peer-based settlement preference configuration
+- Automatic EVM (Base L2) settlement
+- Peer-based settlement configuration
 - Token type detection and routing
 - Integration with TigerBeetle accounting layer
 - Event-driven architecture
@@ -27,18 +27,11 @@ The `UnifiedSettlementExecutor` class orchestrates dual-chain settlement routing
         │  Get Peer Config     │
         └──────────┬───────────┘
                    │
-         ┌─────────▼──────────┐
-         │  tokenId === 'XRP'?│
-         └─────┬──────────┬───┘
-               │          │
-          Yes  │          │  No (ERC20)
-               │          │
-               ▼          ▼
-    ┌──────────────┐  ┌──────────────┐
-    │ XRP Settlement│  │EVM Settlement│
-    │ (PaymentChannel│  │(PaymentChannel│
-    │  Manager)     │  │  SDK)        │
-    └──────────────┘  └──────────────┘
+                   ▼
+        ┌──────────────────────┐
+        │  EVM Settlement      │
+        │  (PaymentChannel SDK)│
+        └──────────────────────┘
 ```
 
 ## Types
@@ -53,17 +46,11 @@ interface PeerConfig {
   /** ILP address of peer */
   ilpAddress: string;
 
-  /** Settlement preference: 'evm' | 'xrp' | 'both' */
-  settlementPreference: 'evm' | 'xrp' | 'both';
-
   /** Supported settlement tokens (ordered by preference) */
-  settlementTokens: string[]; // e.g., ['XRP', 'USDC', 'DAI']
+  settlementTokens: string[]; // e.g., ['USDC', 'DAI']
 
-  /** EVM address (required if settlementPreference includes 'evm') */
-  evmAddress?: string;
-
-  /** XRP Ledger address (required if settlementPreference includes 'xrp') */
-  xrpAddress?: string;
+  /** EVM address for settlement */
+  evmAddress: string;
 
   /** Settlement threshold (in base units) */
   settlementThreshold: bigint;
@@ -92,14 +79,14 @@ interface SettlementRequiredEvent {
   /** Balance to settle (string for bigint) */
   balance: string;
 
-  /** Token identifier ('XRP' or ERC20 contract address) */
+  /** Token identifier (ERC20 contract address) */
   tokenId: string;
 }
 ```
 
 ## Constructor
 
-### `new UnifiedSettlementExecutor(config, evmChannelSDK, xrpChannelManager, xrpClaimSigner, settlementMonitor, accountManager, logger)`
+### `new UnifiedSettlementExecutor(config, evmChannelSDK, settlementMonitor, accountManager, logger)`
 
 Creates a new UnifiedSettlementExecutor instance.
 
@@ -107,8 +94,6 @@ Creates a new UnifiedSettlementExecutor instance.
 
 - `config` **UnifiedSettlementExecutorConfig** - Unified settlement configuration with peer preferences
 - `evmChannelSDK` **PaymentChannelSDK** - PaymentChannelSDK for EVM settlements (Epic 8)
-- `xrpChannelManager` **PaymentChannelManager** - PaymentChannelManager for XRP settlements (Epic 9)
-- `xrpClaimSigner` **ClaimSigner** - ClaimSigner for XRP claim generation
 - `settlementMonitor` **SettlementMonitor** - Settlement monitor emitting SETTLEMENT_REQUIRED events
 - `accountManager` **AccountManager** - TigerBeetle account manager for balance updates
 - `logger` **Logger** - Pino logger instance
@@ -125,10 +110,8 @@ const config: UnifiedSettlementExecutorConfig = {
       {
         peerId: 'peer-alice',
         ilpAddress: 'g.alice.connector',
-        settlementPreference: 'both',
-        settlementTokens: ['XRP', 'USDC'],
+        settlementTokens: ['USDC'],
         evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0',
-        xrpAddress: 'rLHzPsX6oXkzU9rFkRaYT8yBqJcQwPgHWN',
         settlementThreshold: 1000000000n,
         settlementInterval: 3600000,
       },
@@ -139,8 +122,6 @@ const config: UnifiedSettlementExecutorConfig = {
 const executor = new UnifiedSettlementExecutor(
   config,
   evmChannelSDK,
-  xrpChannelManager,
-  xrpClaimSigner,
   settlementMonitor,
   accountManager,
   logger
@@ -181,36 +162,11 @@ logger.info('UnifiedSettlementExecutor stopped');
 
 The executor applies the following routing logic:
 
-### XRP Settlement
-
-Triggered when:
-
-- `tokenId === 'XRP'`
-- Peer's `settlementPreference` is `'xrp'` or `'both'`
-- Peer has `xrpAddress` configured
-
-**Actions:**
-
-1. Find or create XRP payment channel with peer
-2. Sign claim for settlement amount
-3. Send claim to peer off-chain (peer submits to ledger)
-4. Update TigerBeetle accounts
-
-**Implementation:**
-
-```typescript
-// Routes to PaymentChannelManager (Epic 9)
-await xrpChannelManager.createChannel(destination, amount, settleDelay);
-const signature = await xrpClaimSigner.signClaim(channelId, amount);
-// Send signature to peer via BTP
-```
-
 ### EVM Settlement
 
 Triggered when:
 
-- `tokenId !== 'XRP'` (ERC20 token address)
-- Peer's `settlementPreference` is `'evm'` or `'both'`
+- Settlement threshold reached for a peer
 - Peer has `evmAddress` configured
 
 **Actions:**
@@ -231,41 +187,24 @@ await evmChannelSDK.openChannel(peerAddress, tokenAddress, settlementTimeout, de
 The executor throws an error when:
 
 - **No peer configuration found:** Peer ID not in config map
-- **Incompatible XRP settlement:** XRP token but peer doesn't support XRP (`settlementPreference === 'evm'`)
-- **Incompatible EVM settlement:** ERC20 token but peer doesn't support EVM (`settlementPreference === 'xrp'`)
-- **Missing address:** Peer missing `evmAddress` for EVM or `xrpAddress` for XRP
+- **Missing address:** Peer missing `evmAddress`
 
 ## Usage Examples
 
-### Example 1: Dual-Settlement Configuration
+### Example 1: EVM Settlement Configuration
 
 ```typescript
 import { UnifiedSettlementExecutor, PeerConfig } from '@crosstown/connector';
 
-// Configure peers with different settlement preferences
+// Configure peers for EVM (Base L2) settlement
 const config: UnifiedSettlementExecutorConfig = {
   peers: new Map([
-    // Peer 1: XRP-only settlement
-    [
-      'peer-xrp',
-      {
-        peerId: 'peer-xrp',
-        ilpAddress: 'g.peer1.connector',
-        settlementPreference: 'xrp',
-        settlementTokens: ['XRP'],
-        xrpAddress: 'rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY',
-        settlementThreshold: 500000000n, // 500 XRP
-        settlementInterval: 3600000,
-      },
-    ],
-
-    // Peer 2: EVM-only settlement
+    // Peer 1: USDC and DAI settlement
     [
       'peer-evm',
       {
         peerId: 'peer-evm',
-        ilpAddress: 'g.peer2.connector',
-        settlementPreference: 'evm',
+        ilpAddress: 'g.peer1.connector',
         settlementTokens: ['USDC', 'DAI'],
         evmAddress: '0x123...',
         settlementThreshold: 1000000000n,
@@ -273,16 +212,14 @@ const config: UnifiedSettlementExecutorConfig = {
       },
     ],
 
-    // Peer 3: Dual settlement support (prefer XRP)
+    // Peer 2: USDC settlement
     [
-      'peer-dual',
+      'peer-usdc',
       {
-        peerId: 'peer-dual',
-        ilpAddress: 'g.peer3.connector',
-        settlementPreference: 'both',
-        settlementTokens: ['XRP', 'USDC'], // XRP preferred first
+        peerId: 'peer-usdc',
+        ilpAddress: 'g.peer2.connector',
+        settlementTokens: ['USDC'],
         evmAddress: '0x456...',
-        xrpAddress: 'rLHzPsX6oXkzU9rFkRaYT8yBqJcQwPgHWN',
         settlementThreshold: 1000000000n,
         settlementInterval: 3600000,
       },
@@ -293,8 +230,6 @@ const config: UnifiedSettlementExecutorConfig = {
 const executor = new UnifiedSettlementExecutor(
   config,
   evmChannelSDK,
-  xrpChannelManager,
-  xrpClaimSigner,
   settlementMonitor,
   accountManager,
   logger
@@ -309,20 +244,18 @@ executor.start();
 // SettlementMonitor emits SETTLEMENT_REQUIRED event
 settlementMonitor.emit('SETTLEMENT_REQUIRED', {
   peerId: 'peer-alice',
-  balance: '5000000000', // 5,000 XRP in drops
-  tokenId: 'XRP',
+  balance: '5000000000', // 5,000 USDC in base units
+  tokenId: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
 });
 
-// UnifiedSettlementExecutor receives event and routes to XRP settlement
+// UnifiedSettlementExecutor receives event and routes to EVM settlement
 // (automatically handled when executor.start() has been called)
 
 // Event handler internally:
 // 1. Gets peer config
-// 2. Validates peer supports XRP settlement
-// 3. Creates/finds XRP channel
-// 4. Signs claim
-// 5. Sends claim to peer
-// 6. Updates TigerBeetle accounts
+// 2. Opens EVM payment channel
+// 3. Deposits settlement amount
+// 4. Updates TigerBeetle accounts
 ```
 
 ### Example 3: Error Handling
@@ -333,8 +266,6 @@ import { UnifiedSettlementExecutor } from '@crosstown/connector';
 const executor = new UnifiedSettlementExecutor(
   config,
   evmChannelSDK,
-  xrpChannelManager,
-  xrpClaimSigner,
   settlementMonitor,
   accountManager,
   logger
@@ -347,7 +278,7 @@ try {
   settlementMonitor.emit('SETTLEMENT_REQUIRED', {
     peerId: 'unknown-peer',
     balance: '1000000',
-    tokenId: 'XRP',
+    tokenId: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
   });
 } catch (error) {
   // Error: Peer configuration not found for peerId: unknown-peer
@@ -380,7 +311,7 @@ executor.start();
 After successful settlement, the executor updates TigerBeetle accounts:
 
 ```typescript
-// After settlement completes (either EVM or XRP)
+// After EVM settlement completes
 await accountManager.recordSettlement(peerId, tokenId, BigInt(balance));
 
 // TigerBeetle accounts updated to reflect settled amount
@@ -396,7 +327,4 @@ settlementMonitor.stop();
 
 ## See Also
 
-- [XRP Channel SDK API Reference](./xrp-channel-sdk.md)
-- [XRP Channel Lifecycle Manager API Reference](./xrp-channel-lifecycle-manager.md)
-- [XRP Payment Channels Setup Guide](../guides/xrp-payment-channels-setup.md)
 - [Payment Channel SDK Documentation](../guides/payment-channels.md) (Epic 8)

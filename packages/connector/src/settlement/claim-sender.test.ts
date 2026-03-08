@@ -537,4 +537,105 @@ describe('ClaimSender', () => {
       expect(claimData.transferredAmount).toBe(largeAmount);
     }, 50);
   });
+
+  describe('Epic 31 - Self-Describing Fields', () => {
+    it('should include self-describing fields in serialized JSON when provided', async () => {
+      // Arrange
+      const peerId = 'peer-epic31-with-fields';
+      const channelId = '0x' + 'a'.repeat(64);
+      const nonce = 100;
+      const transferredAmount = '10000000000000000000';
+      const lockedAmount = '0';
+      const locksRoot = '0x' + '0'.repeat(64);
+      const signature = '0x' + 'b'.repeat(130);
+      const signerAddress = '0x' + '1'.repeat(40);
+      const chainId = 8453;
+      const tokenNetworkAddress = '0x' + '2'.repeat(40);
+      const tokenAddress = '0x' + '3'.repeat(40);
+
+      // Act
+      const result = await claimSender.sendEVMClaim(
+        peerId,
+        mockBtpClient as unknown as BTPClient,
+        channelId,
+        nonce,
+        transferredAmount,
+        lockedAmount,
+        locksRoot,
+        signature,
+        signerAddress,
+        chainId,
+        tokenNetworkAddress,
+        tokenAddress
+      );
+
+      // Assert
+      expect(result.success).toBe(true);
+
+      // Verify JSON payload includes all three new fields
+      const [, , dataBuffer] = mockBtpClient.sendProtocolData.mock.calls[0];
+      const claimData = JSON.parse(dataBuffer.toString('utf8'));
+      expect(claimData).toMatchObject({
+        version: '1.0',
+        blockchain: 'evm',
+        nonce,
+        transferredAmount,
+        lockedAmount,
+        locksRoot,
+        signature,
+        signerAddress,
+        chainId,
+        tokenNetworkAddress,
+        tokenAddress,
+      });
+    }, 50);
+
+    it('should omit self-describing fields from serialized JSON when not provided (backward compatibility)', async () => {
+      // Arrange
+      const peerId = 'peer-epic31-without-fields';
+      const channelId = '0x' + 'c'.repeat(64);
+      const nonce = 200;
+      const transferredAmount = '20000000000000000000';
+      const lockedAmount = '0';
+      const locksRoot = '0x' + '0'.repeat(64);
+      const signature = '0x' + 'd'.repeat(130);
+      const signerAddress = '0x' + '4'.repeat(40);
+
+      // Act - call without optional fields
+      const result = await claimSender.sendEVMClaim(
+        peerId,
+        mockBtpClient as unknown as BTPClient,
+        channelId,
+        nonce,
+        transferredAmount,
+        lockedAmount,
+        locksRoot,
+        signature,
+        signerAddress
+        // chainId, tokenNetworkAddress, tokenAddress omitted
+      );
+
+      // Assert
+      expect(result.success).toBe(true);
+
+      // Verify JSON payload excludes optional fields (undefined values excluded by JSON.stringify)
+      const [, , dataBuffer] = mockBtpClient.sendProtocolData.mock.calls[0];
+      const claimData = JSON.parse(dataBuffer.toString('utf8'));
+      expect(claimData).toMatchObject({
+        version: '1.0',
+        blockchain: 'evm',
+        nonce,
+        transferredAmount,
+        lockedAmount,
+        locksRoot,
+        signature,
+        signerAddress,
+      });
+
+      // Verify optional fields are NOT present in the serialized JSON
+      expect(claimData).not.toHaveProperty('chainId');
+      expect(claimData).not.toHaveProperty('tokenNetworkAddress');
+      expect(claimData).not.toHaveProperty('tokenAddress');
+    }, 50);
+  });
 });

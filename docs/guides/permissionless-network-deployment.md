@@ -43,7 +43,7 @@ This architecture separates concerns and enables truly permissionless networks w
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Settlement Layer (On-Chain Security)                       │
-│  🔒 Payment channels on Base L2 / XRP Ledger                │
+│  🔒 Payment channels on Base L2 (EVM)                       │
 │  🔒 Locked capital provides economic security               │
 │  🔒 Cryptographic settlement enforcement                    │
 └─────────────────────────────────────────────────────────────┘
@@ -242,7 +242,7 @@ BTP_MAX_TOTAL_CONNECTIONS=1000
 - [ ] `SETTLEMENT_GLOBAL_CREDIT_CEILING` configured (e.g., 1M units)
 - [ ] `SETTLEMENT_THRESHOLD` configured (e.g., 500k units)
 - [ ] Routing policies defined (explicit prefixes only)
-- [ ] Payment channel contracts deployed to Base L2 / XRPL
+- [ ] Payment channel contracts deployed to Base L2
 
 ### Recommended Security (Production)
 
@@ -359,8 +359,6 @@ routes:
 
 - [RFC-0023 Bilateral Transfer Protocol](../../docs/operators/peer-onboarding-guide.md)
 - [ILP Routing Guide](./ilp-routing.md)
-- [Payment Channel Setup (XRP)](./xrp-payment-channels-setup.md)
-- [Payment Channel Setup (Aptos)](./aptos-payment-channels-setup.md)
 - [Production Deployment Guide](../operators/production-deployment-guide.md)
 - [Security Hardening Guide](../operators/security-hardening-guide.md)
 

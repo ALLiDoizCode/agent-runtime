@@ -44,7 +44,7 @@ This guide helps operators diagnose and resolve issues with the BTP claim exchan
 3. **ClaimSender Service Not Running**
    - Check if ClaimSender is properly initialized in connector
    - Review startup logs for ClaimSender initialization errors
-   - Verify claim signer configuration (XRP, EVM, Aptos keys)
+   - Verify claim signer configuration (EVM keys)
 
 **Resolution Steps:**
 
@@ -105,9 +105,9 @@ cat config/topology.yaml | grep -A 10 "peer-id: <PEER_ID>"
 
 # 4. Verify claim signer addresses match on both nodes
 # On sender:
-curl http://localhost:8080/api/claim-signer/xrp | jq '.address'
+curl http://localhost:8080/api/claim-signer/evm | jq '.address'
 # On receiver:
-curl http://<PEER_IP>:8080/api/claim-signer/xrp | jq '.address'
+curl http://<PEER_IP>:8080/api/claim-signer/evm | jq '.address'
 
 # 5. Check ClaimReceiver logs for specific error details
 docker logs connector-node-0 2>&1 | grep ClaimReceiver | grep verified=false
@@ -147,7 +147,6 @@ docker logs connector-node-0 2>&1 | grep ClaimReceiver | grep verified=false
 
 4. **Insufficient Gas/Balance**
    - Node wallet lacks sufficient native token for gas
-   - XRP reserve requirements not met
    - EVM account out of ETH for gas
 
 **Resolution Steps:**
@@ -160,15 +159,12 @@ curl http://localhost:8080/metrics | grep claim_last_redemption_timestamp_second
 docker logs connector-node-0 2>&1 | grep ClaimRedemptionService
 
 # 3. Verify RPC connectivity
-# For XRP:
-curl https://s.altnet.rippletest.net:51234 -d '{"method":"server_info"}' -H "Content-Type: application/json"
-
 # For EVM (Base):
 curl https://mainnet.base.org -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
 
 # 4. Check node wallet balances
-curl http://localhost:8080/api/balances | jq '.ethBalance, .xrpBalance, .aptBalance'
+curl http://localhost:8080/api/balances | jq '.ethBalance'
 
 # 5. Review profitability calculations in logs
 docker logs connector-node-0 2>&1 | grep "profitability check"
@@ -226,14 +222,8 @@ docker logs connector-node-0 2>&1 | grep "msg_abc123" | grep -E "CLAIM_(SENT|REC
 ### Step 4: Verify Blockchain Node Connectivity
 
 ```bash
-# Test XRP node connectivity
-rippled server_info | jq '.result.info.server_state'
-
 # Test EVM node connectivity
 cast block-number --rpc-url https://mainnet.base.org
-
-# Test Aptos node connectivity
-curl https://fullnode.mainnet.aptoslabs.com/v1 | jq '.chain_id'
 ```
 
 ---

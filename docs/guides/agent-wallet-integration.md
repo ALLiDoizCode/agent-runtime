@@ -21,7 +21,7 @@ Get your first agent wallet up and running in just 5 minutes.
 
 - Node.js 20.11.0+ installed
 - TypeScript 5.3.3+ configured
-- Access to blockchain RPC endpoints (Base L2 for EVM, XRP Ledger)
+- Access to blockchain RPC endpoints (Base L2)
 
 ### Step 1: Create Agent Wallet
 
@@ -39,7 +39,6 @@ async function createAgentWallet() {
     logger.info('Agent wallet created', {
       agentId: wallet.agentId,
       evmAddress: wallet.evmAddress,
-      xrpAddress: wallet.xrpAddress,
       status: wallet.status,
     });
     return wallet;
@@ -60,7 +59,6 @@ createAgentWallet();
   "msg": "Agent wallet created",
   "agentId": "agent-001",
   "evmAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
-  "xrpAddress": "rN7n7otQDd6FczFgLdlqtyMVrXqHr7XEEw",
   "status": "active"
 }
 ```
@@ -109,8 +107,7 @@ checkBalance('agent-001');
       "chain": "evm",
       "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
       "balance": "1000000000"
-    },
-    { "chain": "xrp", "token": "XRP", "balance": "15000000" }
+    }
   ]
 }
 ```
@@ -127,7 +124,7 @@ async function openPaymentChannel(agentId: string) {
     const channelId = await channelManager.openChannel(
       agentId,
       'peer-agent-002', // Peer agent ID
-      'evm', // Chain: 'evm' or 'xrp'
+      'evm', // Chain
       'USDC', // Token
       BigInt(1000000000) // Amount: 1000 USDC (6 decimals)
     );
@@ -209,16 +206,15 @@ sendPayment('agent-001', 'channel-evm-001');
 
 ## Wallet Creation
 
-Agent wallets are hierarchical deterministic (HD) wallets derived from a master seed using BIP-32/BIP-44 standards. Each agent receives unique addresses for both EVM (Base L2) and XRP Ledger chains.
+Agent wallets are hierarchical deterministic (HD) wallets derived from a master seed using BIP-32/BIP-44 standards. Each agent receives a unique address for EVM (Base L2).
 
 ### How Wallet Derivation Works
 
 The wallet system uses a master seed to deterministically generate unique addresses for each agent:
 
 1. **Master Seed**: A 24-word BIP-39 mnemonic phrase stored securely (encrypted at rest with AES-256-GCM)
-2. **Derivation Paths**:
+2. **Derivation Path**:
    - EVM addresses: `m/44'/60'/1'/0/{agentIndex}` (Ethereum standard)
-   - XRP addresses: `m/44'/144'/1'/0/{agentIndex}` (XRP Ledger standard)
 3. **Agent Index**: Each agent is assigned a unique index (0 to 2^31 - 1)
 
 ### Creating an Agent Wallet
@@ -235,7 +231,6 @@ const wallet = await lifecycle.createAgentWallet('agent-001');
 interface AgentWallet {
   agentId: string; // Unique agent identifier
   evmAddress: string; // EVM address (0x-prefixed, 42 chars)
-  xrpAddress: string; // XRP address (r-prefixed, 25-35 chars)
   derivationIndex: number; // HD wallet index
   createdAt: Date;
   status: WalletStatus; // 'pending' | 'active' | 'suspended' | 'archived'
@@ -267,9 +262,9 @@ await lifecycle.suspendWallet('agent-001', 'Security review pending');
 const archive = await lifecycle.archiveWallet('agent-001');
 ```
 
-### Multi-Chain Address Output
+### EVM Address Output
 
-Each agent receives addresses on both supported chains:
+Each agent receives an EVM (Base L2) address:
 
 ```typescript
 const wallet = await lifecycle.createAgentWallet('agent-001');
@@ -278,11 +273,6 @@ const wallet = await lifecycle.createAgentWallet('agent-001');
 // Format: 0x-prefixed hex (42 characters)
 // Example: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
 logger.info('EVM address', { address: wallet.evmAddress });
-
-// XRP Ledger address
-// Format: r-prefixed base58 (25-35 characters)
-// Example: rN7n7otQDd6FczFgLdlqtyMVrXqHr7XEEw
-logger.info('XRP address', { address: wallet.xrpAddress });
 ```
 
 ---
@@ -298,9 +288,6 @@ When you create an agent wallet, the system automatically funds it with:
 1. **EVM (Base L2)**:
    - **Native ETH**: 0.1 ETH (for gas fees)
    - **USDC tokens**: 1000 USDC (for initial payments)
-
-2. **XRP Ledger**:
-   - **Native XRP**: 15 XRP (10 XRP reserve + 5 XRP buffer)
 
 ### Checking Funding Status
 
@@ -360,20 +347,13 @@ await funder.fundAgentWallet('agent-001', {
   token: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC contract
   amount: BigInt(5000000000), // 5000 USDC
 });
-
-// Fund XRP Ledger
-await funder.fundAgentWallet('agent-001', {
-  chain: 'xrp',
-  token: 'XRP',
-  amount: BigInt(50000000), // 50 XRP
-});
 ```
 
 ---
 
 ## Balance Queries
 
-Track agent wallet balances across multiple chains and tokens.
+Track agent wallet balances across EVM tokens.
 
 ### Get All Balances
 
@@ -385,13 +365,13 @@ const balanceTracker = new AgentBalanceTracker();
 // Get all balances for an agent
 const balances = await balanceTracker.getAllBalances('agent-001');
 
-// Balances are returned as bigint (wei for ETH, drops for XRP, token decimals)
+// Balances are returned as bigint (wei for ETH, token decimals for ERC-20)
 balances.forEach((balance) => {
   logger.info('Balance', {
-    chain: balance.chain, // 'evm' | 'xrp'
-    token: balance.token, // 'ETH', 'USDC address', 'XRP'
+    chain: balance.chain, // 'evm'
+    token: balance.token, // 'ETH', 'USDC address'
     balance: balance.balance.toString(),
-    decimals: balance.decimals, // 18 for ETH, 6 for USDC/XRP
+    decimals: balance.decimals, // 18 for ETH, 6 for USDC
   });
 });
 ```
@@ -412,15 +392,11 @@ const usdcBalance = await balanceTracker.getBalance(
   '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 );
 logger.info('USDC balance', { balance: usdcBalance.toString() });
-
-// Get XRP balance
-const xrpBalance = await balanceTracker.getBalance('agent-001', 'xrp', 'XRP');
-logger.info('XRP balance', { balance: xrpBalance.toString() });
 ```
 
-### Multi-Chain Balance Example
+### Balance Display Example
 
-Display balances across all chains with human-readable formatting:
+Display balances with human-readable formatting:
 
 ```typescript
 import { AgentBalanceTracker } from '@crosstown/connector/wallet/agent-balance-tracker';
@@ -446,7 +422,6 @@ async function displayAllBalances(agentId: string) {
 // Example output:
 // EVM ETH: 0.100000000000000000
 // EVM 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48: 1000.000000
-// XRP XRP: 15.000000
 ```
 
 ### Balance Caching and Polling
@@ -486,18 +461,8 @@ const evmChannelId = await channelManager.openChannel(
   BigInt(1000000000) // Amount: 1000 USDC (6 decimals)
 );
 
-// Open XRP payment channel
-const xrpChannelId = await channelManager.openChannel(
-  'agent-001',
-  'peer-agent-002',
-  'xrp',
-  'XRP',
-  BigInt(50000000) // Amount: 50 XRP (6 decimals)
-);
-
-logger.info('Channels opened', {
+logger.info('Channel opened', {
   evmChannelId,
-  xrpChannelId,
 });
 ```
 
@@ -513,14 +478,7 @@ await channelManager.sendPayment(
   BigInt(10000000) // Amount: 10 USDC
 );
 
-// Send payment through XRP channel
-await channelManager.sendPayment(
-  'agent-001',
-  xrpChannelId,
-  BigInt(1000000) // Amount: 1 XRP
-);
-
-logger.info('Payments sent successfully');
+logger.info('Payment sent successfully');
 ```
 
 ### Channel Balance Proofs
@@ -654,7 +612,6 @@ async function initializeAgent(agentId: string) {
     logger.info('Agent initialized', {
       agentId,
       evmAddress: wallet.evmAddress,
-      xrpAddress: wallet.xrpAddress,
       balanceCount: balances.length,
     });
 
@@ -773,7 +730,6 @@ logger.info('Agent wallet operation', {
   operation: 'createWallet',
   agentId: 'agent-001',
   evmAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
-  xrpAddress: 'rN7n7otQDd6FczFgLdlqtyMVrXqHr7XEEw',
   timestamp: new Date().toISOString(),
 });
 

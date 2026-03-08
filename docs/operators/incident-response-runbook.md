@@ -284,8 +284,7 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
    ```
 
 3. **Review channel details:**
-   - For EVM channels: Check contract state on Base
-   - For XRP channels: Check channel state on XRPL
+   - Check EVM contract state on Base block explorer
 
 4. **Identify the counterparty:**
    ```bash
@@ -310,17 +309,11 @@ This runbook provides step-by-step guidance for responding to alerts and inciden
    - Document evidence for potential legal action
    - Consider blacklisting peer after resolution
 
-4. **For EVM channels:**
+4. **Monitor EVM channel dispute:**
 
    ```bash
    # Monitor dispute on Base explorer
    # Contract will resolve after dispute period
-   ```
-
-5. **For XRP channels:**
-   ```bash
-   # Submit PaymentChannelClaim with valid state
-   # Monitor channel for closure
    ```
 
 ### Post-Incident

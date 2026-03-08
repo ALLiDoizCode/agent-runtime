@@ -72,10 +72,6 @@ Accept: application/json
       "status": "up",
       "latencyMs": 2
     },
-    "xrpl": {
-      "status": "up",
-      "latencyMs": 45
-    },
     "evm": {
       "status": "up",
       "latencyMs": 120
@@ -105,12 +101,8 @@ Accept: application/json
       "status": "up",
       "latencyMs": 2
     },
-    "xrpl": {
-      "status": "down"
-    },
     "evm": {
-      "status": "up",
-      "latencyMs": 120
+      "status": "down"
     }
   },
   "sla": {
@@ -247,10 +239,6 @@ Host: localhost:8080
       "status": "up",
       "latencyMs": 2
     },
-    "xrpl": {
-      "status": "up",
-      "latencyMs": 45
-    },
     "evm": {
       "status": "up",
       "latencyMs": 120
@@ -346,7 +334,6 @@ ilp_packets_in_flight 5
 # HELP settlements_executed_total Total number of settlements executed
 # TYPE settlements_executed_total counter
 settlements_executed_total{method="evm",status="success"} 150
-settlements_executed_total{method="xrp",status="success"} 100
 settlements_executed_total{method="evm",status="failure"} 2
 
 # HELP settlement_latency_seconds Settlement operation latency in seconds
@@ -362,7 +349,6 @@ settlement_latency_seconds_bucket{method="evm",le="+Inf"} 152
 # HELP settlement_amount_total Total amount settled
 # TYPE settlement_amount_total counter
 settlement_amount_total{method="evm",token="USDC"} 1500000000000
-settlement_amount_total{method="xrp",token="XRP"} 50000000
 
 # HELP account_balance_units Current account balance in smallest units
 # TYPE account_balance_units gauge
@@ -373,17 +359,14 @@ account_balance_units{peer_id="peer-2",token_id="USDC"} 750000000
 # TYPE payment_channels_active gauge
 payment_channels_active{method="evm",status="open"} 3
 payment_channels_active{method="evm",status="disputed"} 0
-payment_channels_active{method="xrp",status="open"} 2
 
 # HELP payment_channels_funded_total Total number of channels funded
 # TYPE payment_channels_funded_total counter
 payment_channels_funded_total{method="evm"} 5
-payment_channels_funded_total{method="xrp"} 3
 
 # HELP payment_channels_disputes_total Total number of channel disputes
 # TYPE payment_channels_disputes_total counter
 payment_channels_disputes_total{method="evm"} 0
-payment_channels_disputes_total{method="xrp"} 0
 
 # HELP connector_errors_total Total number of connector errors
 # TYPE connector_errors_total counter
@@ -513,7 +496,6 @@ interface HealthStatusExtended extends HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy' | 'starting';
   dependencies: {
     tigerbeetle: DependencyHealthStatus;
-    xrpl?: DependencyHealthStatus;
     evm?: DependencyHealthStatus;
   };
   sla: SLAMetricsSnapshot;
@@ -547,7 +529,6 @@ interface ReadinessResponse {
   status: 'ready' | 'not_ready';
   dependencies?: {
     tigerbeetle: DependencyHealthStatus;
-    xrpl?: DependencyHealthStatus;
     evm?: DependencyHealthStatus;
   };
   reason?: string;

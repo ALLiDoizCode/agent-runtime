@@ -396,6 +396,289 @@ describe('Type Guards', () => {
   });
 });
 
+describe('validateClaimMessage - Epic 31 Self-Describing Fields', () => {
+  it('should accept valid EVM claim WITH all three new fields', () => {
+    // Arrange
+    const validEVMClaimWithFields: EVMClaimMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-evm-002',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-charlie',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 10,
+      transferredAmount: '2000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      chainId: 8453,
+      tokenNetworkAddress: '0x1234567890123456789012345678901234567890',
+      tokenAddress: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(validEVMClaimWithFields)).not.toThrow();
+  });
+
+  it('should accept valid EVM claim WITHOUT new fields (backward compatibility)', () => {
+    // Arrange
+    const validEVMClaimWithoutFields: EVMClaimMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-evm-003',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-dave',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 15,
+      transferredAmount: '3000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(validEVMClaimWithoutFields)).not.toThrow();
+  });
+
+  it('should reject invalid chainId (zero)', () => {
+    // Arrange
+    const invalidMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-001',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-eve',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 5,
+      transferredAmount: '1000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      chainId: 0,
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(invalidMessage)).toThrow(
+      'Invalid chainId (expected positive integer)'
+    );
+  });
+
+  it('should reject invalid chainId (negative)', () => {
+    // Arrange
+    const invalidMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-001',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-eve',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 5,
+      transferredAmount: '1000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      chainId: -1,
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(invalidMessage)).toThrow(
+      'Invalid chainId (expected positive integer)'
+    );
+  });
+
+  it('should reject invalid chainId (fractional)', () => {
+    // Arrange
+    const invalidMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-001',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-eve',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 5,
+      transferredAmount: '1000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      chainId: 1.5,
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(invalidMessage)).toThrow(
+      'Invalid chainId (expected positive integer)'
+    );
+  });
+
+  it('should reject invalid chainId (string type)', () => {
+    // Arrange
+    const invalidMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-001',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-eve',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 5,
+      transferredAmount: '1000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      chainId: '8453',
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(invalidMessage)).toThrow(
+      'Invalid chainId (expected positive integer)'
+    );
+  });
+
+  it('should reject invalid tokenNetworkAddress (missing 0x prefix)', () => {
+    // Arrange
+    const invalidMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-001',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-eve',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 5,
+      transferredAmount: '1000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      tokenNetworkAddress: '1234567890123456789012345678901234567890',
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(invalidMessage)).toThrow(
+      'Invalid tokenNetworkAddress format (expected 0x-prefixed 40-char hex)'
+    );
+  });
+
+  it('should reject invalid tokenNetworkAddress (wrong length)', () => {
+    // Arrange
+    const invalidMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-001',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-eve',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 5,
+      transferredAmount: '1000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      tokenNetworkAddress: '0x1234',
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(invalidMessage)).toThrow(
+      'Invalid tokenNetworkAddress format (expected 0x-prefixed 40-char hex)'
+    );
+  });
+
+  it('should reject invalid tokenAddress (missing 0x prefix)', () => {
+    // Arrange
+    const invalidMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-001',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-eve',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 5,
+      transferredAmount: '1000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      tokenAddress: 'abcdefabcdefabcdefabcdefabcdefabcdefabcd',
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(invalidMessage)).toThrow(
+      'Invalid tokenAddress format (expected 0x-prefixed 40-char hex)'
+    );
+  });
+
+  it('should reject invalid tokenAddress (wrong length)', () => {
+    // Arrange
+    const invalidMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-001',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-eve',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 5,
+      transferredAmount: '1000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      tokenAddress: '0xabcd',
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(invalidMessage)).toThrow(
+      'Invalid tokenAddress format (expected 0x-prefixed 40-char hex)'
+    );
+  });
+
+  it('should accept partial new fields (only chainId)', () => {
+    // Arrange
+    const partialFieldsMessage: EVMClaimMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-partial-001',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-frank',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 20,
+      transferredAmount: '4000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      chainId: 84532,
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(partialFieldsMessage)).not.toThrow();
+  });
+
+  it('should accept partial new fields (only tokenNetworkAddress)', () => {
+    // Arrange
+    const partialFieldsMessage: EVMClaimMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-partial-002',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-grace',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 25,
+      transferredAmount: '5000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      tokenNetworkAddress: '0xfedcbafedcbafedcbafedcbafedcbafedcbafed1',
+    };
+
+    // Act & Assert
+    expect(() => validateClaimMessage(partialFieldsMessage)).not.toThrow();
+  });
+});
+
 describe('JSON Serialization Round-Trip', () => {
   it('should serialize and deserialize EVM claim correctly', () => {
     // Arrange
@@ -422,5 +705,38 @@ describe('JSON Serialization Round-Trip', () => {
     // Assert
     expect(deserialized).toEqual(originalClaim);
     expect(isEVMClaim(deserialized)).toBe(true);
+  });
+
+  it('should serialize and deserialize EVM claim with new fields correctly', () => {
+    // Arrange
+    const originalClaimWithFields: EVMClaimMessage = {
+      version: '1.0',
+      blockchain: 'evm',
+      messageId: 'claim-evm-004',
+      timestamp: '2026-03-07T12:00:00.000Z',
+      senderId: 'peer-henry',
+      channelId: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      nonce: 30,
+      transferredAmount: '6000000000000000000',
+      lockedAmount: '0',
+      locksRoot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      signature: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      signerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+      chainId: 8453,
+      tokenNetworkAddress: '0x9876543210987654321098765432109876543210',
+      tokenAddress: '0x1111222233334444555566667777888899990000',
+    };
+
+    // Act
+    const serialized = JSON.stringify(originalClaimWithFields);
+    const deserialized = JSON.parse(serialized);
+    validateClaimMessage(deserialized);
+
+    // Assert
+    expect(deserialized).toEqual(originalClaimWithFields);
+    expect(isEVMClaim(deserialized)).toBe(true);
+    expect(deserialized.chainId).toBe(8453);
+    expect(deserialized.tokenNetworkAddress).toBe('0x9876543210987654321098765432109876543210');
+    expect(deserialized.tokenAddress).toBe('0x1111222233334444555566667777888899990000');
   });
 });

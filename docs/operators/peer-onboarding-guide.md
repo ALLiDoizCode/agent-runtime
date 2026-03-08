@@ -28,7 +28,7 @@ The onboarding wizard is the easiest way to configure your connector.
 ### Prerequisites
 
 - Node.js 20+ installed
-- Access to your blockchain addresses (EVM and/or XRP)
+- Access to your EVM blockchain address
 
 ### Running the Wizard
 
@@ -56,34 +56,17 @@ Choose a unique identifier for your connector. This is used for:
 - Peer identification
 - Audit trails
 
-#### 2. Settlement Preference
-
-```
-? Select your settlement preference:
-  ❯ Both EVM and XRP (recommended)
-    EVM only (Base L2)
-    XRP only (XRP Ledger)
-```
-
-Choose based on which blockchains you want to settle on:
-
-- **Both**: Maximum flexibility, can route payments for both networks
-- **EVM only**: Only settle on Base L2 (Ethereum)
-- **XRP only**: Only settle on XRP Ledger
-
-#### 3. Blockchain Addresses
+#### 2. EVM Address
 
 ```
 ? Enter your Ethereum address (0x...): 0x742d35Cc6634C0532925a3b844Bc9e7595f12AB3
-? Enter your XRP address (r...): rDsbeomae4FXwgQTJp9Rs64Qg9vDiTCdBv
 ```
 
-Enter the addresses that will receive settlement payments:
+Enter the EVM address that will receive settlement payments on Base L2:
 
 - **EVM Address**: Must be `0x` followed by 40 hexadecimal characters
-- **XRP Address**: Must be `r` followed by 24-34 base58 characters
 
-#### 4. Key Management
+#### 3. Key Management
 
 ```
 ? Select your key management backend:
@@ -95,7 +78,7 @@ Enter the addresses that will receive settlement payments:
 
 **IMPORTANT**: For production, always use a cloud KMS service.
 
-#### 5. Monitoring
+#### 4. Monitoring
 
 ```
 ? Enable Prometheus/Grafana monitoring? (Y/n)
@@ -103,7 +86,7 @@ Enter the addresses that will receive settlement payments:
 
 Recommended to enable for production visibility.
 
-#### 6. Network Ports
+#### 5. Network Ports
 
 ```
 ? BTP server port: (4000)
@@ -112,7 +95,7 @@ Recommended to enable for production visibility.
 
 Default ports work for most deployments.
 
-#### 7. Log Level
+#### 6. Log Level
 
 ```
 ? Select log level:
@@ -143,21 +126,17 @@ cp .env.example .env
 ```bash
 # Node identity
 NODE_ID=my-connector
-SETTLEMENT_PREFERENCE=both
 
-# Blockchain RPC endpoints
+# Blockchain RPC endpoint
 BASE_RPC_URL=https://mainnet.base.org
-XRPL_WSS_URL=wss://xrplcluster.com
 
-# Your settlement addresses
+# Your settlement address
 EVM_ADDRESS=0x742d35Cc6634C0532925a3b844Bc9e7595f12AB3
-XRP_ADDRESS=rDsbeomae4FXwgQTJp9Rs64Qg9vDiTCdBv
 
 # Key management (NEVER use 'env' in production!)
 KEY_BACKEND=aws-kms
 AWS_REGION=us-east-1
 AWS_KMS_EVM_KEY_ID=arn:aws:kms:...
-AWS_KMS_XRP_KEY_ID=arn:aws:kms:...
 ```
 
 ### Peer Configuration
@@ -193,7 +172,6 @@ peers:
 | Endpoint        | Port          | Purpose         |
 | --------------- | ------------- | --------------- |
 | Base L2 RPC     | 443           | EVM blockchain  |
-| XRP Ledger      | 443/51233     | XRP blockchain  |
 | Peer connectors | 4000 (varies) | BTP connections |
 
 ### Required Inbound Access
@@ -447,7 +425,6 @@ Expected response:
   "status": "healthy",
   "dependencies": {
     "tigerbeetle": { "status": "connected" },
-    "xrpl": { "status": "connected" },
     "evm": { "status": "connected" }
   }
 }
@@ -486,7 +463,6 @@ curl http://localhost:8080/metrics | grep ilp_packets
 ### "Settlement address invalid"
 
 - EVM addresses must be 42 characters (0x + 40 hex)
-- XRP addresses must be 25-35 characters (r + base58)
 
 ### "Key management backend error"
 

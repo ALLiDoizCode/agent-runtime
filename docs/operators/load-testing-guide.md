@@ -20,7 +20,7 @@ Before running load tests, ensure:
 
 3. **Infrastructure**
    - TigerBeetle running (for balance tracking)
-   - Optional: Anvil/rippled for full integration testing
+   - Optional: Anvil for full EVM integration testing
 
 ## Quick Start
 

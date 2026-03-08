@@ -16,7 +16,7 @@ The project scope is being intentionally reduced to focus exclusively on being a
 
 - Simplify project focus to core connector functionality
 - Remove complexity from agent orchestration, AI integration, and Nostr protocols
-- Establish a clean, production-ready ILP connector with tri-chain settlement
+- Establish a clean, production-ready ILP connector with EVM (Base L2) settlement
 - Maintain observability through the Explorer UI
 
 ### Current State
@@ -41,11 +41,11 @@ The project scope is being intentionally reduced to focus exclusively on being a
 | 6    | Settlement Foundation & Accounting  | Completed                 |
 | 7    | Local Blockchain Dev Infrastructure | Completed                 |
 | 8    | EVM Payment Channels (Base L2)      | Completed                 |
-| 9    | XRP Payment Channels                | Completed                 |
+| 9    | ~~XRP Payment Channels~~            | Removed (EVM-only)        |
 | 10   | CI/CD Pipeline Reliability          | Completed                 |
 | 14   | Packet/Event Explorer UI            | Completed (needs cleanup) |
 | 15   | Explorer Performance & UX           | Completed (needs cleanup) |
-| 27   | Aptos Payment Channels              | Completed                 |
+| 27   | ~~Aptos Payment Channels~~          | Removed (EVM-only)        |
 | 28   | Public Testnet Integration          | Completed                 |
 | 29   | Blockchain Explorer Links           | Completed                 |
 
@@ -100,13 +100,12 @@ Create comprehensive developer documentation explaining ILP concepts and ensure 
 Integrate TigerBeetle as the double-entry accounting database, build account management infrastructure to track balances and credit limits between peers, implement settlement threshold triggers, and provide dashboard visualization of account states and settlement events.
 
 **Epic 7: Local Blockchain Development Infrastructure**
-Establish local blockchain node infrastructure with Anvil (Base L2 fork), rippled (XRP Ledger standalone mode), and Aptos local testnet via Docker Compose, enabling developers to build and test payment channel smart contracts locally.
+Establish local blockchain node infrastructure with Anvil (Base L2 fork) via Docker Compose, enabling developers to build and test payment channel smart contracts locally.
 
 **Epic 8: EVM Payment Channels (Base L2)**
-Implement XRP-style payment channels as EVM smart contracts on Base L2, deploy payment channel infrastructure via Docker, integrate with settlement layer for automatic channel settlement.
+Implement payment channels as EVM smart contracts on Base L2, deploy payment channel infrastructure via Docker, integrate with settlement layer for automatic channel settlement.
 
-**Epic 9: XRP Payment Channels**
-Integrate XRP Ledger payment channels (PayChan) for settlement, implement XRP payment channel state management and claim verification, enable dual-settlement support (both EVM and XRP).
+**Epic 9: ~~XRP Payment Channels~~ (Removed - EVM-only)**
 
 **Epic 10: CI/CD Pipeline Reliability & Test Quality**
 Eliminate recurring CI/CD pipeline failures by fixing test quality issues, implementing pre-commit quality gates, and establishing systematic testing workflows.
@@ -117,11 +116,10 @@ Deliver a per-node web-based explorer interface embedded in each connector that 
 **Epic 12: Explorer Performance, UX & Visual Quality**
 Polish the Explorer UI with performance optimizations (60fps at 1000+ events), UX improvements (keyboard shortcuts, responsive layout), and visual quality refinements.
 
-**Epic 13: Aptos Payment Channels (Move Modules)**
-Integrate Aptos blockchain payment channels for settlement, enabling tri-chain settlement support (EVM + XRP + Aptos).
+**Epic 13: ~~Aptos Payment Channels~~ (Removed - EVM-only)**
 
 **Epic 14: Public Testnet Integration**
-Add `NETWORK_MODE=testnet/local` support for all three chains (Aptos Testnet, XRP Testnet, Base Sepolia), enabling integration tests against public testnets.
+Add `NETWORK_MODE=testnet/local` support for EVM (Base Sepolia), enabling integration tests against public testnets.
 
 **Epic 15: Blockchain Explorer Navigation Links**
 Transform static wallet addresses and transaction hashes into interactive, clickable links that open the corresponding blockchain explorer.
@@ -134,7 +132,7 @@ All 15 epics are **completed**. The connector is feature-complete with:
 
 - RFC-compliant ILPv4 packet routing
 - BTP WebSocket protocol for connector peering
-- Tri-chain settlement (EVM, XRP, Aptos)
+- EVM settlement (Base L2)
 - TigerBeetle accounting integration
 - Explorer UI for real-time observability
 - Public testnet support
@@ -162,18 +160,18 @@ All 15 epics are **completed**. The connector is feature-complete with:
 # ILP Connector
 
 ## TL;DR
-A TypeScript implementation of an Interledger Protocol (ILP) connector with tri-chain settlement and real-time observability.
+A TypeScript implementation of an Interledger Protocol (ILP) connector with EVM (Base L2) settlement and real-time observability.
 
 ## Key Capabilities
 - Multi-Hop Payment Routing (RFC-0027 ILPv4)
 - BTP WebSocket Protocol (RFC-0023)
-- Tri-Chain Settlement (Base L2, XRP Ledger, Aptos)
+- EVM Settlement (Base L2)
 - TigerBeetle Accounting
 - Explorer UI for packet inspection
 
 ## Protocol Components
 - Interledger Protocol (ILP) & BTP
-- Payment Channels (EVM, XRP, Aptos)
+- Payment Channels (EVM / Base L2)
 
 ## Architecture Overview
 [Simplified diagram without agents]
@@ -247,7 +245,7 @@ A TypeScript implementation of an Interledger Protocol (ILP) connector with tri-
 `docs/architecture/components.md`:
 
 - Remove: AgentNode, AgentEventDatabase, AgentEventHandler, SubscriptionManager, FollowGraphRouter, ToonCodec, AIAgentDispatcher, SkillRegistry, TokenBudget
-- Keep: ConnectorNode, PacketHandler, RoutingTable, BTPServer, BTPClient, BTPClientManager, OERCodec, TelemetryEmitter, XRPChannelSDK, UnifiedSettlementExecutor, XRPChannelLifecycleManager
+- Keep: ConnectorNode, PacketHandler, RoutingTable, BTPServer, BTPClient, BTPClientManager, OERCodec, TelemetryEmitter, UnifiedSettlementExecutor, EVMChannelLifecycleManager
 
 `docs/architecture/data-models.md`:
 
@@ -310,7 +308,7 @@ The scope reduction can be implemented through direct modifications to existing 
 ### Rationale:
 
 1. Core connector epics (1-10) are fully completed and unaffected
-2. Settlement infrastructure (Epics 8, 9, 27, 28) remains intact
+2. Settlement infrastructure (Epic 8, 28) remains intact
 3. Explorer UI (Epics 14, 15, 29) needs only cosmetic changes (renaming, removing agent-specific features)
 4. Code removal is already in progress on `epic-14` branch
 5. No architectural rework required - just scope pruning
@@ -353,13 +351,11 @@ Full Agent Society Protocol with ILP + Nostr + AI + Markets
 
 ### New MVP Scope
 
-**ILP Connector with Tri-Chain Settlement and Explorer UI**
+**ILP Connector with EVM Settlement and Explorer UI**
 
 - RFC-0027 ILPv4 packet routing
 - RFC-0023 BTP WebSocket protocol
 - EVM Payment Channels (Base L2)
-- XRP Payment Channels
-- Aptos Payment Channels
 - TigerBeetle accounting
 - Explorer UI for observability
 - Public testnet support

@@ -19,12 +19,11 @@ Frequently asked questions about agent wallet integration, functionality, and be
 
 ### Q: How are agent wallets created?
 
-**A:** Agent wallets are created via `AgentWalletLifecycle.createAgentWallet(agentId)`, which derives unique EVM and XRP addresses from a master seed using BIP-32/BIP-44 HD wallet standards.
+**A:** Agent wallets are created via `AgentWalletLifecycle.createAgentWallet(agentId)`, which derives a unique EVM address from a master seed using BIP-32/BIP-44 HD wallet standards.
 
 Each agent receives:
 
 - One EVM address (Base L2): `m/44'/60'/1'/0/{agentIndex}`
-- One XRP Ledger address: `m/44'/144'/1'/0/{agentIndex}`
 
 The master seed generates up to 2^31 (2.1 billion) unique agent wallets.
 
@@ -37,7 +36,6 @@ const lifecycle = new AgentWalletLifecycle();
 const wallet = await lifecycle.createAgentWallet('agent-001');
 
 // wallet.evmAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
-// wallet.xrpAddress: "rN7n7otQDd6FczFgLdlqtyMVrXqHr7XEEw"
 ```
 
 **Reference:** [Integration Guide - Wallet Creation](agent-wallet-integration.md#wallet-creation)
@@ -297,11 +295,11 @@ await saveToOfflineMedia(monthlyBackup); // USB, offline storage
 
 ---
 
-## Multi-Chain Support
+## EVM Wallet Details
 
-### Q: Do agents get wallets for both EVM and XRP?
+### Q: What format are agent wallet addresses?
 
-**A:** Yes! Each agent automatically receives one address on each supported chain:
+**A:** Each agent receives an EVM address on Base L2:
 
 **EVM (Base L2):**
 
@@ -309,34 +307,27 @@ await saveToOfflineMedia(monthlyBackup); // USB, offline storage
 - Derivation path: `m/44'/60'/1'/0/{agentIndex}`
 - Example: `0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb`
 
-**XRP Ledger:**
-
-- Format: r-prefixed base58 (25-35 characters)
-- Derivation path: `m/44'/144'/1'/0/{agentIndex}`
-- Example: `rN7n7otQDd6FczFgLdlqtyMVrXqHr7XEEw`
-
-**Both addresses are derived from the same agent index**, ensuring deterministic recovery.
+**Addresses are derived from the agent index**, ensuring deterministic recovery.
 
 **Example:**
 
 ```typescript
 const wallet = await lifecycle.createAgentWallet('agent-001');
 
-logger.info('Multi-chain wallet created', {
+logger.info('Wallet created', {
   agentId: wallet.agentId,
   evmAddress: wallet.evmAddress,
-  xrpAddress: wallet.xrpAddress,
   derivationIndex: wallet.derivationIndex,
 });
 ```
 
-**Reference:** [Integration Guide - Multi-Chain Address Output](agent-wallet-integration.md#multi-chain-address-output)
+**Reference:** [Integration Guide - Address Output](agent-wallet-integration.md#multi-chain-address-output)
 
 ---
 
-### Q: Can I use different chains for different agents?
+### Q: How do agents open payment channels?
 
-**A:** Yes! Specify the chain when opening payment channels:
+**A:** Use the AgentChannelManager to open EVM payment channels:
 
 **Example:**
 
@@ -345,29 +336,15 @@ import { AgentChannelManager } from '@crosstown/connector/wallet/agent-channel-m
 
 const channelManager = new AgentChannelManager();
 
-// Agent 1 uses EVM (Base L2)
-const evmChannelId = await channelManager.openChannel(
+// Open EVM payment channel on Base L2
+const channelId = await channelManager.openChannel(
   'agent-001',
   'peer-agent-002',
-  'evm', // Chain selection
+  'evm',
   'USDC',
   BigInt(1000000000)
 );
-
-// Agent 2 uses XRP Ledger
-const xrpChannelId = await channelManager.openChannel(
-  'agent-002',
-  'peer-agent-003',
-  'xrp', // Chain selection
-  'XRP',
-  BigInt(50000000)
-);
 ```
-
-**Chain Selection Criteria:**
-
-- **EVM**: Lower transaction costs, more token options (ERC20)
-- **XRP**: Faster settlement (~4s vs ~15s), native DEX support
 
 **Reference:** [API Reference - openChannel()](../api/agent-wallet-api.md#openchannel)
 
@@ -375,18 +352,11 @@ const xrpChannelId = await channelManager.openChannel(
 
 ### Q: What tokens are supported?
 
-**A:** The system supports native tokens and ERC20 tokens on EVM:
-
-**EVM (Base L2):**
+**A:** The system supports native tokens and ERC20 tokens on EVM (Base L2):
 
 - **Native**: ETH (for gas fees)
 - **ERC20**: USDC, DAI, USDT, and any ERC20-compliant token
 - **Custom**: Add token by configuring contract address
-
-**XRP Ledger:**
-
-- **Native**: XRP (only native XRP supported in MVP)
-- **Issued Currencies**: Future support in Epic 12
 
 **Token Configuration:**
 
@@ -402,10 +372,9 @@ balances.forEach((b) => {
   });
 });
 
-// EVM Output:
+// Output:
 // { chain: 'evm', token: 'ETH', decimals: 18 }
 // { chain: 'evm', token: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6 }
-// { chain: 'xrp', token: 'XRP', decimals: 6 }
 ```
 
 **Reference:** [Integration Guide - Balance Queries](agent-wallet-integration.md#balance-queries)
@@ -621,7 +590,7 @@ logger.info('Batch derivation complete', { count: wallets.length });
    ```typescript
    // API responses never include private keys
    const walletData = await lifecycle.getAgentWallet('agent-001');
-   // Returns: { agentId, evmAddress, xrpAddress, status }
+   // Returns: { agentId, evmAddress, status }
    // Does NOT return: { privateKey, mnemonic, seed }
    ```
 
@@ -898,18 +867,11 @@ await channelManager.closeChannel('agent-001', channelId);
 - **Alchemy**: https://alchemy.com
 - **Public RPC**: https://mainnet.base.org (rate limited)
 
-**XRP Ledger:**
-
-- **Ripple Public**: https://s1.ripple.com:51234
-- **Infura XRP**: https://infura.io/product/xrpl
-- **Self-Hosted**: rippled node (advanced)
-
 **Configuration:**
 
 ```bash
 # .env
 EVM_RPC_ENDPOINT=https://base-mainnet.infura.io/v3/YOUR-API-KEY
-XRP_RPC_ENDPOINT=https://s1.ripple.com:51234
 ```
 
 **Fallback Configuration:**
@@ -946,13 +908,9 @@ const rpcEndpoints = [
 2. **Testnet Testing** (Free Test Tokens)
 
    ```bash
-   # Use Base Goerli testnet
-   export EVM_RPC_ENDPOINT=https://goerli.base.org
-   export EVM_NETWORK=base-goerli
-
-   # Use XRP Testnet
-   export XRP_RPC_ENDPOINT=https://s.altnet.rippletest.net:51234
-   export XRP_NETWORK=testnet
+   # Use Base Sepolia testnet
+   export EVM_RPC_ENDPOINT=https://sepolia.base.org
+   export EVM_NETWORK=base-sepolia
    ```
 
 3. **Integration Tests**
@@ -1052,11 +1010,6 @@ logger.info('On-chain balance', {
 curl -X POST $EVM_RPC_ENDPOINT \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
-
-# Test XRP RPC
-curl -X POST $XRP_RPC_ENDPOINT \
-  -H "Content-Type: application/json" \
-  -d '{"method":"server_info","params":[]}'
 ```
 
 **4. Check Transaction History**

@@ -2,7 +2,7 @@
 
 ## Elevator Pitch
 
-**M2M (Machine-to-Machine)** is an educational protocol stack that demonstrates how autonomous AI agents can coordinate economically without centralized infrastructure. By fusing the Interledger Protocol (ILP) with Nostr's decentralized communication and multi-chain payment channels (EVM, XRP, Aptos), M2M creates agents that are simultaneously payment routers, event relays, and settlement executors. Every agent interaction carries native micropayments, routed through social graph topology with cryptographic escrow guarantees. The result: a working prototype of an agent society where machines compensate each other for services—queries, storage, compute, streaming—without trusted intermediaries, using proven standards instead of inventing new consensus mechanisms or token economics.
+**M2M (Machine-to-Machine)** is an educational protocol stack that demonstrates how autonomous AI agents can coordinate economically without centralized infrastructure. By fusing the Interledger Protocol (ILP) with Nostr's decentralized communication and EVM payment channels (Base L2), M2M creates agents that are simultaneously payment routers, event relays, and settlement executors. Every agent interaction carries native micropayments, routed through social graph topology with cryptographic escrow guarantees. The result: a working prototype of an agent society where machines compensate each other for services—queries, storage, compute, streaming—without trusted intermediaries, using proven standards instead of inventing new consensus mechanisms or token economics.
 
 ---
 
@@ -36,7 +36,7 @@ M2M extends the **Interledger Protocol (ILP)** to create agents that are simulta
 
 - **ILP Connectors** — Route payment packets through multi-hop networks
 - **Nostr Relays** — Store and query events locally using libSQL databases
-- **Settlement Executors** — Settle balances across three blockchain ecosystems
+- **Settlement Executors** — Settle balances on EVM (Base L2)
 
 This architectural fusion eliminates the separation between communication and payment, enabling **every agent interaction to carry native value transfer**.
 
@@ -49,12 +49,9 @@ This architectural fusion eliminates the separation between communication and pa
 - Social graph-based routing using Nostr follow relationships (Kind 3)
 - Automated test packet sender for network validation
 
-#### 2. Tri-Chain Settlement Infrastructure
+#### 2. EVM Settlement Infrastructure
 
 - **EVM Payment Channels** (Base L2) — Instant settlement with sub-cent fees
-- **XRP Payment Channels** (PayChan) — High-throughput settlement with claim verification
-- **Aptos Move Channels** — 160K+ TPS, sub-second finality for agent micropayments
-- Cross-chain routing with automatic currency exchange at intermediate hops
 
 #### 3. Agent Society Protocol (ILP + Nostr)
 
@@ -66,7 +63,7 @@ This architectural fusion eliminates the separation between communication and pa
 #### 4. Production-Grade Developer Experience
 
 - Docker Compose topologies (linear chain, full mesh, hub-spoke, 8-node complex)
-- Local blockchain infrastructure (Anvil for EVM, rippled for XRP, Aptos testnet)
+- Local blockchain infrastructure (Anvil for EVM)
 - Real-time telemetry and structured JSON logging
 - Agent Explorer UI for packet inspection, event browsing, settlement monitoring
 - Vercel AI SDK integration for AI-native agents with modular skills
@@ -83,13 +80,13 @@ This architectural fusion eliminates the separation between communication and pa
 
 - **Educational Foundation**: Learn Interledger protocol mechanics through hands-on experimentation with real packet routing, settlement, and multi-agent coordination
 - **Production Patterns**: Demonstrates architectural patterns for building autonomous agent economies with cryptographic guarantees
-- **Ecosystem Bridge**: Combines ILP (proven payment routing), Nostr (decentralized communication), and multi-chain settlement (EVM, XRP, Aptos)
+- **Ecosystem Bridge**: Combines ILP (proven payment routing), Nostr (decentralized communication), and EVM settlement (Base L2)
 - **Market Validation**: Targets $76-113B live streaming market (Epic 24) and broader AI agent service economy
 
 ### Current Status
 
 - ✅ **Core ILP Implementation** (Epics 1-2, 4-10)
-- ✅ **Tri-Chain Settlement** (Epics 8, 9, 27-30)
+- ✅ **EVM Settlement** (Epics 8, 9, 27-30)
 - ✅ **Agent Society Protocol** (Epics 13-16)
 - 🚧 **Private Messaging & Workflows** (Epics 31-32, in progress)
 - 📋 **Advanced Features** (Epics 17-26, roadmap)
@@ -98,7 +95,7 @@ This architectural fusion eliminates the separation between communication and pa
 
 ## Target Users
 
-1. **Blockchain Developers** — Learn ILP routing, payment channels, and multi-chain settlement
+1. **Blockchain Developers** — Learn ILP routing, payment channels, and EVM settlement
 2. **AI Agent Builders** — Prototype autonomous agents with native payment capabilities
 3. **Protocol Researchers** — Experiment with decentralized coordination and economic primitives
 4. **Students & Educators** — Understand distributed systems, cryptographic escrow, and micropayment networks
@@ -113,7 +110,7 @@ The project validates the **technical feasibility** of agent societies with:
 
 - Cryptographic payment guarantees (HTLCs)
 - Decentralized routing (social graph topology)
-- Trustless settlement (multi-chain channels)
+- Trustless settlement (EVM payment channels)
 - Privacy-preserving communication (NIP-59 giftwrap)
 
 ---

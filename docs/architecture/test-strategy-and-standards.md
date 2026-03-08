@@ -67,7 +67,7 @@ describe('PacketHandler', () => {
   - **WebSocket:** Use real ws library with localhost connections (not mocked)
   - **Routing Table:** Real RoutingTable instance with test data
   - **BTP:** Real BTPServer + BTPClient connecting locally
-  - **Blockchain Nodes:** Use docker-compose-dev.yml local infrastructure (Anvil + rippled)
+  - **Blockchain Nodes:** Use docker-compose-dev.yml local infrastructure (Anvil)
 
 **Local Blockchain Infrastructure (Epic 7):**
 
@@ -78,19 +78,11 @@ All integration tests requiring blockchain interaction MUST use the local node i
   - Instant block mining for fast test execution
   - Managed by docker-compose, shared across test runs
 
-- **rippled (XRP Ledger)**: Standalone mode at `http://localhost:5005` (HTTP) and `ws://localhost:6006` (WebSocket)
-  - Manual ledger advancement required (or use `--profile auto-ledger`)
-  - Genesis account pre-funded for test account creation
-  - Managed by docker-compose, shared across test runs
-
 **Starting Infrastructure:**
 
 ```bash
 # Start blockchain nodes for integration tests
-docker-compose -f docker-compose-dev.yml up -d anvil rippled tigerbeetle
-
-# With auto-ledger advancement for XRP (recommended)
-docker-compose -f docker-compose-dev.yml --profile auto-ledger up -d
+docker-compose -f docker-compose-dev.yml up -d anvil tigerbeetle
 
 # Check health status
 docker-compose -f docker-compose-dev.yml ps
@@ -119,10 +111,10 @@ describeIfInfra('Payment Channel Integration', () => {
     const infraHealthy = await checkDockerInfrastructure();
     if (!infraHealthy) {
       throw new Error(
-        'Start docker-compose-dev: docker-compose -f docker-compose-dev.yml up -d anvil rippled'
+        'Start docker-compose-dev: docker-compose -f docker-compose-dev.yml up -d anvil'
       );
     }
-    // Connect to existing Anvil/rippled
+    // Connect to existing Anvil
     provider = new ethers.JsonRpcProvider('http://localhost:8545');
   });
 

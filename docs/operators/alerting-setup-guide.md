@@ -562,7 +562,7 @@ docker-compose exec alertmanager amtool silence add \
 docker-compose exec alertmanager amtool silence add \
   alertname="SettlementFailures" severity="high" \
   --duration=1h \
-  --comment="XRP Ledger maintenance"
+  --comment="Scheduled maintenance"
 ```
 
 ### Create Silence via UI
