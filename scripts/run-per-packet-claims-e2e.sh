@@ -9,7 +9,8 @@
 #
 # Usage:
 #   ./scripts/run-per-packet-claims-e2e.sh                  # In-process mode
-#   ./scripts/run-per-packet-claims-e2e.sh --docker         # Docker mode
+#   ./scripts/run-per-packet-claims-e2e.sh --docker         # Docker mode (TigerBeetle)
+#   ./scripts/run-per-packet-claims-e2e.sh --docker-memory  # Docker mode (in-memory ledger)
 #   ./scripts/run-per-packet-claims-e2e.sh --no-cleanup     # Keep infra running
 
 set -e
@@ -18,8 +19,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 COMPOSE_FILE="docker-compose-base-e2e-test.yml"
+COMPOSE_OVERRIDE=""
 CLEANUP=true
 DOCKER_MODE=false
+DOCKER_MEMORY_MODE=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -32,9 +35,15 @@ while [[ $# -gt 0 ]]; do
       DOCKER_MODE=true
       shift
       ;;
+    --docker-memory)
+      DOCKER_MODE=true
+      DOCKER_MEMORY_MODE=true
+      COMPOSE_OVERRIDE="docker-compose-e2e-no-tigerbeetle.yml"
+      shift
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--docker] [--no-cleanup]"
+      echo "Usage: $0 [--docker] [--docker-memory] [--no-cleanup]"
       exit 1
       ;;
   esac
@@ -42,9 +51,17 @@ done
 
 cd "$REPO_ROOT"
 
+# Build compose command with optional override
+COMPOSE_CMD="docker compose -f $COMPOSE_FILE"
+if [ -n "$COMPOSE_OVERRIDE" ]; then
+  COMPOSE_CMD="$COMPOSE_CMD -f $COMPOSE_OVERRIDE"
+fi
+
 echo "Per-Packet Claims E2E Test"
 echo "=========================================="
-if [ "$DOCKER_MODE" = true ]; then
+if [ "$DOCKER_MEMORY_MODE" = true ]; then
+  echo "Mode: Docker (in-memory ledger, no TigerBeetle)"
+elif [ "$DOCKER_MODE" = true ]; then
   echo "Mode: Docker (TigerBeetle + Docker connectors)"
 else
   echo "Mode: In-Process (in-memory ledger)"
@@ -56,12 +73,12 @@ cleanup() {
   if [ "$CLEANUP" = true ]; then
     echo ""
     echo "Cleaning up infrastructure..."
-    docker compose -f "$COMPOSE_FILE" down -v --remove-orphans 2>/dev/null || true
+    $COMPOSE_CMD down -v --remove-orphans 2>/dev/null || true
     echo "Cleanup complete"
   else
     echo ""
     echo "Infrastructure still running (--no-cleanup)"
-    echo "Stop with: docker compose -f $COMPOSE_FILE down -v"
+    echo "Stop with: $COMPOSE_CMD down -v"
   fi
 }
 
@@ -75,13 +92,17 @@ fi
 
 # Stop existing infrastructure
 echo "Stopping any existing infrastructure..."
-docker compose -f "$COMPOSE_FILE" down -v --remove-orphans 2>/dev/null || true
+$COMPOSE_CMD down -v --remove-orphans 2>/dev/null || true
 
 if [ "$DOCKER_MODE" = true ]; then
-  # Docker mode: start full stack
+  # Docker mode: start full stack (with or without TigerBeetle)
   echo ""
-  echo "Starting full stack (Anvil + TigerBeetle + Connectors)..."
-  docker compose -f "$COMPOSE_FILE" up -d --build
+  if [ "$DOCKER_MEMORY_MODE" = true ]; then
+    echo "Starting Docker stack (Anvil + Connectors, in-memory ledger)..."
+  else
+    echo "Starting full stack (Anvil + TigerBeetle + Connectors)..."
+  fi
+  $COMPOSE_CMD up -d --build
 
   # Wait for Anvil with preloaded contracts
   echo ""
@@ -125,9 +146,9 @@ if [ "$DOCKER_MODE" = true ]; then
     if [ $ELAPSED -ge $MAX_WAIT ]; then
       echo "Connector health check timeout (A: $HEALTH_A, B: $HEALTH_B)"
       echo "Connector A logs:"
-      docker compose -f "$COMPOSE_FILE" logs connector_a --tail=20 2>/dev/null || true
+      $COMPOSE_CMD logs connector_a --tail=20 2>/dev/null || true
       echo "Connector B logs:"
-      docker compose -f "$COMPOSE_FILE" logs connector_b --tail=20 2>/dev/null || true
+      $COMPOSE_CMD logs connector_b --tail=20 2>/dev/null || true
       exit 1
     fi
   done
@@ -167,7 +188,7 @@ fi
 # Show infrastructure status
 echo ""
 echo "Infrastructure status:"
-docker compose -f "$COMPOSE_FILE" ps
+$COMPOSE_CMD ps
 
 # Run per-packet claims E2E test
 echo ""
