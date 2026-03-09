@@ -140,7 +140,7 @@ routes: []
       // Expect ConfigLoader to throw error
       expect(() => {
         ConfigLoader.loadConfig(testConfigPath);
-      }).toThrow('Cannot use development private key in production');
+      }).toThrow('Cannot use development private key for Base in production');
     });
 
     test('should reject localhost RPC URL in production environment', () => {
@@ -153,7 +153,7 @@ routes: []
       // Expect ConfigLoader to throw error
       expect(() => {
         ConfigLoader.loadConfig(testConfigPath);
-      }).toThrow('Cannot use localhost RPC in production');
+      }).toThrow('Cannot use localhost RPC for Base in production');
     });
 
     test('should reject non-mainnet chain ID in production environment', () => {
@@ -179,7 +179,7 @@ routes: []
       // Expect ConfigLoader to throw error
       expect(() => {
         ConfigLoader.loadConfig(testConfigPath);
-      }).toThrow('Cannot use localhost RPC in production');
+      }).toThrow('Cannot use localhost RPC for Base in production');
     });
 
     test('should reject HTTP RPC URL in production environment', () => {
@@ -192,7 +192,7 @@ routes: []
       // Expect ConfigLoader to throw error
       expect(() => {
         ConfigLoader.loadConfig(testConfigPath);
-      }).toThrow('Production RPC URL must use HTTPS for security');
+      }).toThrow('Production Base RPC URL must use HTTPS for security');
     });
   });
 
