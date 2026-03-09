@@ -27,6 +27,7 @@ import type { PeerConfig, SettlementRequiredEvent, UnifiedSettlementExecutorConf
 import type { ClaimSender } from './claim-sender';
 import type { BTPClientManager } from '../btp/btp-client-manager';
 import type { BTPClient } from '../btp/btp-client';
+import type { PerPacketClaimService } from './per-packet-claim-service';
 
 /**
  * Error thrown when settlement is disabled via feature flag
@@ -48,6 +49,7 @@ export class UnifiedSettlementExecutor {
   private readonly boundHandleSettlement: (event: SettlementRequiredEvent) => Promise<void>;
   private readonly _claimSender: ClaimSender;
   private readonly _btpClientManager: BTPClientManager;
+  private _perPacketClaimService: PerPacketClaimService | null = null;
 
   /**
    * Constructor - EVM-only settlement with Epic 17 claim exchange
@@ -150,6 +152,15 @@ export class UnifiedSettlementExecutor {
     this.logger.info('Stopping UnifiedSettlementExecutor...');
     this.settlementMonitor.off('SETTLEMENT_REQUIRED', this.boundHandleSettlement);
     this.logger.info('UnifiedSettlementExecutor stopped');
+  }
+
+  /**
+   * Set PerPacketClaimService for using latest per-packet claims in on-chain settlement
+   * @param service - PerPacketClaimService instance
+   */
+  setPerPacketClaimService(service: PerPacketClaimService): void {
+    this._perPacketClaimService = service;
+    this.logger.info('PerPacketClaimService set for on-chain settlement');
   }
 
   /**
@@ -328,6 +339,11 @@ export class UnifiedSettlementExecutor {
     } catch (error) {
       this.logger.error({ error, peerId, channelId, amount }, 'Failed to send EVM claim');
       throw error;
+    }
+
+    // Reset per-packet claim tracking after settlement if available
+    if (this._perPacketClaimService) {
+      this._perPacketClaimService.resetChannel(channelId);
     }
 
     this.logger.info({ peerId, channelId, amount }, 'EVM settlement completed');

@@ -58,6 +58,11 @@ import { KeyManager } from '../security/key-manager';
 import { requireOptional } from '../utils/optional-require';
 import { TigerBeetleClient } from '../settlement/tigerbeetle-client';
 import { InMemoryLedgerClient } from '../settlement/in-memory-ledger-client';
+import { PerPacketClaimService } from '../settlement/per-packet-claim-service';
+import {
+  SENT_CLAIMS_TABLE_SCHEMA,
+  SENT_CLAIMS_INDEXES,
+} from '../settlement/claim-sender-db-schema';
 import { promises as dns } from 'dns';
 // Import package.json for version information
 import packageJson from '../../package.json';
@@ -746,6 +751,45 @@ export class ConnectorNode implements HealthStatusProvider {
             },
             'Payment channel infrastructure initialized'
           );
+
+          // Wire PerPacketClaimService for attaching claims to outgoing packets
+          if (this._channelManager && this._paymentChannelSDK) {
+            try {
+              const BetterSqlite3Module = await requireOptional<{
+                default: new (path: string) => import('better-sqlite3').Database;
+              }>('better-sqlite3', 'per-packet claims persistence');
+              const BetterSqlite3 = BetterSqlite3Module.default;
+
+              const claimDbPath = `./data/claims-${this._config.nodeId}.db`;
+              const claimDb = new BetterSqlite3(claimDbPath);
+              claimDb.exec(SENT_CLAIMS_TABLE_SCHEMA);
+              for (const indexSql of SENT_CLAIMS_INDEXES) {
+                claimDb.exec(indexSql);
+              }
+
+              const perPacketClaimService = new PerPacketClaimService(
+                this._paymentChannelSDK,
+                this._channelManager,
+                claimDb,
+                this._logger,
+                this._config.nodeId,
+                this._telemetryEmitter || undefined
+              );
+              this._packetHandler.setPerPacketClaimService(perPacketClaimService);
+              this._settlementExecutor?.setPerPacketClaimService(perPacketClaimService);
+
+              this._logger.info(
+                { event: 'per_packet_claims_enabled' },
+                'Per-packet claim service wired to PacketHandler and SettlementExecutor'
+              );
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              this._logger.warn(
+                { event: 'per_packet_claims_init_failed', error: errorMessage },
+                'Failed to initialize per-packet claim service (continuing without claims)'
+              );
+            }
+          }
 
           // Wire AccountManager into PacketHandler for settlement recording
           if (accountManager) {

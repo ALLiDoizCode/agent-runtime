@@ -109,7 +109,8 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
         'peer-a',
         expect.objectContaining({
           amount: 99900n, // 100000 - 100 = 99900
-        })
+        }),
+        undefined
       );
     });
 
@@ -143,7 +144,8 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
         'peer-a',
         expect.objectContaining({
           amount: 999n, // 1000 - 1 = 999
-        })
+        }),
+        undefined
       );
     });
 
@@ -177,7 +179,8 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
         'peer-a',
         expect.objectContaining({
           amount: 999n, // 999 - 0 = 999 (no fee charged on small amounts)
-        })
+        }),
+        undefined
       );
     });
 
@@ -214,7 +217,8 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
         'peer-a',
         expect.objectContaining({
           amount: 9900n, // 10000 - 100 = 9900
-        })
+        }),
+        undefined
       );
     });
   });
@@ -288,7 +292,8 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
         'peer-a',
         expect.objectContaining({
           amount: 1000n, // Original amount, no fee
-        })
+        }),
+        undefined
       );
     });
 
@@ -326,7 +331,8 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
         'peer-a',
         expect.objectContaining({
           amount: 1000n,
-        })
+        }),
+        undefined
       );
     });
   });
@@ -465,7 +471,11 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
 
       // Assert - Packet forwarded successfully
       expect(result.type).toBe(PacketType.FULFILL);
-      expect(mockBTPClientManager.sendToPeer).toHaveBeenCalledWith('peer-a', expect.any(Object));
+      expect(mockBTPClientManager.sendToPeer).toHaveBeenCalledWith(
+        'peer-a',
+        expect.any(Object),
+        undefined
+      );
     });
 
     it('should preserve original packet amount when settlement disabled', async () => {
@@ -492,7 +502,8 @@ describe('PacketHandler Settlement Integration (Story 6.4)', () => {
         'peer-a',
         expect.objectContaining({
           amount: originalAmount,
-        })
+        }),
+        undefined
       );
     });
   });

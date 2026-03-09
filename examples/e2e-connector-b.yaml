@@ -1,12 +1,17 @@
 # Connector B Configuration for E2E Tests
-ilpAddress: g.test.connector-b
+nodeId: connector-b
+btpServerPort: 4002
+healthCheckPort: 8090
+logLevel: debug
+peers:
+  - id: connector-a
+    url: ws://connector_a:4001
+    authToken: ""
+routes:
+  - prefix: g.test.connector-a
+    nextHop: connector-a
 adminApi:
   enabled: true
   port: 8082
-
-btp:
-  serverPort: 4002
-
-settlement:
-  enabled: true
-  preference: evm
+explorer:
+  enabled: false

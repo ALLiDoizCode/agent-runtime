@@ -17,7 +17,7 @@ npm install @crosstown/connector
 
 - **ILP Packet Routing** — RFC-0027 compliant packet forwarding with configurable routing tables
 - **BTP Peers** — WebSocket-based peer connections using Bilateral Transfer Protocol (RFC-0023)
-- **Tri-Chain Settlement** — Payment channels on Base L2 (EVM), XRP Ledger, and Aptos
+- **EVM Settlement** — Payment channels on Base L2 (EVM) with per-packet claims via BTP protocolData
 - **Accounting** — In-memory ledger (default, zero dependencies) or TigerBeetle (optional, high-throughput)
 - **Per-Hop Notification** — Fire-and-forget BLS notifications at intermediate hops for transit observability
 - **Explorer UI** — Built-in real-time dashboard for packet flow, balances, and settlement monitoring
@@ -38,6 +38,88 @@ node.setPacketHandler(async (request) => {
 
 await node.start();
 ```
+
+## Embedded Mode (Recommended)
+
+For programmatic usage, pass a `ConnectorConfig` object directly. This is the recommended pattern for agent runtimes and integration tests:
+
+```typescript
+import { ConnectorNode } from '@crosstown/connector';
+import type { ConnectorConfig } from '@crosstown/connector';
+import pino from 'pino';
+
+// --- Node A: sender / intermediate hop ---
+const configA: ConnectorConfig = {
+  nodeId: 'connector-a',
+  btpServerPort: 4000,
+  healthCheckPort: 8080,
+  deploymentMode: 'embedded',
+  adminApi: { enabled: false },
+  localDelivery: { enabled: false },
+  settlementInfra: {
+    enabled: true,
+    rpcUrl: 'https://base-sepolia.g.alchemy.com/v2/YOUR_KEY',
+    registryAddress: '0xRegistryAddress...',
+    tokenAddress: '0xTokenAddress...',
+    privateKey: process.env.EVM_PRIVATE_KEY!,
+  },
+  peers: [],
+  routes: [],
+  environment: 'production',
+};
+
+// --- Node B: receiver ---
+const configB: ConnectorConfig = {
+  nodeId: 'connector-b',
+  btpServerPort: 4001,
+  healthCheckPort: 8081,
+  deploymentMode: 'embedded',
+  adminApi: { enabled: false },
+  localDelivery: {
+    enabled: true,
+    handlerUrl: 'http://my-bls:3100',
+    timeout: 5000,
+    perHopNotification: true, // fire-and-forget transit notifications
+  },
+  settlementInfra: {
+    enabled: true,
+    rpcUrl: 'https://base-sepolia.g.alchemy.com/v2/YOUR_KEY',
+    registryAddress: '0xRegistryAddress...',
+    tokenAddress: '0xTokenAddress...',
+    privateKey: process.env.EVM_PRIVATE_KEY_B!,
+  },
+  peers: [],
+  routes: [],
+  environment: 'production',
+};
+
+// Create and start nodes
+const nodeA = new ConnectorNode(configA, pino({ name: 'connector-a' }));
+const nodeB = new ConnectorNode(configB, pino({ name: 'connector-b' }));
+
+nodeB.setPacketHandler(async (request) => {
+  if (request.isTransit) {
+    console.log(`Transit: ${request.amount} tokens → ${request.destination}`);
+    return { accept: true };
+  }
+  console.log(`Delivery: ${request.amount} tokens from ${request.sourcePeer}`);
+  return { accept: true };
+});
+
+await nodeB.start();
+await nodeA.start();
+
+// Register peers dynamically (A → B)
+await nodeA.registerPeer({
+  id: 'connector-b',
+  url: `ws://localhost:${configB.btpServerPort}`,
+  authToken: '',
+  routes: [{ prefix: 'g.connector-b' }],
+  evmAddress: '0xConnectorBAddress...', // peer's EVM settlement address
+});
+```
+
+See `test/integration/embedded-evm-settlement.test.ts` for a full working 3-node topology with on-chain verification.
 
 ## Configuration
 
@@ -397,10 +479,10 @@ src/
 ├── core/       # Packet forwarding, ConnectorNode, payment handler
 ├── btp/        # BTP server and client (WebSocket peers)
 ├── routing/    # Routing table and prefix matching
-├── settlement/ # Multi-chain settlement executors, claim signing
+├── settlement/ # EVM settlement, per-packet claims, claim verification
 ├── http/       # Admin API, health endpoints, ILP send handler
 ├── explorer/   # Embedded telemetry UI server and event store
-├── wallet/     # HD wallet derivation for multi-chain keys
+├── wallet/     # HD wallet derivation for EVM keys
 ├── security/   # KMS integration (AWS, Azure, GCP)
 ├── config/     # Configuration schema and validation
 └── utils/      # Logger, OER encoding

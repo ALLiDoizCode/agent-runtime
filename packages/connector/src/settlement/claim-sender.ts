@@ -1,6 +1,11 @@
 /**
  * Claim Sender - Send payment channel claims to peers via BTP
  *
+ * @deprecated This module is superseded by PerPacketClaimService (Epic 31).
+ * Claims are now generated per-packet and attached to BTP protocolData during
+ * packet forwarding, rather than sent as separate BTP messages triggered by
+ * settlement thresholds. This file is retained for reference only.
+ *
  * This module implements the claim transport layer for Epic 17 (BTP Off-Chain Claim Exchange).
  * It sends signed payment channel claims over BTP WebSocket connections to enable off-chain
  * settlement without on-chain transactions for every payment.

@@ -181,8 +181,10 @@ export class ConfigLoader {
     const btpServerPort = rawConfig.btpServerPort as number;
     const healthCheckPort = (rawConfig.healthCheckPort as number | undefined) ?? 8080;
 
-    // Load explorer configuration from environment variables
-    const explorer = this.loadExplorerConfig(btpServerPort, healthCheckPort);
+    // Load explorer configuration (prefer input config, fall back to environment variables)
+    const explorer =
+      (rawConfig.explorer as ExplorerConfig | undefined) ??
+      this.loadExplorerConfig(btpServerPort, healthCheckPort);
 
     // Apply default values for optional fields and pass through all optional config
     const connectorConfig: ConnectorConfig = {
@@ -486,7 +488,7 @@ export class ConfigLoader {
         );
       }
 
-      if (!peer.authToken) {
+      if (peer.authToken == null) {
         throw new ConfigurationError(`Peer ${peer.id} missing required field: authToken`);
       }
       if (typeof peer.authToken !== 'string') {

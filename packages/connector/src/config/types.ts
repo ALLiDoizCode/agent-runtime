@@ -978,6 +978,17 @@ export interface SettlementThresholdConfig {
   perTokenThresholds?: Map<string, Map<string, bigint>>;
 
   /**
+   * Time-based settlement interval in milliseconds (optional)
+   * When set, triggers on-chain settlement periodically regardless of amount,
+   * as long as there is a positive credit balance.
+   * Works alongside amount-based thresholds — whichever triggers first wins.
+   * undefined = time-based settlement disabled (amount-only)
+   *
+   * Example: 600000 (10 minutes) — settle on-chain at least every 10 minutes
+   */
+  timeBasedIntervalMs?: number;
+
+  /**
    * Balance polling interval in milliseconds
    * Controls how frequently settlement monitor checks account balances
    * Default: 30000 (30 seconds)
