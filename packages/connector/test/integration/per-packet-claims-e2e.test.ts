@@ -24,6 +24,9 @@
  * 2. Cumulative claim accuracy across multiple packets
  * 3. Packets flow without claims when no channel exists
  * 4. Claim failure resilience (packets still forward)
+ * 5. Multi-hop packet routing (A → B → C)
+ * 6. F02 error for unknown destinations
+ * 7. Connection failure handling (T01 when intermediate node down)
  */
 
 /* eslint-disable no-console */
@@ -31,7 +34,7 @@
 import { ConnectorNode } from '../../src/core/connector-node';
 import type { ConnectorConfig } from '../../src/config/types';
 import pino from 'pino';
-import { PacketType, ILPPreparePacket } from '@crosstown/shared';
+import { PacketType, ILPPreparePacket, ILPRejectPacket, ILPErrorCode } from '@crosstown/shared';
 import { waitFor } from '../helpers/wait-for';
 
 // 5-minute timeout for E2E tests
@@ -50,6 +53,7 @@ const REGISTRY_ADDRESS = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 // Anvil default accounts
 const CONNECTOR_A_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 const CONNECTOR_B_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
+const CONNECTOR_C_KEY = '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a';
 
 // Docker connector endpoints
 const DOCKER_HEALTH_A = 'http://localhost:8080/health';
@@ -153,13 +157,15 @@ const describeInProcess = SKIP_IN_PROCESS ? describe.skip : describe;
 describeInProcess('Per-Packet Claims E2E - In-Process', () => {
   let connectorA: ConnectorNode;
   let connectorB: ConnectorNode;
+  let connectorC: ConnectorNode;
 
   beforeAll(async () => {
-    console.log('Setting up Per-Packet Claims E2E (In-Process)...');
+    console.log('Setting up Per-Packet Claims E2E (In-Process) - 3-node topology...');
 
     // Set BTP peer secrets for permissionless mode
     process.env.BTP_PEER_CONNECTOR_A_SECRET = '';
     process.env.BTP_PEER_CONNECTOR_B_SECRET = '';
+    process.env.BTP_PEER_CONNECTOR_C_SECRET = '';
 
     // Verify Anvil is running
     try {
@@ -171,7 +177,7 @@ describeInProcess('Per-Packet Claims E2E - In-Process', () => {
       );
     }
 
-    // Create Connector A config
+    // Create Connector A config (routes to B and C via B)
     const configA: Partial<ConnectorConfig> = {
       nodeId: 'connector-a',
       btpServerPort: 14001,
@@ -183,7 +189,10 @@ describeInProcess('Per-Packet Claims E2E - In-Process', () => {
           authToken: '',
         },
       ],
-      routes: [{ prefix: 'g.test.connector-b', nextHop: 'connector-b' }],
+      routes: [
+        { prefix: 'g.test.connector-b', nextHop: 'connector-b' },
+        { prefix: 'g.test.connector-c', nextHop: 'connector-b' },
+      ],
       settlementInfra: {
         enabled: true,
         rpcUrl: ANVIL_RPC_URL,
@@ -195,7 +204,7 @@ describeInProcess('Per-Packet Claims E2E - In-Process', () => {
       explorer: { enabled: false },
     };
 
-    // Create Connector B config
+    // Create Connector B config (hub: peers with both A and C)
     const configB: Partial<ConnectorConfig> = {
       nodeId: 'connector-b',
       btpServerPort: 14002,
@@ -206,8 +215,16 @@ describeInProcess('Per-Packet Claims E2E - In-Process', () => {
           url: 'ws://localhost:14001',
           authToken: '',
         },
+        {
+          id: 'connector-c',
+          url: 'ws://localhost:14003',
+          authToken: '',
+        },
       ],
-      routes: [{ prefix: 'g.test.connector-a', nextHop: 'connector-a' }],
+      routes: [
+        { prefix: 'g.test.connector-a', nextHop: 'connector-a' },
+        { prefix: 'g.test.connector-c', nextHop: 'connector-c' },
+      ],
       settlementInfra: {
         enabled: true,
         rpcUrl: ANVIL_RPC_URL,
@@ -219,19 +236,49 @@ describeInProcess('Per-Packet Claims E2E - In-Process', () => {
       explorer: { enabled: false },
     };
 
+    // Create Connector C config (leaf node, peers with B)
+    const configC: Partial<ConnectorConfig> = {
+      nodeId: 'connector-c',
+      btpServerPort: 14003,
+      healthCheckPort: 18100,
+      peers: [
+        {
+          id: 'connector-b',
+          url: 'ws://localhost:14002',
+          authToken: '',
+        },
+      ],
+      routes: [
+        { prefix: 'g.test.connector-b', nextHop: 'connector-b' },
+        { prefix: 'g.test.connector-a', nextHop: 'connector-b' },
+      ],
+      settlementInfra: {
+        enabled: true,
+        rpcUrl: ANVIL_RPC_URL,
+        registryAddress: REGISTRY_ADDRESS,
+        tokenAddress: TOKEN_ADDRESS,
+        privateKey: CONNECTOR_C_KEY,
+      },
+      adminApi: { enabled: false },
+      explorer: { enabled: false },
+    };
+
     const loggerA = pino({ level: 'warn' });
     const loggerB = pino({ level: 'warn' });
+    const loggerC = pino({ level: 'warn' });
 
     connectorA = new ConnectorNode(configA as ConnectorConfig, loggerA);
     connectorB = new ConnectorNode(configB as ConnectorConfig, loggerB);
+    connectorC = new ConnectorNode(configC as ConnectorConfig, loggerC);
 
-    // Start both connectors
+    // Start connectors in reverse order so upstream peers can connect
+    await connectorC.start();
     await connectorB.start();
     await connectorA.start();
 
     // Wait for BTP connections to establish
     await new Promise((resolve) => setTimeout(resolve, 5000));
-    console.log('Connectors started and connected');
+    console.log('3-node topology started and connected (A → B → C)');
   });
 
   afterAll(async () => {
@@ -246,9 +293,15 @@ describeInProcess('Per-Packet Claims E2E - In-Process', () => {
     } catch {
       // ignore cleanup errors
     }
+    try {
+      await connectorC?.stop();
+    } catch {
+      // ignore cleanup errors
+    }
     // Clear BTP peer env vars to avoid leaking state
     delete process.env.BTP_PEER_CONNECTOR_A_SECRET;
     delete process.env.BTP_PEER_CONNECTOR_B_SECRET;
+    delete process.env.BTP_PEER_CONNECTOR_C_SECRET;
   });
 
   it('should forward packets without claims when no payment channel exists', async () => {
@@ -291,6 +344,109 @@ describeInProcess('Per-Packet Claims E2E - In-Process', () => {
     });
 
     console.log('Multiple packets forwarded successfully');
+  });
+
+  // ==========================================================================
+  // Multi-Hop Packet Routing (replaces multi-node-forwarding.test.ts)
+  // ==========================================================================
+
+  it('should route packet through A → B → C (multi-hop forwarding)', async () => {
+    const packet = createTestPacket(1000n, 'g.test.connector-c.receiver');
+
+    const response = await connectorA.sendPacket({
+      destination: packet.destination,
+      amount: packet.amount,
+      executionCondition: packet.executionCondition,
+      expiresAt: packet.expiresAt,
+      data: packet.data,
+    });
+
+    // Connector C returns F02 because it has no local receiver — this confirms
+    // the packet successfully routed through A → B → C
+    expect(response).toBeDefined();
+    expect(response.type).toBe(PacketType.REJECT);
+    if (response.type === PacketType.REJECT) {
+      const reject = response as ILPRejectPacket;
+      expect(reject.code).toBe(ILPErrorCode.F02_UNREACHABLE);
+      expect(reject.triggeredBy).toBe('connector-c');
+    }
+    console.log('Multi-hop packet routed A → B → C successfully');
+  });
+
+  it('should return F02 for unknown destination', async () => {
+    const packet = createTestPacket(1000n, 'g.test.unknown.destination');
+
+    const response = await connectorA.sendPacket({
+      destination: packet.destination,
+      amount: packet.amount,
+      executionCondition: packet.executionCondition,
+      expiresAt: packet.expiresAt,
+      data: packet.data,
+    });
+
+    expect(response).toBeDefined();
+    expect(response.type).toBe(PacketType.REJECT);
+    if (response.type === PacketType.REJECT) {
+      const reject = response as ILPRejectPacket;
+      expect(reject.code).toBe(ILPErrorCode.F02_UNREACHABLE);
+    }
+    console.log('Unknown destination correctly rejected with F02');
+  });
+
+  it('should return error when intermediate connector is down', async () => {
+    // Stop connector B to simulate intermediate node failure
+    await connectorB.stop();
+
+    // Wait for connection loss to be detected
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const packet = createTestPacket(1000n, 'g.test.connector-c.receiver');
+
+    const response = await connectorA.sendPacket({
+      destination: packet.destination,
+      amount: packet.amount,
+      executionCondition: packet.executionCondition,
+      expiresAt: packet.expiresAt,
+      data: packet.data,
+    });
+
+    expect(response).toBeDefined();
+    expect(response.type).toBe(PacketType.REJECT);
+    if (response.type === PacketType.REJECT) {
+      const reject = response as ILPRejectPacket;
+      // T01 (Peer Unreachable) or R00 (Transfer Timed Out) are both valid
+      expect([ILPErrorCode.T01_PEER_UNREACHABLE, ILPErrorCode.R00_TRANSFER_TIMED_OUT]).toContain(
+        reject.code
+      );
+    }
+    console.log('Intermediate node failure correctly produces error');
+
+    // Restart connector B for any subsequent tests
+    const configB: Partial<ConnectorConfig> = {
+      nodeId: 'connector-b',
+      btpServerPort: 14002,
+      healthCheckPort: 18090,
+      peers: [
+        { id: 'connector-a', url: 'ws://localhost:14001', authToken: '' },
+        { id: 'connector-c', url: 'ws://localhost:14003', authToken: '' },
+      ],
+      routes: [
+        { prefix: 'g.test.connector-a', nextHop: 'connector-a' },
+        { prefix: 'g.test.connector-c', nextHop: 'connector-c' },
+      ],
+      settlementInfra: {
+        enabled: true,
+        rpcUrl: ANVIL_RPC_URL,
+        registryAddress: REGISTRY_ADDRESS,
+        tokenAddress: TOKEN_ADDRESS,
+        privateKey: CONNECTOR_B_KEY,
+      },
+      adminApi: { enabled: false },
+      explorer: { enabled: false },
+    };
+    connectorB = new ConnectorNode(configB as ConnectorConfig, pino({ level: 'warn' }));
+    await connectorB.start();
+    await new Promise((resolve) => setTimeout(resolve, 3000));
   });
 });
 

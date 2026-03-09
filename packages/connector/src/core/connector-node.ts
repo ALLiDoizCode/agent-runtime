@@ -85,6 +85,7 @@ export class ConnectorNode implements HealthStatusProvider {
   private _eventStore: EventStore | null = null;
   private _explorerServer: ExplorerServer | null = null;
   private _paymentChannelSDK: PaymentChannelSDK | null = null;
+  private _chainSDKs: Map<number, PaymentChannelSDK> = new Map();
   private _channelManager: ChannelManager | null = null;
   private _accountManager: AccountManager | null = null;
   private _settlementMonitor: SettlementMonitor | null = null;
@@ -475,7 +476,7 @@ export class ConnectorNode implements HealthStatusProvider {
           // Use 'evm' as key ID (EnvironmentVariableBackend detects type from keyId)
           const evmKeyId = 'evm';
 
-          // Initialize PaymentChannelSDK
+          // Initialize PaymentChannelSDK (primary chain)
           const { ethers } = await requireOptional<typeof import('ethers')>(
             'ethers',
             'EVM settlement'
@@ -488,6 +489,66 @@ export class ConnectorNode implements HealthStatusProvider {
             registryAddress,
             this._logger
           );
+
+          // Store primary SDK in chain map
+          const primaryChainId =
+            this._config.blockchain?.base?.chainId ?? this._config.blockchain?.arbitrum?.chainId;
+          if (primaryChainId) {
+            this._chainSDKs.set(primaryChainId, this._paymentChannelSDK);
+          }
+
+          // Initialize additional chain SDKs for multi-chain settlement
+          const enabledChains: Array<{
+            name: string;
+            config: import('../config/types').EVMChainConfig;
+          }> = [];
+          if (this._config.blockchain?.base?.enabled && this._config.blockchain.base) {
+            enabledChains.push({ name: 'Base', config: this._config.blockchain.base });
+          }
+          if (this._config.blockchain?.arbitrum?.enabled && this._config.blockchain.arbitrum) {
+            enabledChains.push({ name: 'Arbitrum', config: this._config.blockchain.arbitrum });
+          }
+
+          for (const chain of enabledChains) {
+            // Skip if already stored (primary chain)
+            if (this._chainSDKs.has(chain.config.chainId)) {
+              continue;
+            }
+
+            // Build per-chain config with settlementInfra fallbacks
+            const chainRpcUrl = chain.config.rpcUrl;
+            const chainRegistryAddress = chain.config.registryAddress ?? registryAddress;
+            const chainPrivateKey = chain.config.privateKey ?? treasuryPrivateKey;
+
+            // Create per-chain KeyManager if different private key
+            const chainKeyManager =
+              chainPrivateKey !== treasuryPrivateKey
+                ? new KeyManager(
+                    { backend: 'env', nodeId: this._config.nodeId, evmPrivateKey: chainPrivateKey },
+                    this._logger
+                  )
+                : keyManager;
+
+            const chainProvider = new ethers.JsonRpcProvider(chainRpcUrl);
+            const chainSDK = new PaymentChannelSDK(
+              chainProvider,
+              chainKeyManager,
+              evmKeyId,
+              chainRegistryAddress,
+              this._logger
+            );
+            this._chainSDKs.set(chain.config.chainId, chainSDK);
+
+            this._logger.info(
+              {
+                event: 'chain_sdk_initialized',
+                chain: chain.name,
+                chainId: chain.config.chainId,
+                rpcUrl: chainRpcUrl,
+              },
+              `PaymentChannelSDK initialized for ${chain.name} (chainId: ${chain.config.chainId})`
+            );
+          }
 
           // Build peer ID to EVM address mapping from config (with env var fallback)
           const peerIdToAddressMap = new Map<string, string>();
@@ -1208,9 +1269,19 @@ export class ConnectorNode implements HealthStatusProvider {
         this._channelManager = null;
       }
 
-      // Clean up payment channel SDK
+      // Clean up all chain SDKs
+      for (const [chainId, sdk] of this._chainSDKs.entries()) {
+        sdk.removeAllListeners();
+        this._logger.debug(
+          { event: 'chain_sdk_stopped', chainId },
+          `Chain SDK stopped (chainId: ${chainId})`
+        );
+      }
+      this._chainSDKs.clear();
+
+      // Clean up primary payment channel SDK reference
       if (this._paymentChannelSDK) {
-        this._paymentChannelSDK.removeAllListeners();
+        // Already cleaned up via _chainSDKs iteration above, just null the reference
         this._logger.info({ event: 'payment_channel_sdk_stopped' }, 'Payment channel SDK stopped');
         this._paymentChannelSDK = null;
       }
@@ -1371,6 +1442,17 @@ export class ConnectorNode implements HealthStatusProvider {
    */
   get accountManager(): AccountManager | null {
     return this._accountManager;
+  }
+
+  /**
+   * Get PaymentChannelSDK for a specific chain ID.
+   * Used for multi-chain settlement when peers settle on different chains.
+   *
+   * @param chainId - EVM chain ID (e.g., 8453 for Base, 42161 for Arbitrum)
+   * @returns PaymentChannelSDK for the chain, or null if not initialized
+   */
+  getPaymentChannelSDKForChain(chainId: number): PaymentChannelSDK | null {
+    return this._chainSDKs.get(chainId) ?? null;
   }
 
   /**
