@@ -27,7 +27,17 @@
  * 5. Multi-hop packet routing (A → B → C)
  * 6. F02 error for unknown destinations
  * 7. Connection failure handling (T01 when intermediate node down)
- * 8. Settlement triggers when packet balances exceed threshold (in-memory ledger + Anvil)
+ * 8. Full settlement lifecycle (in-memory ledger + Anvil):
+ *    a. Per-packet balance verification (wallet + accounting per packet)
+ *    b. Auto channel creation + deposit on first settlement trigger
+ *    c. Receiving peer claims using sender's signed balance proofs
+ *    d. Channel close initiates grace period
+ *    e. Sender settle before grace period → ChallengeNotExpiredError
+ *    f. Receiver claims during grace period → succeeds
+ *    g. Receiver claims after grace period (before settle) → succeeds
+ *    h. Sender settles after grace period → remaining funds returned
+ *    i. Receiver claims on settled channel → fails
+ *    j. Final balance reconciliation: A_spent === B_received
  */
 
 /* eslint-disable no-console */
@@ -213,6 +223,75 @@ async function sendViaAdminApi(
     );
   }
 }
+
+/**
+ * Fast-forward Anvil EVM block time by the given number of seconds.
+ * Advances the internal clock and mines a new block so subsequent
+ * transactions see the updated timestamp.
+ */
+async function advanceAnvilTime(seconds: number): Promise<void> {
+  await fetch(ANVIL_RPC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'evm_increaseTime',
+      params: [seconds],
+      id: 1,
+    }),
+  });
+  await fetch(ANVIL_RPC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'evm_mine',
+      params: [],
+      id: 2,
+    }),
+  });
+}
+
+/**
+ * Take a snapshot of the current Anvil EVM state.
+ * Returns a snapshot ID that can be used with revertAnvilSnapshot.
+ */
+async function takeAnvilSnapshot(): Promise<string> {
+  const response = await fetch(ANVIL_RPC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'evm_snapshot',
+      params: [],
+      id: 1,
+    }),
+  });
+  const json = (await response.json()) as { result: string };
+  return json.result;
+}
+
+/**
+ * Revert Anvil EVM state to a previously taken snapshot.
+ * Restores all balances, nonces, contract state, and block timestamp.
+ */
+async function revertAnvilSnapshot(snapshotId: string): Promise<void> {
+  await fetch(ANVIL_RPC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'evm_revert',
+      params: [snapshotId],
+      id: 1,
+    }),
+  });
+}
+
+// Save the original Date.now before any test mocking can occur.
+// This prevents infinite recursion when jest.spyOn(Date, 'now') is
+// called multiple times across suites without proper cleanup.
+const originalDateNow = Date.now.bind(Date);
 
 function createTestPacket(amount: bigint, destination: string): ILPPreparePacket {
   // Use unique executionCondition per packet for TigerBeetle transfer ID uniqueness
@@ -589,6 +668,7 @@ const SETTLEMENT_THRESHOLD = '500';
 const SETTLEMENT_POLLING_MS = 500;
 const PACKET_AMOUNT = 200n;
 const PACKETS_TO_SEND = 3; // 3 × 200 = 600 > 500 threshold
+const SETTLEMENT_TIMEOUT_SECS = 3600; // 1 hour — contract-enforced minimum (MIN_SETTLEMENT_TIMEOUT)
 
 interface SettlementTestEnv {
   connectorA: ConnectorNode;
@@ -629,7 +709,8 @@ function buildSettlementConfigs(portOffset: number): {
       privateKey: CONNECTOR_A_KEY,
       threshold: SETTLEMENT_THRESHOLD,
       pollingIntervalMs: SETTLEMENT_POLLING_MS,
-      initialDepositMultiplier: 1,
+      initialDepositMultiplier: 2,
+      settlementTimeoutSecs: SETTLEMENT_TIMEOUT_SECS,
     },
     adminApi: { enabled: false },
     explorer: { enabled: false },
@@ -656,7 +737,8 @@ function buildSettlementConfigs(portOffset: number): {
       privateKey: CONNECTOR_B_KEY,
       threshold: SETTLEMENT_THRESHOLD,
       pollingIntervalMs: SETTLEMENT_POLLING_MS,
-      initialDepositMultiplier: 1,
+      initialDepositMultiplier: 2,
+      settlementTimeoutSecs: SETTLEMENT_TIMEOUT_SECS,
     },
     adminApi: { enabled: false },
     explorer: { enabled: false },
@@ -706,62 +788,79 @@ async function stopSettlementTopology(env: SettlementTestEnv): Promise<void> {
 /**
  * Core settlement test logic shared between in-memory and TigerBeetle backends.
  *
- * Validates the full per-packet claims lifecycle:
- * 1. A sends packets with signed claims → channel created & funded automatically
- * 2. Claims accumulate per-packet via BTP protocolData
- * 3. Settlement triggers on B's side → B claims from channel using A's signed claims
- * 4. B's wallet increases, payment channel balance decreases
- * 5. Channel stays OPEN — A can continue sending
+ * Validates the full per-packet claims lifecycle across four phases:
+ *
+ * PHASE 1 — Per-Packet Claims + Balance Verification
+ *   Sends packets one by one, verifying accounting balance after each.
+ *   Wallet and channel balances verified before and after the batch.
+ *
+ * PHASE 2 — Settlement Trigger
+ *   A's SettlementExecutor auto-opens a channel and deposits.
+ *   B claims from channel using A's signed balance proof.
+ *   Wallet, channel, and accounting balances verified.
+ *
+ * PHASE 3 — Channel Close + Grace Period
+ *   A closes channel (starts grace period).
+ *   A tries to settle before grace period → ChallengeNotExpiredError.
+ *   B claims during grace period → succeeds.
+ *
+ * PHASE 4 — Post Grace Period
+ *   B claims after grace period but before A settles → succeeds.
+ *   A settles channel → remaining funds returned.
+ *   B tries to claim on settled channel → fails.
+ *   Final balance reconciliation: A_spent === B_received.
  */
 async function runSettlementTest(env: SettlementTestEnv): Promise<void> {
   const { connectorA, connectorB } = env;
 
   // ========================================================================
-  // Step 1: Snapshot initial state
+  // PHASE 1: Per-Packet Claims + Balance Verification
   // ========================================================================
+  console.log('\n=== PHASE 1: Per-Packet Claims + Balance Verification ===');
+
   const accountManagerA = getAccountManager(connectorA);
   const settlementMonitorA = getSettlementMonitor(connectorA);
   expect(accountManagerA).toBeDefined();
   expect(settlementMonitorA).toBeDefined();
 
-  // Use the connector's resolved token ID (e.g., 'USDC' from on-chain symbol)
   const tokenId = connectorA.defaultSettlementTokenId;
   console.log(`Resolved settlement token ID: ${tokenId}`);
 
-  // Initial token balance of connector A's wallet (deployer account, has tokens)
-  const tokenBalanceABefore = await getTokenBalance(CONNECTOR_A_ADDRESS);
-  console.log(`Initial token balance (A): ${tokenBalanceABefore}`);
-  expect(tokenBalanceABefore).toBeGreaterThan(0n);
+  // Step 1.1: Snapshot initial balances
+  const walletAInitial = await getTokenBalance(CONNECTOR_A_ADDRESS);
+  const walletBInitial = await getTokenBalance(CONNECTOR_B_ADDRESS);
+  console.log(`Initial wallet A: ${walletAInitial}`);
+  console.log(`Initial wallet B: ${walletBInitial}`);
+  expect(walletAInitial).toBeGreaterThan(0n);
 
-  // Snapshot B's initial token balance
-  const tokenBalanceBBefore = await getTokenBalance(CONNECTOR_B_ADDRESS);
-  console.log(`Initial token balance (B): ${tokenBalanceBBefore}`);
-
-  // Verify no payment channel exists yet
+  // Verify no open channels exist yet
   const sdkA = connectorA.paymentChannelSDK;
   expect(sdkA).not.toBeNull();
   const existingChannels = await sdkA!.getMyChannels(TOKEN_ADDRESS);
-  const openChannelsBefore = [];
+  const openChannelsBefore: string[] = [];
   for (const chId of existingChannels) {
     const st = await sdkA!.getChannelState(chId, TOKEN_ADDRESS);
     if (st.status === 'opened') openChannelsBefore.push(chId);
   }
   console.log(`Open channels before test: ${openChannelsBefore.length}`);
 
-  // Initial accounting balance should be zero (fresh connectors)
-  const initialBalance = await accountManagerA.getAccountBalance('settlement-b', tokenId);
+  // Verify initial accounting balance is zero
+  const initialAccounting = await accountManagerA.getAccountBalance('settlement-b', tokenId);
   console.log(
-    `Initial accounting balance - credit: ${initialBalance.creditBalance}, debit: ${initialBalance.debitBalance}`
+    `Initial accounting: credit=${initialAccounting.creditBalance}, debit=${initialAccounting.debitBalance}`
   );
 
-  // ========================================================================
-  // Step 2: Send packets to accumulate balance above threshold
-  // ========================================================================
+  // Step 1.2: Send packets one by one with per-packet balance verification
   console.log(
-    `Sending ${PACKETS_TO_SEND} packets of ${PACKET_AMOUNT} each (total: ${PACKET_AMOUNT * BigInt(PACKETS_TO_SEND)}, threshold: ${SETTLEMENT_THRESHOLD})...`
+    `\nSending ${PACKETS_TO_SEND} packets of ${PACKET_AMOUNT} each ` +
+      `(total: ${PACKET_AMOUNT * BigInt(PACKETS_TO_SEND)}, threshold: ${SETTLEMENT_THRESHOLD})...`
   );
 
   for (let i = 0; i < PACKETS_TO_SEND; i++) {
+    const walletABefore = await getTokenBalance(CONNECTOR_A_ADDRESS);
+    const walletBBefore = await getTokenBalance(CONNECTOR_B_ADDRESS);
+    const accountingBefore = await accountManagerA.getAccountBalance('settlement-b', tokenId);
+
     const packet = createTestPacket(PACKET_AMOUNT, 'g.test.settlement-b.receiver');
     const response = await connectorA.sendPacket({
       destination: packet.destination,
@@ -771,64 +870,71 @@ async function runSettlementTest(env: SettlementTestEnv): Promise<void> {
       data: packet.data,
     });
     expect(response).toBeDefined();
+
+    // Verify accounting balance increased by at least the packet amount
+    const accountingAfter = await accountManagerA.getAccountBalance('settlement-b', tokenId);
+    expect(accountingAfter.creditBalance).toBeGreaterThan(accountingBefore.creditBalance);
+
+    const walletAAfter = await getTokenBalance(CONNECTOR_A_ADDRESS);
+    const walletBAfter = await getTokenBalance(CONNECTOR_B_ADDRESS);
+
+    console.log(
+      `  Packet ${i + 1}: accounting credit ${accountingBefore.creditBalance} → ${accountingAfter.creditBalance}, ` +
+        `wallet A: ${walletABefore} → ${walletAAfter}, wallet B: ${walletBBefore} → ${walletBAfter}`
+    );
   }
 
-  // Verify balance accumulated above threshold
-  const balanceAfterPackets = await accountManagerA.getAccountBalance('settlement-b', tokenId);
-  console.log(
-    `Accounting balance after packets - credit: ${balanceAfterPackets.creditBalance}, debit: ${balanceAfterPackets.debitBalance}`
+  // Step 1.3: Verify accounting balance exceeds threshold
+  const accountingAfterAllPackets = await accountManagerA.getAccountBalance(
+    'settlement-b',
+    tokenId
   );
-  expect(balanceAfterPackets.creditBalance).toBeGreaterThanOrEqual(BigInt(SETTLEMENT_THRESHOLD));
+  console.log(`\nAccounting after all packets: credit=${accountingAfterAllPackets.creditBalance}`);
+  expect(accountingAfterAllPackets.creditBalance).toBeGreaterThanOrEqual(
+    BigInt(SETTLEMENT_THRESHOLD)
+  );
 
   // ========================================================================
-  // Step 3: Wait for settlement to trigger and complete
+  // PHASE 2: Settlement Trigger (A opens channel + deposits, B claims)
   // ========================================================================
+  console.log('\n=== PHASE 2: Settlement Trigger ===');
+
+  // Wait for A's settlement to trigger and complete
   console.log('Waiting for settlement to trigger and complete...');
-
-  // Settlement monitor has a 5s delayed start + polling interval
-  // Wait up to 30s for settlement state to return to IDLE (means it completed)
   await waitFor(
     async () => {
       const state = settlementMonitorA.getSettlementState('settlement-b', tokenId);
       const balance = await accountManagerA.getAccountBalance('settlement-b', tokenId);
       console.log(`  Settlement state: ${state}, creditBalance: ${balance.creditBalance}`);
-      // Settlement completed when state returns to IDLE and creditBalance was reduced
       return (
-        state === SettlementState.IDLE && balance.creditBalance < balanceAfterPackets.creditBalance
+        state === SettlementState.IDLE &&
+        balance.creditBalance < accountingAfterAllPackets.creditBalance
       );
     },
     { timeout: 30000, interval: 500 }
   );
-
   console.log('Settlement completed!');
 
-  // ========================================================================
-  // Step 4: Verify A's accounting balance reduced after settlement
-  // ========================================================================
-  const balanceAfterSettlement = await accountManagerA.getAccountBalance('settlement-b', tokenId);
-  console.log(
-    `Accounting balance after settlement - credit: ${balanceAfterSettlement.creditBalance}, debit: ${balanceAfterSettlement.debitBalance}`
+  // Verify A's accounting balance reduced
+  const accountingAfterSettlement = await accountManagerA.getAccountBalance(
+    'settlement-b',
+    tokenId
+  );
+  console.log(`Accounting after settlement: credit=${accountingAfterSettlement.creditBalance}`);
+  expect(accountingAfterSettlement.creditBalance).toBeLessThan(
+    accountingAfterAllPackets.creditBalance
   );
 
-  // Credit balance should be reduced (settlement records a transfer that reduces it)
-  expect(balanceAfterSettlement.creditBalance).toBeLessThan(balanceAfterPackets.creditBalance);
+  // Verify A's wallet decreased (deposit into channel)
+  const walletAAfterDeposit = await getTokenBalance(CONNECTOR_A_ADDRESS);
+  console.log(`Wallet A: ${walletAInitial} → ${walletAAfterDeposit} (deposited into channel)`);
+  expect(walletAAfterDeposit).toBeLessThan(walletAInitial);
 
-  // ========================================================================
-  // Step 5: Verify A's on-chain wallet token balance decreased (channel funded)
-  // ========================================================================
-  const tokenBalanceAAfterDeposit = await getTokenBalance(CONNECTOR_A_ADDRESS);
-  console.log(
-    `Token balance (A) before: ${tokenBalanceABefore}, after deposit: ${tokenBalanceAAfterDeposit}`
-  );
+  // Verify B's wallet is unchanged (no claims yet)
+  const walletBBeforeClaim = await getTokenBalance(CONNECTOR_B_ADDRESS);
+  console.log(`Wallet B unchanged at: ${walletBBeforeClaim}`);
 
-  // A deposited tokens into the payment channel, so balance should decrease
-  expect(tokenBalanceAAfterDeposit).toBeLessThan(tokenBalanceABefore);
-
-  // ========================================================================
-  // Step 6: Verify payment channel is OPEN and A's deposit is on-chain
-  // ========================================================================
-
-  // Get channel ID from A's SDK cache (populated during openChannel)
+  // Find the opened channel from A's SDK cache
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelCache = (sdkA as any).channelStateCache as Map<string, any>;
   expect(channelCache.size).toBeGreaterThan(0);
@@ -846,96 +952,274 @@ async function runSettlementTest(env: SettlementTestEnv): Promise<void> {
   // Query channel state from B's perspective
   const sdkB = connectorB.paymentChannelSDK;
   expect(sdkB).not.toBeNull();
-
-  // Clear B's cache for this channel to force fresh on-chain query
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (sdkB as any).channelStateCache.delete(channelId);
   const channelStateFromB = await sdkB!.getChannelState(channelId, TOKEN_ADDRESS);
 
-  console.log(
-    `Channel state from B: theirDeposit (A's deposit) = ${channelStateFromB.theirDeposit}, ` +
-      `myDeposit (B's deposit) = ${channelStateFromB.myDeposit}, status = ${channelStateFromB.status}`
-  );
-
-  // A deposited at least the settlement amount into the channel
   const depositAmount = channelStateFromB.theirDeposit;
-  expect(depositAmount).toBeGreaterThanOrEqual(balanceAfterPackets.creditBalance);
+  console.log(
+    `Channel from B: theirDeposit=${depositAmount}, myDeposit=${channelStateFromB.myDeposit}, ` +
+      `status=${channelStateFromB.status}`
+  );
+  expect(depositAmount).toBeGreaterThanOrEqual(accountingAfterAllPackets.creditBalance);
   expect(channelStateFromB.status).toBe('opened');
 
-  // ========================================================================
-  // Step 7: B claims from channel using A's signed claim (channel stays open)
-  // ========================================================================
-  // A signed balance proofs (claims) that were sent with packets via BTP.
-  // Here we simulate A's claim covering the deposit amount.
+  // Get payment channel contract balance
+  const tokenNetworkAddr = await sdkB!.getTokenNetworkAddress(TOKEN_ADDRESS);
+  const channelContractBefore = await getTokenBalance(tokenNetworkAddr);
+  console.log(`Channel contract balance: ${channelContractBefore}`);
+
+  // B claims from channel using A's signed balance proof
+  // Claim the accumulated packet amount (not the full deposit — leave remainder for grace period)
   const ZERO_HASH = '0x' + '0'.repeat(64);
+  const claimAmount = accountingAfterAllPackets.creditBalance;
 
-  // A signs a balance proof (the claim A sends to B during packet forwarding)
-  const sigA = await sdkA!.signBalanceProof(channelId, 1, depositAmount);
-
-  const claimFromA: BalanceProof = {
+  const sigA1 = await sdkA!.signBalanceProof(channelId, 1, claimAmount);
+  const claim1: BalanceProof = {
     channelId,
     nonce: 1,
-    transferredAmount: depositAmount,
+    transferredAmount: claimAmount,
     lockedAmount: 0n,
     locksRoot: ZERO_HASH,
   };
 
-  // Clear B's cache to get fresh on-chain state before claiming
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (sdkB as any).channelStateCache.delete(channelId);
 
-  // Snapshot payment channel token balance before claim
-  const tokenNetworkAddr = await sdkB!.getTokenNetworkAddress(TOKEN_ADDRESS);
-  const channelBalanceBefore = await getTokenBalance(tokenNetworkAddr);
-  console.log(`Payment channel contract balance before claim: ${channelBalanceBefore}`);
+  await sdkB!.claimFromChannel(channelId, TOKEN_ADDRESS, claim1, sigA1);
+  console.log(`B claimed ${claimAmount} from channel — channel stays open`);
 
-  // B claims from channel using A's signed balance proof — channel stays OPEN
-  await sdkB!.claimFromChannel(channelId, TOKEN_ADDRESS, claimFromA, sigA);
-  console.log("B claimed from channel using A's signed claim — channel stays open");
-
-  // ========================================================================
-  // Step 8: Verify payment channel balance decreased after claim
-  // ========================================================================
-  const channelBalanceAfter = await getTokenBalance(tokenNetworkAddr);
+  // Verify B's wallet increased
+  const walletBAfterClaim = await getTokenBalance(CONNECTOR_B_ADDRESS);
   console.log(
-    `Payment channel contract balance: before=${channelBalanceBefore}, after=${channelBalanceAfter}, ` +
-      `decrease=${channelBalanceBefore - channelBalanceAfter}`
+    `Wallet B: ${walletBBeforeClaim} → ${walletBAfterClaim} (+${walletBAfterClaim - walletBBeforeClaim})`
   );
+  expect(walletBAfterClaim).toBeGreaterThan(walletBBeforeClaim);
+  expect(walletBAfterClaim - walletBBeforeClaim).toBe(claimAmount);
 
-  // Payment channel balance should decrease by the claimed amount
-  expect(channelBalanceAfter).toBeLessThan(channelBalanceBefore);
-  expect(channelBalanceBefore - channelBalanceAfter).toBe(depositAmount);
-
-  // ========================================================================
-  // Step 9: Verify B's wallet balance increased after claim
-  // ========================================================================
-  const tokenBalanceBAfter = await getTokenBalance(CONNECTOR_B_ADDRESS);
+  // Verify channel contract balance decreased
+  const channelContractAfterClaim = await getTokenBalance(tokenNetworkAddr);
   console.log(
-    `Token balance (B) before: ${tokenBalanceBBefore}, after: ${tokenBalanceBAfter}, ` +
-      `increase: ${tokenBalanceBAfter - tokenBalanceBBefore}`
+    `Channel contract: ${channelContractBefore} → ${channelContractAfterClaim} ` +
+      `(-${channelContractBefore - channelContractAfterClaim})`
   );
+  expect(channelContractAfterClaim).toBeLessThan(channelContractBefore);
+  expect(channelContractBefore - channelContractAfterClaim).toBe(claimAmount);
 
-  // B's wallet should have received the claimed amount
-  expect(tokenBalanceBAfter).toBeGreaterThan(tokenBalanceBBefore);
-  expect(tokenBalanceBAfter - tokenBalanceBBefore).toBe(depositAmount);
-
-  // ========================================================================
-  // Step 10: Verify channel is STILL OPEN after claim
-  // ========================================================================
+  // Verify channel still OPEN
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (sdkB as any).channelStateCache.delete(channelId);
   const channelStateAfterClaim = await sdkB!.getChannelState(channelId, TOKEN_ADDRESS);
-  console.log(`Channel status after claim: ${channelStateAfterClaim.status}`);
   expect(channelStateAfterClaim.status).toBe('opened');
 
+  // Verify settlement state is IDLE
+  expect(settlementMonitorA.getSettlementState('settlement-b', tokenId)).toBe(SettlementState.IDLE);
+  console.log('Phase 2 complete — channel open, B claimed, settlement IDLE');
+
   // ========================================================================
-  // Step 11: Verify settlement state is back to IDLE
+  // PHASE 3: Channel Close + Grace Period
   // ========================================================================
+  console.log('\n=== PHASE 3: Channel Close + Grace Period ===');
+
+  // Remaining deposit after B's claim (initialDepositMultiplier=2 means ~50% remains)
+  const remainingDeposit = depositAmount - claimAmount;
+  console.log(`Remaining deposit in channel: ${remainingDeposit}`);
+  expect(remainingDeposit).toBeGreaterThan(0n);
+
+  // Step 3.1: A closes channel (starts grace period)
+  await sdkA!.closeChannel(channelId, TOKEN_ADDRESS);
+  console.log('A closed channel — grace period started');
+
+  // Verify channel status is 'closed'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sdkA as any).channelStateCache.delete(channelId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sdkB as any).channelStateCache.delete(channelId);
+  const channelStateAfterClose = await sdkA!.getChannelState(channelId, TOKEN_ADDRESS);
+  expect(channelStateAfterClose.status).toBe('closed');
+  console.log(`Channel status: ${channelStateAfterClose.status}`);
+
+  // Step 3.2: A tries to settle before grace period → ChallengeNotExpiredError
+  console.log('A tries to settle before grace period expires...');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sdkA as any).channelStateCache.delete(channelId);
+  await expect(sdkA!.settleChannel(channelId, TOKEN_ADDRESS)).rejects.toThrow(
+    'Challenge period not expired'
+  );
+  console.log('Correctly rejected — ChallengeNotExpiredError');
+
+  // Step 3.3: B claims during grace period (half of remaining deposit)
+  const gracePeriodClaimDelta = remainingDeposit / 2n;
+  const gracePeriodCumulativeTransferred = claimAmount + gracePeriodClaimDelta;
+  const sigA2 = await sdkA!.signBalanceProof(channelId, 2, gracePeriodCumulativeTransferred);
+  const claim2: BalanceProof = {
+    channelId,
+    nonce: 2,
+    transferredAmount: gracePeriodCumulativeTransferred,
+    lockedAmount: 0n,
+    locksRoot: ZERO_HASH,
+  };
+
+  const walletBBeforeGraceClaim = await getTokenBalance(CONNECTOR_B_ADDRESS);
+  const channelContractBeforeGraceClaim = await getTokenBalance(tokenNetworkAddr);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sdkB as any).channelStateCache.delete(channelId);
+  await sdkB!.claimFromChannel(channelId, TOKEN_ADDRESS, claim2, sigA2);
+  console.log(`B claimed ${gracePeriodClaimDelta} during grace period`);
+
+  // Verify B's wallet increased by the delta
+  const walletBAfterGraceClaim = await getTokenBalance(CONNECTOR_B_ADDRESS);
+  console.log(
+    `Wallet B: ${walletBBeforeGraceClaim} → ${walletBAfterGraceClaim} ` +
+      `(+${walletBAfterGraceClaim - walletBBeforeGraceClaim})`
+  );
+  expect(walletBAfterGraceClaim - walletBBeforeGraceClaim).toBe(gracePeriodClaimDelta);
+
+  // Verify channel contract balance decreased
+  const channelContractAfterGraceClaim = await getTokenBalance(tokenNetworkAddr);
+  expect(channelContractAfterGraceClaim).toBeLessThan(channelContractBeforeGraceClaim);
+
+  console.log('Phase 3 complete — claims succeed during grace period, early settle rejected');
+
+  // ========================================================================
+  // PHASE 4: Post Grace Period
+  // ========================================================================
+  console.log('\n=== PHASE 4: Post Grace Period ===');
+
+  // Step 4.1: Fast-forward past grace period using Anvil time manipulation
+  // Contract enforces MIN_SETTLEMENT_TIMEOUT = 1 hour. We advance EVM block time
+  // via evm_increaseTime (for contract's block.timestamp check) and mock Date.now()
+  // (for SDK's client-side check) — no need to wait 1 hour of real wall-clock time.
+  const settlementTimeout = channelStateAfterClose.settlementTimeout;
+  const advanceSeconds = settlementTimeout + 1;
+  console.log(
+    `Advancing EVM time by ${advanceSeconds}s (settlementTimeout=${settlementTimeout}s)...`
+  );
+
+  // Advance EVM block time so contract's block.timestamp check passes
+  await advanceAnvilTime(advanceSeconds);
+
+  // Mock Date.now() so SDK's client-side grace period check passes.
+  // The SDK compares Date.now()/1000 against closedAt + settlementTimeout.
+  // Without mocking, real wall clock is only seconds past close, not 1 hour.
+  // Uses module-level originalDateNow to avoid infinite recursion if a prior
+  // test leaked a Date.now spy (e.g. due to an error before restoreAllMocks).
+  const timeAdvanceMs = advanceSeconds * 1000;
+  jest.spyOn(Date, 'now').mockImplementation(() => originalDateNow() + timeAdvanceMs);
+
+  // Clear caches so SDKs read fresh on-chain state
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sdkA as any).channelStateCache.delete(channelId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sdkB as any).channelStateCache.delete(channelId);
+
+  // Step 4.2: B claims after grace period but before A settles → should succeed
+  // (Grace period is a MINIMUM before the depositor can settle, not a claim deadline.
+  //  claimFromChannel only checks channel status, not time.)
+  const postGraceClaimDelta = remainingDeposit / 4n;
+  const postGraceCumulativeTransferred = gracePeriodCumulativeTransferred + postGraceClaimDelta;
+  const sigA3 = await sdkA!.signBalanceProof(channelId, 3, postGraceCumulativeTransferred);
+  const claim3: BalanceProof = {
+    channelId,
+    nonce: 3,
+    transferredAmount: postGraceCumulativeTransferred,
+    lockedAmount: 0n,
+    locksRoot: ZERO_HASH,
+  };
+
+  const walletBBeforePostGrace = await getTokenBalance(CONNECTOR_B_ADDRESS);
+  const channelContractBeforePostGrace = await getTokenBalance(tokenNetworkAddr);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sdkB as any).channelStateCache.delete(channelId);
+  await sdkB!.claimFromChannel(channelId, TOKEN_ADDRESS, claim3, sigA3);
+  console.log(`B claimed ${postGraceClaimDelta} after grace period (before A settles) — succeeded`);
+
+  const walletBAfterPostGrace = await getTokenBalance(CONNECTOR_B_ADDRESS);
+  expect(walletBAfterPostGrace - walletBBeforePostGrace).toBe(postGraceClaimDelta);
+
+  const channelContractAfterPostGrace = await getTokenBalance(tokenNetworkAddr);
+  expect(channelContractAfterPostGrace).toBeLessThan(channelContractBeforePostGrace);
+
+  // Step 4.3: A settles channel — remaining funds returned to A
+  const walletABeforeSettle = await getTokenBalance(CONNECTOR_A_ADDRESS);
+  const channelContractBeforeSettle = await getTokenBalance(tokenNetworkAddr);
+  console.log(`Channel contract before settle: ${channelContractBeforeSettle}`);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sdkA as any).channelStateCache.delete(channelId);
+  await sdkA!.settleChannel(channelId, TOKEN_ADDRESS);
+  console.log('A settled channel — remaining funds returned');
+
+  // Restore real Date.now() after settle completes
+  jest.restoreAllMocks();
+
+  // Verify A's wallet increased (remaining deposit returned)
+  const walletAAfterSettle = await getTokenBalance(CONNECTOR_A_ADDRESS);
+  const returnedToA = walletAAfterSettle - walletABeforeSettle;
+  console.log(`Wallet A: ${walletABeforeSettle} → ${walletAAfterSettle} (+${returnedToA})`);
+  expect(walletAAfterSettle).toBeGreaterThan(walletABeforeSettle);
+
+  // Verify channel status is 'settled'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sdkA as any).channelStateCache.delete(channelId);
+  const channelStateAfterSettle = await sdkA!.getChannelState(channelId, TOKEN_ADDRESS);
+  expect(channelStateAfterSettle.status).toBe('settled');
+  console.log(`Channel status: ${channelStateAfterSettle.status}`);
+
+  // Step 4.4: B tries to claim on settled channel → fails
+  console.log('B tries to claim on settled channel...');
+  const sigA4 = await sdkA!.signBalanceProof(channelId, 4, postGraceCumulativeTransferred + 1n);
+  const claim4: BalanceProof = {
+    channelId,
+    nonce: 4,
+    transferredAmount: postGraceCumulativeTransferred + 1n,
+    lockedAmount: 0n,
+    locksRoot: ZERO_HASH,
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sdkB as any).channelStateCache.delete(channelId);
+  await expect(sdkB!.claimFromChannel(channelId, TOKEN_ADDRESS, claim4, sigA4)).rejects.toThrow(
+    /Cannot claim from channel in status: settled/
+  );
+  console.log('Correctly rejected — cannot claim from settled channel');
+
+  // ========================================================================
+  // Final Balance Reconciliation
+  // ========================================================================
+  console.log('\n=== Final Balance Reconciliation ===');
+
+  const walletAFinal = await getTokenBalance(CONNECTOR_A_ADDRESS);
+  const walletBFinal = await getTokenBalance(CONNECTOR_B_ADDRESS);
+
+  const totalSpentByA = walletAInitial - walletAFinal;
+  const totalReceivedByB = walletBFinal - walletBInitial;
+
+  console.log(`A spent: ${totalSpentByA} (initial: ${walletAInitial}, final: ${walletAFinal})`);
+  console.log(
+    `B received: ${totalReceivedByB} (initial: ${walletBInitial}, final: ${walletBFinal})`
+  );
+
+  // A's total token spend must equal B's total token received (no value lost)
+  expect(totalSpentByA).toBe(totalReceivedByB);
+
+  // Verify the breakdown: B received claimAmount + gracePeriodClaimDelta + postGraceClaimDelta
+  const expectedBReceived = claimAmount + gracePeriodClaimDelta + postGraceClaimDelta;
+  expect(totalReceivedByB).toBe(expectedBReceived);
+
+  // Verify settlement state is IDLE
   const finalState = settlementMonitorA.getSettlementState('settlement-b', tokenId);
   expect(finalState).toBe(SettlementState.IDLE);
 
   console.log(
-    'Settlement test passed — all balances verified, channel remains open for continued use'
+    '\n=== ALL PHASES PASSED — Full settlement lifecycle verified ===\n' +
+      `  Phase 1: Per-packet claims with balance verification\n` +
+      `  Phase 2: Settlement trigger, channel creation, B claims\n` +
+      `  Phase 3: Channel close, early settle rejected, grace period claims\n` +
+      `  Phase 4: Post-grace claims, A settles, settled channel claim rejected\n` +
+      `  Final:   A_spent(${totalSpentByA}) === B_received(${totalReceivedByB}) ✓`
   );
 }
 
@@ -945,6 +1229,7 @@ async function runSettlementTest(env: SettlementTestEnv): Promise<void> {
 
 describeInProcess('Settlement Integration E2E - In-Process (In-Memory Ledger)', () => {
   let env: SettlementTestEnv;
+  let anvilSnapshotId: string;
 
   beforeAll(async () => {
     console.log('Setting up Settlement Integration E2E (In-Memory Ledger) - 2-node topology...');
@@ -970,19 +1255,32 @@ describeInProcess('Settlement Integration E2E - In-Process (In-Memory Ledger)', 
       );
     }
 
+    // Snapshot Anvil state so we can revert after this suite
+    // (prevents nonce/balance/time pollution across suites or re-runs)
+    anvilSnapshotId = await takeAnvilSnapshot();
+
     env = await startSettlementTopology(0);
     console.log('2-node settlement topology started (In-Memory Ledger)');
+  });
+
+  afterEach(() => {
+    // Always restore mocks (especially Date.now) to prevent leaking into next suite
+    jest.restoreAllMocks();
   });
 
   afterAll(async () => {
     console.log('Cleaning up settlement test connectors (In-Memory)...');
     await stopSettlementTopology(env);
+    // Revert Anvil state to pre-test snapshot
+    if (anvilSnapshotId) {
+      await revertAnvilSnapshot(anvilSnapshotId);
+    }
     delete process.env.SETTLEMENT_ENABLED;
     delete process.env.BTP_PEER_CONNECTOR_A_SECRET;
     delete process.env.BTP_PEER_CONNECTOR_B_SECRET;
   });
 
-  it('should trigger settlement when cumulative packet balances exceed threshold', async () => {
+  it('should complete full settlement lifecycle: per-packet claims, settlement trigger, grace period, and channel close', async () => {
     await runSettlementTest(env);
   });
 });
@@ -994,6 +1292,7 @@ describeInProcess('Settlement Integration E2E - In-Process (In-Memory Ledger)', 
 describeInProcess('Settlement Integration E2E - In-Process (TigerBeetle)', () => {
   let env: SettlementTestEnv;
   let tigerBeetleAvailable = false;
+  let anvilSnapshotId: string;
 
   beforeAll(async () => {
     // Check if TigerBeetle is reachable before setting up
@@ -1031,15 +1330,25 @@ describeInProcess('Settlement Integration E2E - In-Process (TigerBeetle)', () =>
       );
     }
 
+    // Snapshot Anvil state so we can revert after this suite
+    anvilSnapshotId = await takeAnvilSnapshot();
+
     // Use different port offset to avoid conflicts with in-memory suite
     env = await startSettlementTopology(100);
     console.log('2-node settlement topology started (TigerBeetle)');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   afterAll(async () => {
     if (tigerBeetleAvailable) {
       console.log('Cleaning up settlement test connectors (TigerBeetle)...');
       await stopSettlementTopology(env);
+      if (anvilSnapshotId) {
+        await revertAnvilSnapshot(anvilSnapshotId);
+      }
       delete process.env.SETTLEMENT_ENABLED;
       delete process.env.TIGERBEETLE_CLUSTER_ID;
       delete process.env.TIGERBEETLE_REPLICAS;
@@ -1048,7 +1357,7 @@ describeInProcess('Settlement Integration E2E - In-Process (TigerBeetle)', () =>
     }
   });
 
-  it('should trigger settlement when cumulative packet balances exceed threshold', async () => {
+  it('should complete full settlement lifecycle: per-packet claims, settlement trigger, grace period, and channel close', async () => {
     if (!tigerBeetleAvailable) {
       console.log('Skipping: TigerBeetle not available');
       return;

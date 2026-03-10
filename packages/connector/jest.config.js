@@ -18,7 +18,6 @@ module.exports = {
     'tigerbeetle-5peer-deployment\.test\.ts$',
     'test/acceptance/', // Acceptance tests (run separately)
     'test/unit/performance/', // Unit performance tests (timing-sensitive)
-    'evm-payment-channel\.test\.ts$', // Requires live Anvil + Docker infrastructure
   ],
   testTimeout: 30000, // 30 second default timeout for integration tests
   collectCoverageFrom: [
