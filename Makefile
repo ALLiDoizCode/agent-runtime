@@ -1,7 +1,7 @@
 # Development workflow commands for M2M project
 # Run 'make help' to see all available commands
 
-.PHONY: help dev-up dev-up-dashboard dev-up-all dev-down dev-reset dev-logs dev-logs-connector-alice dev-logs-connector-bob dev-test dev-clean dev-status
+.PHONY: help dev-up dev-up-all dev-down dev-reset dev-logs dev-logs-connector-alice dev-logs-connector-bob dev-test dev-clean dev-status
 
 # Default target - show help
 help:
@@ -10,7 +10,6 @@ help:
 	@echo ""
 	@echo "Starting Services:"
 	@echo "  make dev-up               Start all development services (Anvil, TigerBeetle, connectors)"
-	@echo "  make dev-up-dashboard     Start all services including optional dashboard"
 	@echo "  make dev-up-all           Start all services with all optional profiles"
 	@echo ""
 	@echo "Stopping Services:"
@@ -31,7 +30,6 @@ help:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make dev-up                           # Start core development environment"
-	@echo "  make dev-up-dashboard                 # Start with dashboard for network visualization"
 	@echo "  make dev-logs                         # Watch logs from all services"
 	@echo "  make dev-reset                        # Reset to clean state (fresh blockchain data)"
 	@echo "  make dev-down                         # Stop all services when done"
@@ -42,17 +40,11 @@ dev-up:
 	docker-compose -f docker-compose-dev.yml up -d
 	@echo "Development environment started. Run 'make dev-logs' to view logs."
 
-# Start all services including optional dashboard
-dev-up-dashboard:
-	@echo "Starting development environment with dashboard..."
-	docker-compose -f docker-compose-dev.yml --profile dashboard up -d
-	@echo "Development environment started with dashboard at http://localhost:8080"
-
 # Start all services with all optional profiles
 dev-up-all:
 	@echo "Starting development environment with all optional services..."
-	docker-compose -f docker-compose-dev.yml --profile dashboard up -d
-	@echo "Development environment started with dashboard at http://localhost:8080"
+	docker-compose -f docker-compose-dev.yml up -d
+	@echo "Development environment started"
 
 # Stop all development services (preserves volumes)
 dev-down:

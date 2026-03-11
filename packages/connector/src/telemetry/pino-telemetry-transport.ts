@@ -2,7 +2,7 @@
  * Pino Transport for LOG Telemetry Emission
  * @packageDocumentation
  * @remarks
- * Custom Pino transport that sends log entries to dashboard via telemetry.
+ * Custom Pino transport that sends log entries via telemetry.
  * Implements non-blocking emission to prevent logging failures from breaking connector.
  */
 
@@ -17,7 +17,7 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 /**
  * LogEntry structure for telemetry emission
  * @remarks
- * Matches the LogEntry interface from packages/dashboard/src/types/log.ts
+ * LogEntry structure for telemetry emission
  */
 interface LogEntry {
   level: LogLevel;
