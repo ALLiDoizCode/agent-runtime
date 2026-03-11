@@ -1,16 +1,20 @@
 /**
- * Integration Tests for ClaimRedemptionService
+ * Database-Layer Integration Tests for ClaimRedemptionService
  *
- * Tests claim redemption service with real SQLite database and mocked blockchain SDKs.
- * This integration test validates the complete claim processing flow including:
+ * Tests the service's integration with its persistence layer (real SQLite).
+ * All blockchain SDKs (PaymentChannelSDK, ethers Provider) are mocked —
+ * this does NOT test actual on-chain claim redemption.
+ *
+ * Validates:
  * - Database schema initialization and queries
- * - Polling cycle execution
- * - Claim processing pipeline
- * - Database state updates
+ * - Polling cycle execution and state transitions
+ * - Claim eligibility filtering and profitability checks
+ * - Concurrent processing limits and retry logic
  * - Telemetry emission
  *
- * Uses mocked blockchain SDKs to avoid testnet dependencies while testing
- * the full service integration with real database operations.
+ * For full E2E tests with real blockchain interaction, see:
+ * - test/integration/per-packet-claims-e2e.test.ts
+ * - test/integration/embedded-evm-settlement.test.ts
  *
  * @see Story 17.5: Automatic Claim Redemption
  * @see Story 17.8: Claim Redemption Integration Testing
