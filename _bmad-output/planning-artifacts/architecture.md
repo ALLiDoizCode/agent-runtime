@@ -132,7 +132,6 @@ connector/
 │   ├── connector/          # Core connector (main package)
 │   ├── shared/             # ILP types, OER encoding, telemetry types
 │   ├── contracts/          # Solidity smart contracts (Foundry)
-│   ├── faucet/             # Token faucet utility
 │   └── dashboard/          # Legacy dashboard (deprecated)
 ├── tools/
 │   ├── send-packet/        # CLI tool for sending test packets
@@ -152,7 +151,6 @@ connector/
 | `@crosstown/connector`     | `packages/connector` | Core ILP connector with BTP, routing, settlement, Explorer UI                                 |
 | `@crosstown/shared` v1.2.0 | `packages/shared`    | ILP packet types, OER encoding/decoding, telemetry event types, routing types                 |
 | `contracts`                | `packages/contracts` | Solidity contracts: `TokenNetwork.sol`, `TokenNetworkRegistry.sol` (Foundry, Solidity 0.8.26) |
-| `@m2m-connector/faucet`    | `packages/faucet`    | ERC-20 token faucet for local EVM testing                                                     |
 | `dashboard` (legacy)       | `packages/dashboard` | Build artifact only (`dist/`); superseded by Explorer UI                                      |
 
 ### Tools
