@@ -20,7 +20,6 @@
  * **Integration Points:**
  * - AccountManager (Story 6.3): Balance queries
  * - SettlementAPI (Story 6.7): Listens for SETTLEMENT_REQUIRED events
- * - TelemetryEmitter (Optional): Dashboard visualization
  *
  * @packageDocumentation
  */
@@ -30,7 +29,6 @@ import type { Logger } from 'pino';
 import type { AccountManager } from './account-manager';
 import type { SettlementThresholdConfig, SettlementTriggerEvent } from '../config/types';
 import { SettlementState } from '../config/types';
-import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 
 /**
  * Settlement Monitor Configuration
@@ -40,8 +38,6 @@ import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
  * @property thresholds - Settlement threshold configuration
  * @property peers - List of peer IDs to monitor
  * @property tokenIds - List of token IDs to monitor (default: ['M2M'] for MVP)
- * @property telemetryEmitter - Optional telemetry emitter for dashboard visualization
- * @property nodeId - Connector node ID for telemetry event identification
  */
 export interface SettlementMonitorConfig {
   /**
@@ -64,20 +60,6 @@ export interface SettlementMonitorConfig {
    * Future: ['M2M', 'USDC', 'BTC', 'ETH'] for multi-token support
    */
   tokenIds: string[];
-
-  /**
-   * Optional telemetry emitter for dashboard visualization
-   * When provided, emits SETTLEMENT_TRIGGERED events to dashboard
-   * Story 6.8 integration point - not required for Story 6.6
-   */
-  telemetryEmitter?: TelemetryEmitter;
-
-  /**
-   * Connector node ID (e.g., "connector-a")
-   * Required for telemetry event nodeId field (Story 6.8)
-   * Used to identify which connector emitted the telemetry event
-   */
-  nodeId?: string;
 }
 
 /**
@@ -298,9 +280,6 @@ export class SettlementMonitor extends EventEmitter {
               // Emit event
               this.emit('SETTLEMENT_REQUIRED', event);
 
-              // Emit telemetry event if telemetry emitter configured
-              this._emitTelemetry(event);
-
               // Update state to SETTLEMENT_PENDING
               this._settlementStates.set(stateKey, SettlementState.SETTLEMENT_PENDING);
 
@@ -361,7 +340,6 @@ export class SettlementMonitor extends EventEmitter {
               };
 
               this.emit('SETTLEMENT_REQUIRED', event);
-              this._emitTelemetry(event);
               this._settlementStates.set(stateKey, SettlementState.SETTLEMENT_PENDING);
 
               this._logger.info(
@@ -384,51 +362,6 @@ export class SettlementMonitor extends EventEmitter {
           error: error instanceof Error ? error.message : String(error),
         },
         'Settlement threshold check failed'
-      );
-    }
-  }
-
-  /**
-   * Emit telemetry event for settlement threshold crossing
-   *
-   * Sends SETTLEMENT_TRIGGERED event to dashboard via telemetry emitter.
-   * Non-blocking: Errors are caught and logged to prevent threshold detection failures.
-   *
-   * @param event - Settlement trigger event
-   * @private
-   */
-  private _emitTelemetry(event: SettlementTriggerEvent): void {
-    if (!this._config.telemetryEmitter) {
-      return;
-    }
-
-    try {
-      // Emit using shared telemetry event format (Story 6.8)
-      this._config.telemetryEmitter.emit({
-        type: 'SETTLEMENT_TRIGGERED',
-        nodeId: this._config.nodeId ?? 'unknown',
-        peerId: event.peerId,
-        tokenId: event.tokenId,
-        currentBalance: event.currentBalance.toString(),
-        threshold: event.threshold.toString(),
-        exceedsBy: event.exceedsBy.toString(),
-        triggerReason: 'THRESHOLD_EXCEEDED',
-        timestamp: event.timestamp.toISOString(),
-      });
-
-      this._logger.debug(
-        { peerId: event.peerId, tokenId: event.tokenId },
-        'Settlement trigger telemetry sent to dashboard'
-      );
-    } catch (error) {
-      // Telemetry emission is non-blocking per coding standards
-      this._logger.error(
-        {
-          error: error instanceof Error ? error.message : String(error),
-          peerId: event.peerId,
-          tokenId: event.tokenId,
-        },
-        'Failed to emit settlement telemetry'
       );
     }
   }
@@ -482,7 +415,7 @@ export class SettlementMonitor extends EventEmitter {
   /**
    * Get all settlement states
    *
-   * Returns a copy of the internal state map for telemetry/debugging.
+   * Returns a copy of the internal state map for debugging.
    *
    * @returns Map of state keys to settlement states
    */

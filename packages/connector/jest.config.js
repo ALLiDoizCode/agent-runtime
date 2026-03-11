@@ -10,9 +10,6 @@ module.exports = {
   // Ignore acceptance tests (run separately)
   testPathIgnorePatterns: [
     '/node_modules/',
-    'aws-kms-backend\.test\.ts$',
-    'azure-kv-backend\.test\.ts$',
-    'gcp-kms-backend\.test\.ts$',
     'wallet-disaster-recovery\.test\.ts$',
     'agent-wallet-integration\.doc\.test\.ts$',
     'tigerbeetle-5peer-deployment\.test\.ts$',

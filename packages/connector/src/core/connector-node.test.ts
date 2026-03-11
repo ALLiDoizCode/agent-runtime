@@ -198,8 +198,7 @@ describe('ConnectorNode', () => {
         mockRoutingTable,
         mockBTPClientManager,
         config.nodeId,
-        expect.anything(), // child logger
-        null // telemetryEmitter (null when DASHBOARD_TELEMETRY_URL not set)
+        expect.anything() // child logger
       );
     });
 

@@ -676,7 +676,8 @@ export class PaymentChannelSDK {
     if (this.channelStateCache.has(channelId)) {
       const cached = this.channelStateCache.get(channelId)!;
       cached.status = 'closed';
-      cached.closedAt = Date.now() / 1000;
+      const block = await this.provider.getBlock(receipt.blockNumber);
+      cached.closedAt = block!.timestamp;
       this.channelStateCache.set(channelId, cached);
     }
 
@@ -761,7 +762,8 @@ export class PaymentChannelSDK {
       throw new Error('Channel closedAt timestamp is missing');
     }
 
-    const now = Date.now() / 1000;
+    const latestBlock = await this.provider.getBlock('latest');
+    const now = latestBlock!.timestamp;
     const expiresAt = state.closedAt + state.settlementTimeout;
 
     if (now < expiresAt) {

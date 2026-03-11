@@ -2,12 +2,6 @@ import { EventEmitter } from 'events';
 import type { Logger } from 'pino';
 import { PaymentChannelSDK } from './payment-channel-sdk';
 import { SettlementExecutor } from './settlement-executor';
-import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
-import type {
-  PaymentChannelOpenedEvent,
-  PaymentChannelBalanceUpdateEvent,
-  PaymentChannelSettledEvent,
-} from '@crosstown/shared';
 import type { AdminChannelStatus } from './types';
 
 /**
@@ -63,7 +57,6 @@ export class ChannelManager extends EventEmitter {
   private readonly paymentChannelSDK: PaymentChannelSDK;
   private readonly settlementExecutor: SettlementExecutor;
   private readonly logger: Logger;
-  private readonly telemetryEmitter?: TelemetryEmitter;
   private readonly channelMetadata: Map<string, ChannelMetadata>; // channelId → metadata
   private readonly peerChannelIndex: Map<string, Map<string, string>>; // peerId → (tokenId → channelId)
   private idleCheckTimer?: NodeJS.Timeout;
@@ -72,14 +65,12 @@ export class ChannelManager extends EventEmitter {
     config: ChannelManagerConfig,
     paymentChannelSDK: PaymentChannelSDK,
     settlementExecutor: SettlementExecutor,
-    logger: Logger,
-    telemetryEmitter?: TelemetryEmitter
+    logger: Logger
   ) {
     super();
     this.config = config;
     this.paymentChannelSDK = paymentChannelSDK;
     this.settlementExecutor = settlementExecutor;
-    this.telemetryEmitter = telemetryEmitter;
     this.channelMetadata = new Map<string, ChannelMetadata>();
     this.peerChannelIndex = new Map<string, Map<string, string>>();
     this.idleCheckTimer = undefined;
@@ -225,25 +216,6 @@ export class ChannelManager extends EventEmitter {
       'External channel registered'
     );
 
-    // Emit telemetry for externally-discovered channel
-    try {
-      if (this.telemetryEmitter) {
-        this.telemetryEmitter.emit({
-          type: 'EXTERNAL_CHANNEL_REGISTERED',
-          nodeId: this.config.nodeId,
-          channelId: params.channelId,
-          peerId: params.peerId,
-          chainId: params.chainId,
-          tokenNetworkAddress: params.tokenNetworkAddress,
-          tokenAddress: params.tokenAddress,
-          timestamp: new Date().toISOString(),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any);
-      }
-    } catch (error) {
-      this.logger.error({ error }, 'Failed to emit EXTERNAL_CHANNEL_REGISTERED telemetry');
-    }
-
     return metadata;
   }
 
@@ -265,9 +237,6 @@ export class ChannelManager extends EventEmitter {
     }
     metadata.lastActivityAt = new Date();
     this.logger.debug({ channelId }, 'Channel activity marked');
-
-    // Emit balance update telemetry
-    await this.emitChannelBalanceUpdateTelemetry(channelId);
   }
 
   /**
@@ -315,11 +284,6 @@ export class ChannelManager extends EventEmitter {
 
     this.logger.info('Channel opened with transaction', { channelId, txHash });
 
-    // Get my address from SDK
-    const channelState = await this.paymentChannelSDK.getChannelState(channelId, tokenAddress);
-    const myAddress = channelState.participants[0];
-    const participants: [string, string] = [myAddress, peerAddress];
-
     // Create metadata
     const metadata: ChannelMetadata = {
       channelId,
@@ -340,28 +304,6 @@ export class ChannelManager extends EventEmitter {
       this.peerChannelIndex.set(peerId, new Map<string, string>());
     }
     this.peerChannelIndex.get(peerId)!.set(tokenId, channelId);
-
-    // Emit telemetry
-    this.emitChannelOpenedTelemetry(
-      channelId,
-      participants,
-      peerId,
-      tokenAddress,
-      this.getTokenSymbol(tokenId),
-      settlementTimeout,
-      {
-        [myAddress]: initialDeposit.toString(),
-        [peerAddress]: '0',
-      }
-    );
-
-    // Keep legacy telemetry for backward compatibility
-    this.emitChannelTelemetry('CHANNEL_OPENED', channelId, {
-      peerId,
-      tokenId,
-      tokenAddress,
-      initialDeposit: initialDeposit.toString(),
-    });
 
     this.logger.info(
       { channelId, peerId, tokenId, initialDeposit: initialDeposit.toString() },
@@ -391,13 +333,6 @@ export class ChannelManager extends EventEmitter {
         { channelId: metadata.channelId, peerId: metadata.peerId },
         'Idle channel detected'
       );
-
-      // Emit telemetry
-      this.emitChannelTelemetry('CHANNEL_IDLE_DETECTED', metadata.channelId, {
-        peerId: metadata.peerId,
-        tokenId: metadata.tokenId,
-        lastActivityAt: metadata.lastActivityAt.toISOString(),
-      });
 
       // Close channel
       await this.closeIdleChannel(metadata.channelId);
@@ -430,11 +365,6 @@ export class ChannelManager extends EventEmitter {
     try {
       // Close channel — starts grace period for claims
       await this.paymentChannelSDK.closeChannel(channelId, metadata.tokenAddress);
-
-      this.emitChannelTelemetry('CHANNEL_CLOSED', channelId, {
-        peerId: metadata.peerId,
-        tokenId: metadata.tokenId,
-      });
 
       // Schedule settle after grace period
       this.scheduleChallengeSettle(channelId, this.config.defaultSettlementTimeout);
@@ -489,175 +419,9 @@ export class ChannelManager extends EventEmitter {
       await this.paymentChannelSDK.settleChannel(channelId, metadata.tokenAddress);
       metadata.status = 'closed';
 
-      // Emit new-style telemetry (Story 8.10)
-      await this.emitChannelSettledTelemetry(channelId, 'unilateral');
-
-      // Emit legacy telemetry for backward compatibility
-      this.emitChannelTelemetry('CHANNEL_CLOSED', channelId, {
-        peerId: metadata.peerId,
-        tokenId: metadata.tokenId,
-        closureType: 'unilateral',
-      });
-
       this.logger.info({ channelId }, 'Channel settled after challenge period');
     } catch (error) {
       this.logger.error({ channelId, error }, 'Failed to settle channel after challenge period');
-    }
-  }
-
-  /**
-   * Get token symbol from tokenId
-   * @private
-   */
-  private getTokenSymbol(tokenId: string): string {
-    // For now, use tokenId as symbol
-    // In the future, this could map to human-readable symbols (e.g., "USDC", "DAI")
-    return tokenId;
-  }
-
-  /**
-   * Emit PAYMENT_CHANNEL_OPENED telemetry event
-   * @private
-   */
-  private emitChannelOpenedTelemetry(
-    channelId: string,
-    participants: [string, string],
-    peerId: string,
-    tokenAddress: string,
-    tokenSymbol: string,
-    settlementTimeout: number,
-    initialDeposits: { [participant: string]: string }
-  ): void {
-    if (!this.telemetryEmitter) {
-      return;
-    }
-
-    try {
-      const event: PaymentChannelOpenedEvent = {
-        type: 'PAYMENT_CHANNEL_OPENED',
-        timestamp: new Date().toISOString(),
-        nodeId: this.config.nodeId,
-        channelId,
-        participants,
-        peerId,
-        tokenAddress,
-        tokenSymbol,
-        settlementTimeout,
-        initialDeposits,
-      };
-      this.telemetryEmitter.emit(event);
-    } catch (error) {
-      this.logger.error({ error }, 'Failed to emit PAYMENT_CHANNEL_OPENED telemetry');
-    }
-  }
-
-  /**
-   * Emit PAYMENT_CHANNEL_BALANCE_UPDATE telemetry event
-   * @private
-   */
-  private async emitChannelBalanceUpdateTelemetry(channelId: string): Promise<void> {
-    if (!this.telemetryEmitter) {
-      return;
-    }
-
-    try {
-      // Get channel state from SDK
-      const metadata = this.channelMetadata.get(channelId);
-      if (!metadata) {
-        this.logger.warn({ channelId }, 'Cannot emit balance update: channel metadata not found');
-        return;
-      }
-
-      const channelState = await this.paymentChannelSDK.getChannelState(
-        channelId,
-        metadata.tokenAddress
-      );
-
-      const event: PaymentChannelBalanceUpdateEvent = {
-        type: 'PAYMENT_CHANNEL_BALANCE_UPDATE',
-        timestamp: new Date().toISOString(),
-        nodeId: this.config.nodeId,
-        channelId,
-        myNonce: channelState.myNonce,
-        theirNonce: channelState.theirNonce,
-        myTransferred: channelState.myTransferred.toString(),
-        theirTransferred: channelState.theirTransferred.toString(),
-      };
-      this.telemetryEmitter.emit(event);
-    } catch (error) {
-      this.logger.error({ error }, 'Failed to emit PAYMENT_CHANNEL_BALANCE_UPDATE telemetry');
-    }
-  }
-
-  /**
-   * Emit PAYMENT_CHANNEL_SETTLED telemetry event
-   * @private
-   */
-  private async emitChannelSettledTelemetry(
-    channelId: string,
-    settlementType: 'cooperative' | 'unilateral' | 'disputed'
-  ): Promise<void> {
-    if (!this.telemetryEmitter) {
-      return;
-    }
-
-    try {
-      const metadata = this.channelMetadata.get(channelId);
-      if (!metadata) {
-        this.logger.warn({ channelId }, 'Cannot emit settled: channel metadata not found');
-        return;
-      }
-
-      const channelState = await this.paymentChannelSDK.getChannelState(
-        channelId,
-        metadata.tokenAddress
-      );
-
-      const event: PaymentChannelSettledEvent = {
-        type: 'PAYMENT_CHANNEL_SETTLED',
-        timestamp: new Date().toISOString(),
-        nodeId: this.config.nodeId,
-        channelId,
-        finalBalances: {
-          [channelState.participants[0]]: channelState.myDeposit.toString(),
-          [channelState.participants[1]]: channelState.theirDeposit.toString(),
-        },
-        settlementType,
-      };
-      this.telemetryEmitter.emit(event);
-    } catch (error) {
-      this.logger.error({ error }, 'Failed to emit PAYMENT_CHANNEL_SETTLED telemetry');
-    }
-  }
-
-  /**
-   * Emit legacy telemetry event (for backward compatibility)
-   * @deprecated Use specific telemetry methods instead
-   * @private
-   */
-  private emitChannelTelemetry(
-    eventType: 'CHANNEL_OPENED' | 'CHANNEL_CLOSED' | 'CHANNEL_IDLE_DETECTED',
-    channelId: string,
-    details: Record<string, unknown>
-  ): void {
-    if (!this.telemetryEmitter) {
-      return;
-    }
-
-    try {
-      // Use type assertion since channel events aren't in TelemetryEvent union yet
-      // This will be added in future telemetry type definitions
-      const telemetryEvent = {
-        type: eventType,
-        nodeId: this.config.nodeId,
-        channelId,
-        ...details,
-        timestamp: new Date().toISOString(),
-      };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      this.telemetryEmitter.emit(telemetryEvent as any);
-    } catch (error) {
-      this.logger.error({ error }, 'Failed to emit channel telemetry');
     }
   }
 }

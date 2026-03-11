@@ -10,7 +10,6 @@
  * - Only redeems claims where profit exceeds a configurable threshold
  * - Submits EVM balance proofs via PaymentChannelSDK.claimFromChannel()
  * - Updates database with redemption timestamp and transaction identifier
- * - Emits CLAIM_REDEEMED telemetry events
  * - Implements exponential backoff retry (3 attempts: 1s, 2s, 4s delays)
  *
  * References:
@@ -31,9 +30,7 @@
  *     maxConcurrentRedemptions: 5,
  *     evmTokenAddress: '0x1234...'
  *   },
- *   logger,
- *   telemetryEmitter,
- *   'node-alice'
+ *   logger
  * );
  *
  * service.start();
@@ -48,7 +45,6 @@ import type { Database } from 'better-sqlite3';
 import type { Logger } from 'pino';
 import type { ethers } from 'ethers';
 import type { PaymentChannelSDK } from './payment-channel-sdk';
-import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import type { BTPClaimMessage, EVMClaimMessage, BlockchainType } from '../btp/btp-claim-types';
 import type { BalanceProof } from '@crosstown/shared';
 
@@ -138,9 +134,7 @@ export class ClaimRedemptionService {
     private readonly evmChannelSDK: PaymentChannelSDK,
     private readonly evmProvider: ethers.Provider,
     private readonly config: RedemptionConfig,
-    private readonly logger: Logger,
-    private readonly telemetryEmitter?: TelemetryEmitter,
-    private readonly nodeId?: string
+    private readonly logger: Logger
   ) {}
 
   /**
@@ -244,10 +238,7 @@ export class ClaimRedemptionService {
             }
 
             // Redeem the claim
-            const result = await this._redeemClaim(claim);
-
-            // Emit telemetry
-            this._emitRedemptionTelemetry(claim, result, gasCost);
+            await this._redeemClaim(claim);
           } catch (error) {
             this.logger.error(
               { error, messageId: row.message_id },
@@ -417,16 +408,6 @@ export class ClaimRedemptionService {
   }
 
   /**
-   * Get channel ID from EVM claim message
-   *
-   * @param claim - Claim message
-   * @returns Channel ID
-   */
-  private _getChannelId(claim: BTPClaimMessage): string {
-    return claim.channelId;
-  }
-
-  /**
    * Update database with redemption status
    *
    * @param messageId - Message ID of the claim
@@ -440,43 +421,6 @@ export class ClaimRedemptionService {
     `);
 
     stmt.run(Date.now(), txHash, messageId);
-  }
-
-  /**
-   * Emit telemetry event for claim redemption
-   *
-   * @param claim - Claim message
-   * @param result - Redemption result
-   * @param gasCost - Gas cost for redemption (optional)
-   */
-  private _emitRedemptionTelemetry(
-    claim: BTPClaimMessage,
-    result: ClaimRedemptionResult,
-    gasCost?: bigint
-  ): void {
-    if (!this.telemetryEmitter) {
-      return;
-    }
-
-    try {
-      this.telemetryEmitter.emit({
-        type: 'CLAIM_REDEEMED',
-        nodeId: this.nodeId ?? 'unknown',
-        peerId: claim.senderId,
-        blockchain: claim.blockchain as 'evm',
-        messageId: claim.messageId,
-        channelId: this._getChannelId(claim),
-        amount: this._getClaimAmount(claim).toString(),
-        txHash: result.txHash ?? '',
-        gasCost: gasCost?.toString() ?? '0',
-        success: result.success,
-        error: result.error,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      // Non-blocking telemetry emission
-      this.logger.error({ error }, 'Error emitting CLAIM_REDEEMED telemetry');
-    }
   }
 
   /**

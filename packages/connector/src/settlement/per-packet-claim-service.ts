@@ -216,9 +216,21 @@ export class PerPacketClaimService {
     peerId: string,
     tokenId: string
   ): Promise<ChannelClaimContext | null> {
-    const metadata = this.channelManager.getChannelForPeer(peerId, tokenId);
+    let metadata = this.channelManager.getChannelForPeer(peerId, tokenId);
     if (!metadata) {
-      return null;
+      // On-demand channel creation: peer may have connected after startup
+      try {
+        await this.channelManager.ensureChannelExists(peerId, tokenId);
+        metadata = this.channelManager.getChannelForPeer(peerId, tokenId);
+      } catch (error) {
+        this.logger.warn(
+          { peerId, tokenId, error: error instanceof Error ? error.message : String(error) },
+          'On-demand channel creation failed'
+        );
+      }
+      if (!metadata) {
+        return null;
+      }
     }
 
     try {

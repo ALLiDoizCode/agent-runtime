@@ -33,7 +33,6 @@ import { requireOptional } from '../utils/optional-require';
 import type { AccountManager } from './account-manager';
 import type { SettlementMonitor } from './settlement-monitor';
 import { SettlementState, SettlementTriggerEvent } from '../config/types';
-import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 
 /**
  * Settlement API Configuration
@@ -44,8 +43,6 @@ import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
  * @property settlementMonitor - SettlementMonitor for state tracking
  * @property logger - Pino logger for structured logging
  * @property authToken - Optional bearer token for authentication (omit to disable auth)
- * @property telemetryEmitter - Optional telemetry emitter for dashboard visualization (Story 6.8)
- * @property nodeId - Connector node ID for telemetry event identification (Story 6.8)
  */
 export interface SettlementAPIConfig {
   /**
@@ -73,18 +70,6 @@ export interface SettlementAPIConfig {
    * Production deployments MUST configure SETTLEMENT_AUTH_TOKEN
    */
   authToken?: string;
-
-  /**
-   * Optional telemetry emitter for dashboard visualization (Story 6.8)
-   * When provided, emits SETTLEMENT_COMPLETED events after settlement execution
-   */
-  telemetryEmitter?: TelemetryEmitter;
-
-  /**
-   * Connector node ID (e.g., "connector-a")
-   * Required for telemetry event nodeId field (Story 6.8)
-   */
-  nodeId?: string;
 
   /**
    * Default token ID for settlement operations.
@@ -328,35 +313,6 @@ async function executeMockSettlement(
       'MOCK: Settlement logged to TigerBeetle, but no real blockchain transaction sent (Epic 7)'
     );
 
-    // Emit SETTLEMENT_COMPLETED telemetry (Story 6.8)
-    if (config.telemetryEmitter) {
-      try {
-        config.telemetryEmitter.emit({
-          type: 'SETTLEMENT_COMPLETED',
-          nodeId: config.nodeId ?? 'unknown',
-          peerId,
-          tokenId,
-          previousBalance: balanceBefore.creditBalance.toString(),
-          newBalance: balanceAfter.creditBalance.toString(),
-          settledAmount: settledAmount.toString(),
-          settlementType: 'MOCK',
-          success: true,
-          timestamp: new Date().toISOString(),
-        });
-        logger.debug({ peerId, tokenId }, 'Settlement completion telemetry emitted');
-      } catch (telemetryError) {
-        // Non-blocking: Log but don't throw
-        logger.warn(
-          {
-            error: telemetryError instanceof Error ? telemetryError.message : 'Unknown error',
-            peerId,
-            tokenId,
-          },
-          'Failed to emit settlement completion telemetry'
-        );
-      }
-    }
-
     return {
       success: true,
       peerId,
@@ -375,38 +331,6 @@ async function executeMockSettlement(
       },
       'Mock settlement execution failed'
     );
-
-    // Emit SETTLEMENT_COMPLETED telemetry with success=false (Story 6.8)
-    if (config.telemetryEmitter) {
-      try {
-        // Get balance to report in error case
-        const balanceAfterError = await config.accountManager.getAccountBalance(peerId, tokenId);
-        config.telemetryEmitter.emit({
-          type: 'SETTLEMENT_COMPLETED',
-          nodeId: config.nodeId ?? 'unknown',
-          peerId,
-          tokenId,
-          previousBalance: balanceAfterError.creditBalance.toString(),
-          newBalance: balanceAfterError.creditBalance.toString(),
-          settledAmount: '0',
-          settlementType: 'MOCK',
-          success: false,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString(),
-        });
-        logger.debug({ peerId, tokenId, success: false }, 'Settlement failure telemetry emitted');
-      } catch (telemetryError) {
-        // Non-blocking: Log but don't throw
-        logger.warn(
-          {
-            error: telemetryError instanceof Error ? telemetryError.message : 'Unknown error',
-            peerId,
-            tokenId,
-          },
-          'Failed to emit settlement failure telemetry'
-        );
-      }
-    }
 
     throw error;
   }

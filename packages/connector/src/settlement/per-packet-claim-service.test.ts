@@ -11,7 +11,6 @@ import type { PaymentChannelSDK } from './payment-channel-sdk';
 import type { ChannelManager } from './channel-manager';
 import type { Database } from 'better-sqlite3';
 import type { Logger } from 'pino';
-import type { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 
 // Mock logger
 const createMockLogger = (): Logger =>
@@ -339,32 +338,6 @@ describe('PerPacketClaimService', () => {
 
       await expect(service.generateClaimForPacket(TEST_PEER_ID, 'M2M', 200n)).rejects.toThrow(
         'Signing failed'
-      );
-    });
-  });
-
-  describe('telemetry', () => {
-    it('should emit telemetry when emitter is provided', async () => {
-      const mockTelemetry = { emit: jest.fn() };
-
-      const serviceWithTelemetry = new PerPacketClaimService(
-        mockSDK as unknown as PaymentChannelSDK,
-        mockChannelManager as unknown as ChannelManager,
-        mockDb as unknown as Database,
-        mockLogger,
-        TEST_NODE_ID,
-        mockTelemetry as unknown as TelemetryEmitter
-      );
-
-      await serviceWithTelemetry.generateClaimForPacket(TEST_PEER_ID, 'M2M', 1000n);
-
-      expect(mockTelemetry.emit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'CLAIM_SENT',
-          nodeId: TEST_NODE_ID,
-          peerId: TEST_PEER_ID,
-          success: true,
-        })
       );
     });
   });

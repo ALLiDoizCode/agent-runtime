@@ -148,8 +148,6 @@ export interface RouteConfig {
  * @property logLevel - Optional logging verbosity (default: 'info')
  * @property peers - List of peer connectors to connect to
  * @property routes - Initial routing table entries
- * @property dashboardTelemetryUrl - Optional WebSocket URL for telemetry
- *
  * @example
  * ```typescript
  * const config: ConnectorConfig = {
@@ -169,7 +167,7 @@ export interface RouteConfig {
 export interface ConnectorConfig {
   /**
    * Unique identifier for this connector instance
-   * Used in logging, telemetry, and network identification
+   * Used in logging and network identification
    * Should be descriptive and unique across the network
    *
    * Examples: 'connector-a', 'hub-node', 'spoke-1'
@@ -223,15 +221,6 @@ export interface ConnectorConfig {
    * Route nextHop values must reference peer IDs from the peers list
    */
   routes: RouteConfig[];
-
-  /**
-   * Optional WebSocket URL for sending telemetry to dashboard
-   * Used for real-time monitoring and visualization
-   * Format: ws://hostname:port or wss://hostname:port
-   *
-   * Example: 'ws://dashboard.example.com:8080'
-   */
-  dashboardTelemetryUrl?: string;
 
   /**
    * Optional settlement configuration for TigerBeetle integration
@@ -322,34 +311,6 @@ export interface ConnectorConfig {
    * Supports backends: env (development), AWS KMS, GCP KMS, Azure Key Vault, HSM (PKCS#11)
    */
   security?: SecurityConfig;
-
-  /**
-   * Optional performance configuration for high-throughput optimization
-   * When provided, enables batching, buffering, and connection pooling for 10K+ TPS
-   * Defaults to performance optimizations disabled if not specified
-   *
-   * Epic 12 Story 12.5 (Performance Optimization for 10K+ TPS)
-   * Enables:
-   * - Packet processing parallelization with worker threads
-   * - TigerBeetle transfer batching
-   * - Telemetry event buffering
-   * - Connection pooling for blockchain RPC endpoints
-   */
-  performance?: PerformanceConfig;
-
-  /**
-   * Optional explorer UI configuration for embedded telemetry visualization
-   * When provided, enables the Packet/Event Explorer web interface
-   * Defaults to explorer enabled on port 3001 if not specified
-   *
-   * Epic 14 (Packet/Event Explorer UI)
-   * Environment variables:
-   * - EXPLORER_ENABLED: Enable/disable explorer (default: true)
-   * - EXPLORER_PORT: HTTP/WebSocket port (default: 3001)
-   * - EXPLORER_RETENTION_DAYS: Event retention in days (default: 7)
-   * - EXPLORER_MAX_EVENTS: Maximum events to retain (default: 1000000)
-   */
-  explorer?: ExplorerConfig;
 
   /**
    * Operating mode for the connector
@@ -1334,274 +1295,6 @@ export interface SecurityConfig {
     backend: 'env' | 'aws-kms' | 'gcp-kms' | 'azure-kv' | 'hsm';
     nodeId: string;
     [key: string]: unknown; // Allow additional backend-specific fields
-  };
-}
-
-/**
- * Performance Configuration Interface
- *
- * Configures performance optimization settings for high-throughput scenarios.
- * Enables batching, buffering, and connection pooling to achieve 10K+ TPS.
- *
- * Epic 12 Story 12.5 (Performance Optimization for 10K+ TPS)
- *
- * @property packetProcessing - Packet processing parallelization settings
- * @property tigerbeetle - TigerBeetle transfer batching settings
- * @property telemetry - Telemetry event buffering settings
- * @property connectionPools - Connection pool configurations for external services
- *
- * @example
- * ```typescript
- * const performance: PerformanceConfig = {
- *   packetProcessing: {
- *     workerThreads: 8,
- *     batchSize: 100
- *   },
- *   tigerbeetle: {
- *     batchSize: 100,
- *     flushIntervalMs: 10
- *   },
- *   telemetry: {
- *     bufferSize: 1000,
- *     flushIntervalMs: 100
- *   },
- *   connectionPools: {
- *     evm: {
- *       poolSize: 10,
- *       rpcUrls: ['https://mainnet.base.org', 'https://base.llamarpc.com']
- *     }
- *   }
- * };
- * ```
- */
-export interface PerformanceConfig {
-  /**
-   * Packet processing parallelization configuration
-   * Uses worker threads to parallelize packet processing across CPU cores
-   *
-   * @property workerThreads - Number of worker threads (default: CPU cores)
-   * @property batchSize - Packets per batch (default: 100)
-   */
-  packetProcessing?: {
-    workerThreads?: number;
-    batchSize?: number;
-  };
-
-  /**
-   * TigerBeetle transfer batching configuration
-   * Batches transfers to reduce TigerBeetle round-trips
-   *
-   * @property batchSize - Transfers per batch (default: 100)
-   * @property flushIntervalMs - Periodic flush interval (default: 10ms)
-   * @property maxPendingTransfers - Maximum queued transfers (default: 1000)
-   */
-  tigerbeetle?: {
-    batchSize?: number;
-    flushIntervalMs?: number;
-    maxPendingTransfers?: number;
-  };
-
-  /**
-   * Telemetry event buffering configuration
-   * Batches telemetry events to reduce logging overhead
-   *
-   * @property bufferSize - Events per batch (default: 1000)
-   * @property flushIntervalMs - Periodic flush interval (default: 100ms)
-   */
-  telemetry?: {
-    bufferSize?: number;
-    flushIntervalMs?: number;
-  };
-
-  /**
-   * Connection pool configurations for external services
-   * Pools connections to blockchain RPC endpoints
-   *
-   * @property evm - EVM RPC connection pool configuration
-   */
-  connectionPools?: {
-    /**
-     * EVM RPC connection pool (for Base L2, Ethereum, etc.)
-     * @property poolSize - Number of RPC connections (default: 10)
-     * @property rpcUrls - List of RPC endpoint URLs
-     */
-    evm?: {
-      poolSize?: number;
-      rpcUrls?: string[];
-    };
-  };
-}
-
-/**
- * Observability Configuration Interface
- *
- * Configures production monitoring, metrics, tracing, and SLA settings.
- * Added in Epic 12 Story 12.6 (Production Monitoring and Alerting).
- *
- * @property prometheus - Prometheus metrics exporter configuration
- * @property opentelemetry - OpenTelemetry distributed tracing configuration
- * @property sla - SLA monitoring thresholds
- *
- * @example
- * ```typescript
- * const observability: ObservabilityConfig = {
- *   prometheus: {
- *     enabled: true,
- *     metricsPath: '/metrics',
- *     includeDefaultMetrics: true,
- *     labels: { environment: 'production', nodeId: 'connector-1' }
- *   },
- *   opentelemetry: {
- *     enabled: true,
- *     serviceName: 'connector',
- *     exporterEndpoint: 'http://jaeger:4318/v1/traces',
- *     samplingRatio: 1.0
- *   },
- *   sla: {
- *     packetSuccessRateThreshold: 0.999,
- *     settlementSuccessRateThreshold: 0.99,
- *     p99LatencyThresholdMs: 10
- *   }
- * };
- * ```
- */
-/**
- * Explorer UI Configuration Interface
- *
- * Configures the embedded Packet/Event Explorer for telemetry visualization.
- * All settings can be overridden via environment variables.
- *
- * @property enabled - Enable/disable explorer (ENV: EXPLORER_ENABLED, default: true)
- * @property port - Explorer server port (ENV: EXPLORER_PORT, default: 3001)
- * @property retentionDays - Event retention in days (ENV: EXPLORER_RETENTION_DAYS, default: 7)
- * @property maxEvents - Maximum events to retain (ENV: EXPLORER_MAX_EVENTS, default: 1000000)
- *
- * @example
- * ```typescript
- * const explorer: ExplorerConfig = {
- *   enabled: true,
- *   port: 3001,
- *   retentionDays: 7,
- *   maxEvents: 1000000
- * };
- * ```
- */
-export interface ExplorerConfig {
-  /**
-   * Enable/disable explorer UI
-   * When false, explorer server is not started
-   * Environment variable: EXPLORER_ENABLED (default: 'true')
-   * Default: true
-   */
-  enabled?: boolean;
-
-  /**
-   * Port for explorer HTTP/WebSocket server
-   * Must not conflict with BTP server port (default: 3000) or health port (default: 8080)
-   * Environment variable: EXPLORER_PORT (default: '3001')
-   * Valid range: 1-65535
-   * Default: 3001
-   */
-  port?: number;
-
-  /**
-   * Maximum event age in days
-   * Events older than this are automatically pruned
-   * Environment variable: EXPLORER_RETENTION_DAYS (default: '7')
-   * Valid range: 1-365
-   * Default: 7
-   */
-  retentionDays?: number;
-
-  /**
-   * Maximum number of events to retain
-   * Oldest events are pruned when limit is exceeded
-   * Environment variable: EXPLORER_MAX_EVENTS (default: '1000000')
-   * Valid range: 1000-10000000
-   * Default: 1000000
-   */
-  maxEvents?: number;
-}
-
-/**
- * Observability Configuration Interface
- *
- * Configures production monitoring, metrics, tracing, and SLA settings.
- * Added in Epic 12 Story 12.6 (Production Monitoring and Alerting).
- *
- * @property prometheus - Prometheus metrics exporter configuration
- * @property opentelemetry - OpenTelemetry distributed tracing configuration
- * @property sla - SLA monitoring thresholds
- *
- * @example
- * ```typescript
- * const observability: ObservabilityConfig = {
- *   prometheus: {
- *     enabled: true,
- *     metricsPath: '/metrics',
- *     includeDefaultMetrics: true,
- *     labels: { environment: 'production', nodeId: 'connector-1' }
- *   },
- *   opentelemetry: {
- *     enabled: true,
- *     serviceName: 'connector',
- *     exporterEndpoint: 'http://jaeger:4318/v1/traces',
- *     samplingRatio: 1.0
- *   },
- *   sla: {
- *     packetSuccessRateThreshold: 0.999,
- *     settlementSuccessRateThreshold: 0.99,
- *     p99LatencyThresholdMs: 10
- *   }
- * };
- * ```
- */
-export interface ObservabilityConfig {
-  /**
-   * Prometheus metrics exporter configuration
-   * Enables Prometheus metrics collection and export via /metrics endpoint
-   *
-   * @property enabled - Whether Prometheus metrics are enabled (default: true)
-   * @property metricsPath - Path for metrics endpoint (default: '/metrics')
-   * @property includeDefaultMetrics - Include Node.js default metrics (default: true)
-   * @property labels - Global labels for all metrics (e.g., environment, nodeId)
-   */
-  prometheus?: {
-    enabled?: boolean;
-    metricsPath?: string;
-    includeDefaultMetrics?: boolean;
-    labels?: Record<string, string>;
-  };
-
-  /**
-   * OpenTelemetry distributed tracing configuration
-   * Enables distributed tracing across connector hops via OTLP
-   *
-   * @property enabled - Whether tracing is enabled (default: false)
-   * @property serviceName - Service name for traces (default: 'agent-runtime')
-   * @property exporterEndpoint - OTLP exporter endpoint (default: http://localhost:4318)
-   * @property samplingRatio - Trace sampling ratio 0.0-1.0 (default: 1.0)
-   */
-  opentelemetry?: {
-    enabled?: boolean;
-    serviceName?: string;
-    exporterEndpoint?: string;
-    samplingRatio?: number;
-  };
-
-  /**
-   * SLA monitoring thresholds
-   * Defines thresholds for packet success, settlement success, and latency
-   * Health endpoint reports 'degraded' status when thresholds are breached
-   *
-   * @property packetSuccessRateThreshold - Min packet success rate (default: 0.999 = 99.9%)
-   * @property settlementSuccessRateThreshold - Min settlement success rate (default: 0.99 = 99%)
-   * @property p99LatencyThresholdMs - Max p99 latency in ms (default: 10)
-   */
-  sla?: {
-    packetSuccessRateThreshold?: number;
-    settlementSuccessRateThreshold?: number;
-    p99LatencyThresholdMs?: number;
   };
 }
 

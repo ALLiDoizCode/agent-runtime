@@ -2,7 +2,7 @@
  * Unit tests for SettlementMonitor
  *
  * Tests threshold detection, state management, duplicate prevention,
- * configuration hierarchy, error handling, and telemetry integration.
+ * configuration hierarchy, and error handling.
  *
  * @module settlement/settlement-monitor.test
  */
@@ -10,7 +10,6 @@
 import { SettlementMonitor, SettlementMonitorConfig } from './settlement-monitor';
 import { AccountManager } from './account-manager';
 import { SettlementState, SettlementTriggerEvent } from '../config/types';
-import { TelemetryEmitter } from '../telemetry/telemetry-emitter';
 import { Logger } from 'pino';
 import pino from 'pino';
 
@@ -37,7 +36,6 @@ describe('SettlementMonitor Threshold Detection', () => {
   let settlementMonitor: SettlementMonitor;
   let mockAccountManager: jest.Mocked<AccountManager>;
   let mockLogger: Logger;
-  let mockTelemetryEmitter: jest.Mocked<TelemetryEmitter>;
 
   beforeEach(() => {
     // Create mock logger using pino silent mode for tests
@@ -55,19 +53,6 @@ describe('SettlementMonitor Threshold Detection', () => {
     mockAccountManager = {
       getAccountBalance: jest.fn(),
     } as unknown as jest.Mocked<AccountManager>;
-
-    // Create mock TelemetryEmitter
-    mockTelemetryEmitter = {
-      connect: jest.fn().mockResolvedValue(undefined),
-      disconnect: jest.fn().mockResolvedValue(undefined),
-      isConnected: jest.fn().mockReturnValue(true),
-      emitNodeStatus: jest.fn(),
-      emitPacketReceived: jest.fn(),
-      emitPacketSent: jest.fn(),
-      emitRouteLookup: jest.fn(),
-      emitLog: jest.fn(),
-      emit: jest.fn(),
-    } as unknown as jest.Mocked<TelemetryEmitter>;
 
     // Reset all mocks
     jest.clearAllMocks();
@@ -551,101 +536,6 @@ describe('SettlementMonitor Threshold Detection', () => {
     });
   });
 
-  describe('Telemetry Integration', () => {
-    it('should emit telemetry event when threshold exceeded', async () => {
-      const config: SettlementMonitorConfig = {
-        thresholds: { defaultThreshold: 1000n },
-        peers: ['peer-a'],
-        tokenIds: ['M2M'],
-        telemetryEmitter: mockTelemetryEmitter,
-        nodeId: 'test-node',
-      };
-
-      settlementMonitor = new SettlementMonitor(config, mockAccountManager, mockLogger);
-
-      mockAccountManager.getAccountBalance.mockResolvedValue({
-        creditBalance: 1200n,
-        debitBalance: 0n,
-        netBalance: 1200n,
-      });
-
-      await checkBalances(settlementMonitor);
-
-      expect(mockTelemetryEmitter.emit).toHaveBeenCalledWith({
-        type: 'SETTLEMENT_TRIGGERED',
-        nodeId: 'test-node',
-        peerId: 'peer-a',
-        tokenId: 'M2M',
-        currentBalance: '1200',
-        threshold: '1000',
-        exceedsBy: '200',
-        triggerReason: 'THRESHOLD_EXCEEDED',
-        timestamp: expect.any(String),
-      });
-
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        { peerId: 'peer-a', tokenId: 'M2M' },
-        'Settlement trigger telemetry sent to dashboard'
-      );
-    });
-
-    it('should NOT emit telemetry when no telemetry emitter configured', async () => {
-      const config: SettlementMonitorConfig = {
-        thresholds: { defaultThreshold: 1000n },
-        peers: ['peer-a'],
-        tokenIds: ['M2M'],
-        // No telemetryEmitter
-      };
-
-      settlementMonitor = new SettlementMonitor(config, mockAccountManager, mockLogger);
-
-      mockAccountManager.getAccountBalance.mockResolvedValue({
-        creditBalance: 1200n,
-        debitBalance: 0n,
-        netBalance: 1200n,
-      });
-
-      await checkBalances(settlementMonitor);
-
-      // Should NOT throw or log errors
-      expect(mockLogger.error).not.toHaveBeenCalled();
-    });
-
-    it('should handle telemetry emission errors gracefully', async () => {
-      mockTelemetryEmitter.emit.mockImplementation(() => {
-        throw new Error('Telemetry server unreachable');
-      });
-
-      const config: SettlementMonitorConfig = {
-        thresholds: { defaultThreshold: 1000n },
-        peers: ['peer-a'],
-        tokenIds: ['M2M'],
-        telemetryEmitter: mockTelemetryEmitter,
-      };
-
-      settlementMonitor = new SettlementMonitor(config, mockAccountManager, mockLogger);
-
-      mockAccountManager.getAccountBalance.mockResolvedValue({
-        creditBalance: 1200n,
-        debitBalance: 0n,
-        netBalance: 1200n,
-      });
-
-      const eventListener = jest.fn();
-      settlementMonitor.on('SETTLEMENT_REQUIRED', eventListener);
-
-      await checkBalances(settlementMonitor);
-
-      // Settlement event should still be emitted (non-blocking telemetry)
-      expect(eventListener).toHaveBeenCalledTimes(1);
-
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        { error: 'Telemetry server unreachable', peerId: 'peer-a', tokenId: 'M2M' },
-        'Failed to emit settlement telemetry'
-      );
-    });
-  });
-
   describe('Start and Stop', () => {
     it('should start and stop polling correctly', async () => {
       const config: SettlementMonitorConfig = {
@@ -728,7 +618,6 @@ describe('SettlementMonitor Threshold Detection', () => {
         },
         peers: ['peer-a'],
         tokenIds: ['M2M'],
-        nodeId: 'test-node',
       };
 
       settlementMonitor = new SettlementMonitor(config, mockAccountManager, mockLogger);
@@ -765,7 +654,6 @@ describe('SettlementMonitor Threshold Detection', () => {
         },
         peers: ['peer-a'],
         tokenIds: ['M2M'],
-        nodeId: 'test-node',
       };
 
       settlementMonitor = new SettlementMonitor(config, mockAccountManager, mockLogger);
@@ -793,7 +681,6 @@ describe('SettlementMonitor Threshold Detection', () => {
         },
         peers: ['peer-a'],
         tokenIds: ['M2M'],
-        nodeId: 'test-node',
       };
 
       settlementMonitor = new SettlementMonitor(config, mockAccountManager, mockLogger);
@@ -825,7 +712,6 @@ describe('SettlementMonitor Threshold Detection', () => {
         },
         peers: ['peer-a'],
         tokenIds: ['M2M'],
-        nodeId: 'test-node',
       };
 
       settlementMonitor = new SettlementMonitor(config, mockAccountManager, mockLogger);
@@ -861,7 +747,6 @@ describe('SettlementMonitor Threshold Detection', () => {
         },
         peers: ['peer-a'],
         tokenIds: ['M2M'],
-        nodeId: 'test-node',
       };
 
       settlementMonitor = new SettlementMonitor(config, mockAccountManager, mockLogger);

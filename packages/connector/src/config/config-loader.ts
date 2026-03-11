@@ -17,10 +17,8 @@ import {
   BlockchainConfig,
   EVMChainConfig,
   Environment,
-  ExplorerConfig,
   SettlementConfig,
   SecurityConfig,
-  PerformanceConfig,
   AdminApiConfig,
   LocalDeliveryConfig,
   SettlementInfraConfig,
@@ -134,12 +132,12 @@ export class ConfigLoader {
    *
    * Validates an untrusted configuration object and returns a normalized
    * `ConnectorConfig`. This method performs all field validation, applies
-   * defaults, and loads environment-derived fields (environment, blockchain,
-   * explorer) from process environment variables.
+   * defaults, and loads environment-derived fields (environment, blockchain)
+   * from process environment variables.
    *
-   * **Environment field handling:** The `environment`, `blockchain`, and
-   * `explorer` fields are always derived from process environment variables
-   * (`ENVIRONMENT`, `BASE_ENABLED`, `EXPLORER_*`), regardless
+   * **Environment field handling:** The `environment` and `blockchain`
+   * fields are always derived from process environment variables
+   * (`ENVIRONMENT`, `BASE_ENABLED`), regardless
    * of whether the input object includes them. Any values provided for these
    * fields in the input are silently overridden.
    *
@@ -177,14 +175,8 @@ export class ConfigLoader {
     // Load blockchain configuration from environment variables
     const blockchain = this.loadBlockchainConfig(environment);
 
-    // Extract port values for explorer config validation
     const btpServerPort = rawConfig.btpServerPort as number;
     const healthCheckPort = (rawConfig.healthCheckPort as number | undefined) ?? 8080;
-
-    // Load explorer configuration (prefer input config, fall back to environment variables)
-    const explorer =
-      (rawConfig.explorer as ExplorerConfig | undefined) ??
-      this.loadExplorerConfig(btpServerPort, healthCheckPort);
 
     // Apply default values for optional fields and pass through all optional config
     const connectorConfig: ConnectorConfig = {
@@ -194,15 +186,12 @@ export class ConfigLoader {
       logLevel: (rawConfig.logLevel as 'debug' | 'info' | 'warn' | 'error' | undefined) ?? 'info',
       peers: rawConfig.peers as PeerConfig[],
       routes: rawConfig.routes as RouteConfig[],
-      dashboardTelemetryUrl: rawConfig.dashboardTelemetryUrl as string | undefined,
       environment,
       blockchain,
-      explorer,
       // Pass through optional fields from input object
       settlement: rawConfig.settlement as SettlementConfig | undefined,
       settlementInfra: rawConfig.settlementInfra as SettlementInfraConfig | undefined,
       security: rawConfig.security as SecurityConfig | undefined,
-      performance: rawConfig.performance as PerformanceConfig | undefined,
       adminApi: rawConfig.adminApi as AdminApiConfig | undefined,
       localDelivery: rawConfig.localDelivery as LocalDeliveryConfig | undefined,
       mode: rawConfig.mode as 'connector' | 'gateway' | undefined,
@@ -382,74 +371,6 @@ export class ConfigLoader {
   /**
    * Load Explorer Configuration from Environment Variables
    *
-   * Loads explorer UI configuration from environment variables with validation.
-   *
-   * Environment variables:
-   * - EXPLORER_ENABLED (optional): 'true' or 'false' (default: 'true')
-   * - EXPLORER_PORT (optional): Port number 1-65535 (default: '3001')
-   * - EXPLORER_RETENTION_DAYS (optional): Days 1-365 (default: '7')
-   * - EXPLORER_MAX_EVENTS (optional): Count 1000-10000000 (default: '1000000')
-   *
-   * @param btpServerPort - BTP server port to check for conflicts
-   * @param healthCheckPort - Health check port to check for conflicts
-   * @returns ExplorerConfig with validated values
-   * @throws ConfigurationError if validation fails
-   * @private
-   */
-  private static loadExplorerConfig(
-    btpServerPort: number,
-    healthCheckPort: number
-  ): ExplorerConfig {
-    // Parse EXPLORER_ENABLED (default: true)
-    const enabled = process.env.EXPLORER_ENABLED !== 'false';
-
-    // Parse EXPLORER_PORT (default: 3001)
-    const portStr = process.env.EXPLORER_PORT || '3001';
-    const port = parseInt(portStr, 10);
-    if (isNaN(port) || port < 1 || port > 65535) {
-      throw new ConfigurationError(
-        `EXPLORER_PORT must be a valid port number (1-65535), got: ${portStr}`
-      );
-    }
-
-    // Check for port conflicts
-    if (port === btpServerPort) {
-      throw new ConfigurationError(
-        `EXPLORER_PORT (${port}) conflicts with btpServerPort (${btpServerPort})`
-      );
-    }
-    if (port === healthCheckPort) {
-      throw new ConfigurationError(
-        `EXPLORER_PORT (${port}) conflicts with healthCheckPort (${healthCheckPort})`
-      );
-    }
-
-    // Parse EXPLORER_RETENTION_DAYS (default: 7)
-    const retentionStr = process.env.EXPLORER_RETENTION_DAYS || '7';
-    const retentionDays = parseInt(retentionStr, 10);
-    if (isNaN(retentionDays) || retentionDays < 1 || retentionDays > 365) {
-      throw new ConfigurationError(
-        `EXPLORER_RETENTION_DAYS must be between 1-365, got: ${retentionStr}`
-      );
-    }
-
-    // Parse EXPLORER_MAX_EVENTS (default: 1000000)
-    const maxEventsStr = process.env.EXPLORER_MAX_EVENTS || '1000000';
-    const maxEvents = parseInt(maxEventsStr, 10);
-    if (isNaN(maxEvents) || maxEvents < 1000 || maxEvents > 10000000) {
-      throw new ConfigurationError(
-        `EXPLORER_MAX_EVENTS must be between 1000-10000000, got: ${maxEventsStr}`
-      );
-    }
-
-    return {
-      enabled,
-      port,
-      retentionDays,
-      maxEvents,
-    };
-  }
-
   /**
    * Validate Required Fields
    *
